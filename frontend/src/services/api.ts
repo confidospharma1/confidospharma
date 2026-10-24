@@ -1,4 +1,20 @@
-const BASE_URL = '/api';
+const getBaseUrl = (): string => {
+  const envUrl = import.meta.env.VITE_API_URL;
+  if (envUrl) {
+    return envUrl.endsWith('/') ? envUrl.slice(0, -1) : envUrl;
+  }
+  // Fallback to live Render backend when running on Vercel or any non-localhost host
+  if (
+    typeof window !== 'undefined' &&
+    window.location.hostname !== 'localhost' &&
+    window.location.hostname !== '127.0.0.1'
+  ) {
+    return 'https://confidospharma.onrender.com/api';
+  }
+  return '/api';
+};
+
+const BASE_URL = getBaseUrl();
 
 export const getAuthToken = (): string | null => {
   return localStorage.getItem('confidos_token');

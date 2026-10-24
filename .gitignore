@@ -15,6 +15,7 @@ build/
 !.env.example
 !*/.env.example
 !backend/.env
+!frontend/.env.production
 
 # Database files
 *.db
