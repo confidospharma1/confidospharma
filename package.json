@@ -1,0 +1,17 @@
+{
+  "name": "confidos-pharma",
+  "version": "1.0.0",
+  "description": "Confidos Pharma Enterprise Multi-Branch Inventory and Billing Platform",
+  "scripts": {
+    "dev:backend": "npm --prefix backend run dev",
+    "dev:frontend": "npm --prefix frontend run dev",
+    "build:backend": "npm --prefix backend run build",
+    "build:frontend": "npm --prefix frontend run build",
+    "build": "npm run build:backend && npm run build:frontend",
+    "test": "npm --prefix backend test",
+    "seed": "npm --prefix backend run prisma:seed"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.0"
+  }
+}

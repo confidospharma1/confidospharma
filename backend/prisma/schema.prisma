@@ -1,0 +1,338 @@
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model Company {
+  id        String   @id @default(uuid())
+  name      String
+  legalName String
+  gstin     String?
+  address   String?
+  phone     String?
+  email     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  branches  Branch[]
+}
+
+model Branch {
+  id            String   @id @default(uuid())
+  companyId     String
+  code          String   @unique // e.g., B-VJA, B-GNT, B-TNL
+  name          String   // Vijayawada, Guntur, Tenali
+  address       String
+  phone         String
+  email         String?
+  gstin         String
+  drugLicenseNo String?
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  company           Company            @relation(fields: [companyId], references: [id])
+  users             User[]
+  batches           StockBatch[]
+  movements         StockMovement[]
+  salesInvoices     SalesInvoice[]
+  purchaseInvoices  PurchaseInvoice[]
+  transfersOut      StockTransfer[]    @relation("TransferSource")
+  transfersIn       StockTransfer[]    @relation("TransferDestination")
+  importJobs        ImportJob[]
+  auditEvents       AuditEvent[]
+  stockAdjustments  StockAdjustment[]
+}
+
+model User {
+  id           String    @id @default(uuid())
+  username     String    @unique
+  email        String    @unique
+  fullName     String
+  passwordHash String
+  role         String    // SUPER_ADMIN, BRANCH_ADMIN, BILLING_USER
+  branchId     String?
+  isActive     Boolean   @default(true)
+  lastLoginAt  DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  branch       Branch?   @relation(fields: [branchId], references: [id])
+}
+
+model MedicineProduct {
+  id               String   @id @default(uuid())
+  internalCode     String   @unique
+  brandName        String
+  genericName      String
+  strength         String
+  dosageForm       String   // Tablet, Capsule, Syrup, Injection, Ointment, etc.
+  manufacturer     String
+  packSize         String
+  baseUnit         String   @default("Strip")
+  hsnCode          String
+  gstRate          Float    // 5.0, 12.0, 18.0, 28.0
+  mrp              Float
+  barcode          String?
+  prescriptionType String   @default("Schedule H") // Schedule H, Schedule H1, OTC, General
+  storageNotes     String?
+  isActive         Boolean  @default(true)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  batches          StockBatch[]
+  movements        StockMovement[]
+  salesLines       SalesInvoiceLine[]
+  purchaseLines    PurchaseInvoiceLine[]
+  adjustments      StockAdjustment[]
+}
+
+model Supplier {
+  id            String   @id @default(uuid())
+  name          String
+  contactPerson String?
+  phone         String
+  email         String?
+  gstin         String?
+  address       String?
+  dlNumber      String?
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  batches       StockBatch[]
+  purchases     PurchaseInvoice[]
+}
+
+model StockBatch {
+  id                String   @id @default(uuid())
+  branchId          String
+  medicineId        String
+  batchNumber       String
+  expiryDate        DateTime
+  quantityReceived  Int
+  availableQuantity Int
+  purchaseRate      Float
+  mrp               Float
+  sellingPrice      Float
+  supplierId        String?
+  purchaseInvoiceRef String?
+  receiptDate       DateTime @default(now())
+  status            String   @default("ACTIVE") // ACTIVE, QUARANTINE, BLOCKED, EXPIRED, DEPLETED
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  branch      Branch          @relation(fields: [branchId], references: [id])
+  medicine    MedicineProduct @relation(fields: [medicineId], references: [id])
+  supplier    Supplier?       @relation(fields: [supplierId], references: [id])
+  movements   StockMovement[]
+  adjustments StockAdjustment[]
+}
+
+model StockMovement {
+  id                String   @id @default(uuid())
+  branchId          String
+  medicineId        String
+  batchId           String?
+  movementType      String   // PURCHASE_RECEIPT, SALE, CUSTOMER_RETURN, SUPPLIER_RETURN, DAMAGE_EXPIRY, STOCK_CORRECTION, TRANSFER_OUT, TRANSFER_IN
+  quantityDelta     Int      // positive or negative
+  unitPrice         Float?
+  referenceDocType  String?  // SALES_INVOICE, PURCHASE_INVOICE, TRANSFER, ADJUSTMENT
+  referenceDocId    String?
+  reason            String?
+  performedByUserId String
+  createdAt         DateTime @default(now())
+
+  branch   Branch          @relation(fields: [branchId], references: [id])
+  medicine MedicineProduct @relation(fields: [medicineId], references: [id])
+  batch    StockBatch?     @relation(fields: [batchId], references: [id])
+}
+
+model StockTransfer {
+  id                  String    @id @default(uuid())
+  transferNumber      String    @unique
+  sourceBranchId      String
+  destinationBranchId String
+  medicineId          String
+  batchNumber         String
+  quantity            Int
+  requestedByUserId   String
+  approvedByUserId    String?
+  status              String    @default("REQUESTED") // REQUESTED, APPROVED, DISPATCHED, RECEIVED, CANCELLED, REJECTED
+  dispatchDate        DateTime?
+  receiptDate         DateTime?
+  notes               String?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  sourceBranch      Branch @relation("TransferSource", fields: [sourceBranchId], references: [id])
+  destinationBranch Branch @relation("TransferDestination", fields: [destinationBranchId], references: [id])
+}
+
+model SalesInvoice {
+  id                 String    @id @default(uuid())
+  invoiceNumber      String    @unique
+  branchId           String
+  cashierId          String
+  customerName       String?
+  customerPhone      String?
+  doctorName         String?
+  subtotal           Float
+  discountTotal      Float     @default(0.0)
+  taxTotal           Float
+  cgstTotal          Float     @default(0.0)
+  sgstTotal          Float     @default(0.0)
+  roundOff           Float     @default(0.0)
+  grandTotal         Float
+  paymentMethod      String    @default("CASH") // CASH, UPI, CARD, MIXED
+  status             String    @default("COMPLETED") // COMPLETED, CANCELLED, REFUNDED
+  cancellationReason String?
+  cancelledAt        DateTime?
+  cancelledByUserId  String?
+  notes              String?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  branch Branch             @relation(fields: [branchId], references: [id])
+  lines  SalesInvoiceLine[]
+}
+
+model SalesInvoiceLine {
+  id             String   @id @default(uuid())
+  invoiceId      String
+  medicineId     String
+  batchId        String?
+  medicineName   String
+  batchNumber    String
+  expiryDate     DateTime
+  quantity       Int
+  unitMrp        Float
+  unitRate       Float
+  discountPercent Float   @default(0.0)
+  discountAmount  Float   @default(0.0)
+  hsnCode        String
+  gstRate        Float
+  cgstAmount     Float
+  sgstAmount     Float
+  lineTotal      Float
+
+  invoice  SalesInvoice    @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  medicine MedicineProduct @relation(fields: [medicineId], references: [id])
+}
+
+model PurchaseInvoice {
+  id                    String   @id @default(uuid())
+  invoiceNumber         String   @unique
+  supplierInvoiceNumber String
+  supplierId            String
+  branchId              String
+  invoiceDate           DateTime
+  subtotal              Float
+  taxTotal              Float
+  grandTotal            Float
+  status                String   @default("RECEIVED") // DRAFT, RECEIVED, CANCELLED
+  receivedByUserId      String
+  notes                 String?
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  branch   Branch                @relation(fields: [branchId], references: [id])
+  supplier Supplier              @relation(fields: [supplierId], references: [id])
+  lines    PurchaseInvoiceLine[]
+}
+
+model PurchaseInvoiceLine {
+  id                String   @id @default(uuid())
+  purchaseInvoiceId String
+  medicineId        String
+  batchNumber       String
+  expiryDate        DateTime
+  quantity          Int
+  purchaseRate      Float
+  mrp               Float
+  gstRate           Float
+  lineTotal         Float
+
+  purchaseInvoice PurchaseInvoice @relation(fields: [purchaseInvoiceId], references: [id], onDelete: Cascade)
+  medicine        MedicineProduct @relation(fields: [medicineId], references: [id])
+}
+
+model StockAdjustment {
+  id                String   @id @default(uuid())
+  branchId          String
+  medicineId        String
+  batchId           String
+  adjustmentType    String   // DAMAGE, EXPIRED, PHYSICAL_COUNT_DISCREPANCY, THEFT, OTHER
+  quantityDelta     Int
+  previousQuantity  Int
+  newQuantity       Int
+  reason            String
+  approvedByUserId  String
+  createdAt         DateTime @default(now())
+
+  branch   Branch          @relation(fields: [branchId], references: [id])
+  medicine MedicineProduct @relation(fields: [medicineId], references: [id])
+  batch    StockBatch      @relation(fields: [batchId], references: [id])
+}
+
+model ImportJob {
+  id              String    @id @default(uuid())
+  branchId        String
+  importType      String    // CATALOGUE, STOCK_RECEIPT
+  fileName        String
+  status          String    @default("STAGED") // STAGED, VALIDATED, COMMITTED, FAILED
+  totalRows       Int       @default(0)
+  validRows       Int       @default(0)
+  errorRows       Int       @default(0)
+  warningRows     Int       @default(0)
+  duplicateRows   Int       @default(0)
+  stagingData     String?   // JSON string of rows
+  errorDetails    String?   // JSON string of validation errors
+  createdByUserId String
+  createdAt       DateTime  @default(now())
+  completedAt     DateTime?
+
+  branch Branch @relation(fields: [branchId], references: [id])
+}
+
+model AuditEvent {
+  id           String   @id @default(uuid())
+  branchId     String?
+  userId       String
+  action       String   // LOGIN, LOGOUT, PRODUCT_CREATE, STOCK_RECEIPT, SALE_CREATE, SALE_CANCEL, STOCK_ADJUST, BULK_IMPORT, BRANCH_TRANSFER, PRIVACY_REQUEST
+  targetEntity String
+  entityId     String?
+  details      String?  // JSON string
+  ipAddress    String?
+  userAgent    String?
+  createdAt    DateTime @default(now())
+
+  branch Branch? @relation(fields: [branchId], references: [id])
+}
+
+model PrivacyRequest {
+  id               String    @id @default(uuid())
+  ticketNumber     String    @unique
+  requesterName    String
+  requesterEmail   String
+  requesterPhone   String?
+  requestType      String    // ACCESS, CORRECTION, DELETION, RESTRICTION
+  status           String    @default("PENDING") // PENDING, IN_PROGRESS, RESOLVED, REJECTED
+  details          String
+  resolutionNotes  String?
+  resolvedByUserId String?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+}
+
+model SystemSetting {
+  id          String   @id @default(uuid())
+  key         String   @unique
+  value       String
+  description String?
+  updatedAt   DateTime @updatedAt
+}
