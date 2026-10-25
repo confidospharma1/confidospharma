@@ -13,6 +13,7 @@ import { PurchasesPage } from './pages/PurchasesPage';
 import { TransfersPage } from './pages/TransfersPage';
 import { BulkImportPage } from './pages/BulkImportPage';
 import { ReportsPage } from './pages/ReportsPage';
+import { ProfitLossPage } from './pages/ProfitLossPage';
 import { InvoicesPage } from './pages/InvoicesPage';
 import { UsersPage } from './pages/UsersPage';
 import { BranchesPage } from './pages/BranchesPage';
@@ -60,6 +61,7 @@ const MainLayout: React.FC = () => {
           {activeTab === 'transfers' && <TransfersPage />}
           {activeTab === 'imports' && <BulkImportPage />}
           {activeTab === 'reports' && <ReportsPage />}
+          {activeTab === 'profit-loss' && <ProfitLossPage />}
           {activeTab === 'invoices' && <InvoicesPage />}
           {activeTab === 'users' && <UsersPage />}
           {activeTab === 'branches' && <BranchesPage />}

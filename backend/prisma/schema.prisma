@@ -46,6 +46,8 @@ model Branch {
   importJobs        ImportJob[]
   auditEvents       AuditEvent[]
   stockAdjustments  StockAdjustment[]
+  expenses          Expense[]
+  purchaseReturns   PurchaseReturn[]
 }
 
 model User {
@@ -74,21 +76,25 @@ model MedicineProduct {
   manufacturer     String
   packSize         String
   baseUnit         String   @default("Strip")
-  hsnCode          String
-  gstRate          Float    // 5.0, 12.0, 18.0, 28.0
-  mrp              Float
-  barcode          String?
-  prescriptionType String   @default("Schedule H") // Schedule H, Schedule H1, OTC, General
-  storageNotes     String?
-  isActive         Boolean  @default(true)
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  hsnCode             String?
+  gstRate             Float    // 5.0, 12.0, 18.0, 28.0
+  mrp                 Float
+  defaultPurchaseRate Float?
+  defaultSellingRate  Float?
+  reorderLevel        Int?     @default(10)
+  barcode             String?
+  prescriptionType    String   @default("Schedule H") // Schedule H, Schedule H1, OTC, General
+  storageNotes        String?
+  isActive            Boolean  @default(true)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
 
-  batches          StockBatch[]
-  movements        StockMovement[]
-  salesLines       SalesInvoiceLine[]
-  purchaseLines    PurchaseInvoiceLine[]
-  adjustments      StockAdjustment[]
+  batches             StockBatch[]
+  movements           StockMovement[]
+  salesLines          SalesInvoiceLine[]
+  purchaseLines       PurchaseInvoiceLine[]
+  adjustments         StockAdjustment[]
+  purchaseReturnLines PurchaseReturnLine[]
 }
 
 model Supplier {
@@ -104,8 +110,9 @@ model Supplier {
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
-  batches       StockBatch[]
-  purchases     PurchaseInvoice[]
+  batches         StockBatch[]
+  purchases       PurchaseInvoice[]
+  purchaseReturns PurchaseReturn[]
 }
 
 model StockBatch {
@@ -219,6 +226,7 @@ model SalesInvoiceLine {
   cgstAmount     Float
   sgstAmount     Float
   lineTotal      Float
+  purchaseRate   Float?   // Unit acquisition cost at time of sale for deterministic COGS
 
   invoice  SalesInvoice    @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
   medicine MedicineProduct @relation(fields: [medicineId], references: [id])
@@ -232,17 +240,23 @@ model PurchaseInvoice {
   branchId              String
   invoiceDate           DateTime
   subtotal              Float
+  discountTotal         Float                 @default(0.0)
   taxTotal              Float
+  additionalCharges     Float                 @default(0.0)
   grandTotal            Float
-  status                String   @default("RECEIVED") // DRAFT, RECEIVED, CANCELLED
+  paymentMode           String                @default("CASH") // CASH, CREDIT, UPI, BANK_TRANSFER, CHEQUE
+  paidAmount            Float                 @default(0.0)
+  outstandingAmount     Float                 @default(0.0)
+  status                String                @default("RECEIVED") // DRAFT, RECEIVED, CANCELLED
   receivedByUserId      String
   notes                 String?
-  createdAt             DateTime @default(now())
-  updatedAt             DateTime @updatedAt
+  createdAt             DateTime              @default(now())
+  updatedAt             DateTime              @updatedAt
 
   branch   Branch                @relation(fields: [branchId], references: [id])
   supplier Supplier              @relation(fields: [supplierId], references: [id])
   lines    PurchaseInvoiceLine[]
+  returns  PurchaseReturn[]
 }
 
 model PurchaseInvoiceLine {
@@ -252,9 +266,14 @@ model PurchaseInvoiceLine {
   batchNumber       String
   expiryDate        DateTime
   quantity          Int
+  freeQuantity      Int      @default(0)
   purchaseRate      Float
+  sellingRate       Float?
   mrp               Float
+  discountPercent   Float    @default(0.0)
+  discountAmount    Float    @default(0.0)
   gstRate           Float
+  taxAmount         Float    @default(0.0)
   lineTotal         Float
 
   purchaseInvoice PurchaseInvoice @relation(fields: [purchaseInvoiceId], references: [id], onDelete: Cascade)
@@ -336,3 +355,59 @@ model SystemSetting {
   description String?
   updatedAt   DateTime @updatedAt
 }
+
+model Expense {
+  id          String   @id @default(uuid())
+  branchId    String
+  expenseDate DateTime @default(now())
+  category    String   // RENT, SALARIES, ELECTRICITY, INTERNET, TRANSPORT, PACKAGING, MAINTENANCE, OTHER
+  description String
+  amount      Float
+  paymentMode String   @default("CASH") // CASH, UPI, BANK_TRANSFER, CARD, CHEQUE
+  referenceNo String?
+  notes       String?
+  createdById String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  branch Branch @relation(fields: [branchId], references: [id])
+}
+
+model PurchaseReturn {
+  id                String   @id @default(uuid())
+  returnNumber      String   @unique
+  purchaseInvoiceId String?
+  supplierId        String
+  branchId          String
+  returnDate        DateTime @default(now())
+  subtotal          Float
+  taxTotal          Float
+  grandTotal        Float
+  reason            String
+  status            String   @default("COMPLETED") // COMPLETED, CANCELLED
+  createdById       String
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  branch          Branch                @relation(fields: [branchId], references: [id])
+  supplier        Supplier              @relation(fields: [supplierId], references: [id])
+  purchaseInvoice PurchaseInvoice?      @relation(fields: [purchaseInvoiceId], references: [id])
+  lines           PurchaseReturnLine[]
+}
+
+model PurchaseReturnLine {
+  id               String   @id @default(uuid())
+  purchaseReturnId String
+  medicineId       String
+  batchId          String?
+  batchNumber      String
+  quantity         Int
+  purchaseRate     Float
+  gstRate          Float
+  taxAmount        Float
+  lineTotal        Float
+
+  purchaseReturn PurchaseReturn  @relation(fields: [purchaseReturnId], references: [id], onDelete: Cascade)
+  medicine       MedicineProduct @relation(fields: [medicineId], references: [id])
+}
+

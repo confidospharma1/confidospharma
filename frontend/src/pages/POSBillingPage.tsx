@@ -26,7 +26,7 @@ interface BillItem {
   genericName: string;
   strength: string;
   dosageForm: string;
-  hsnCode: string;
+  hsnCode?: string | null;
   gstRate: number;
   batchId: string;
   batchNumber: string;

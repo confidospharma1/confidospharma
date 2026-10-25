@@ -10,6 +10,7 @@ import {
   ArrowLeftRight,
   FileSpreadsheet,
   BarChart3,
+  TrendingUp,
   Users,
   Building,
   History,
@@ -115,6 +116,13 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => 
               >
                 <BarChart3 className="w-4 h-4 text-slate-500" />
                 <span>Reports & GST Summary</span>
+              </button>
+              <button
+                onClick={() => setActiveTab('profit-loss')}
+                className={navItemClass('profit-loss')}
+              >
+                <TrendingUp className="w-4 h-4 text-emerald-600" />
+                <span>Profit & Loss Statement</span>
               </button>
             </nav>
           </div>

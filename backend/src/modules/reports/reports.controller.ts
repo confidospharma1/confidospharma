@@ -332,3 +332,234 @@ export const getCompanyOverview = async (req: Request, res: Response) => {
     return res.status(500).json({ message: 'Failed to fetch company overview' });
   }
 };
+
+export const getProfitLossReport = async (req: Request, res: Response) => {
+  try {
+    if (!req.user) return res.status(401).json({ message: 'Unauthorized' });
+
+    if (req.user.role === 'BILLING_USER') {
+      return res.status(403).json({ message: 'Billing cashiers are not authorized to view Profit & Loss reports.' });
+    }
+
+    const { branchId, startDate, endDate } = req.query;
+    const targetBranchId = req.user.role === 'SUPER_ADMIN' ? (branchId as string) : req.user.branchId;
+
+    let start: Date;
+    let end: Date;
+
+    if (startDate) {
+      start = new Date(startDate as string);
+      start.setHours(0, 0, 0, 0);
+    } else {
+      const now = new Date();
+      start = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
+    }
+
+    if (endDate) {
+      end = new Date(endDate as string);
+      end.setHours(23, 59, 59, 999);
+    } else {
+      end = new Date();
+      end.setHours(23, 59, 59, 999);
+    }
+
+    const branchFilter = targetBranchId ? { branchId: targetBranchId } : {};
+
+    const [salesInvoices, cancelledInvoices, purchaseReturns, expenses, purchases] = await Promise.all([
+      prisma.salesInvoice.findMany({
+        where: {
+          ...branchFilter,
+          status: 'COMPLETED',
+          createdAt: { gte: start, lte: end },
+        },
+        include: {
+          lines: {
+            include: {
+              medicine: { select: { id: true, brandName: true, genericName: true, defaultPurchaseRate: true } },
+            },
+          },
+        },
+      }),
+      prisma.salesInvoice.findMany({
+        where: {
+          ...branchFilter,
+          status: 'CANCELLED',
+          cancelledAt: { gte: start, lte: end },
+        },
+      }),
+      prisma.purchaseReturn.findMany({
+        where: {
+          ...branchFilter,
+          returnDate: { gte: start, lte: end },
+        },
+      }),
+      prisma.expense.findMany({
+        where: {
+          ...branchFilter,
+          expenseDate: { gte: start, lte: end },
+        },
+      }),
+      prisma.purchaseInvoice.findMany({
+        where: {
+          ...branchFilter,
+          status: 'RECEIVED',
+          invoiceDate: { gte: start, lte: end },
+        },
+        include: {
+          lines: true,
+        },
+      }),
+    ]);
+
+    let grossSalesDec = new Decimal(0);
+    let totalSalesDiscountsDec = new Decimal(0);
+    let totalSalesTaxDec = new Decimal(0);
+    let cogsDec = new Decimal(0);
+    let missingCostLinesCount = 0;
+
+    const paymentBreakdown: Record<string, number> = { CASH: 0, UPI: 0, CARD: 0, MIXED: 0, CREDIT: 0 };
+    const productProfitMap: Record<string, { brandName: string; quantitySold: number; revenue: Decimal; cogs: Decimal }> = {};
+
+    for (const inv of salesInvoices) {
+      let invGross = new Decimal(0);
+      for (const line of inv.lines) {
+        const lineGross = new Decimal(line.unitMrp).times(line.quantity);
+        invGross = invGross.plus(lineGross);
+
+        let unitCost = line.purchaseRate;
+        if (unitCost === null || unitCost === undefined) {
+          if (line.medicine?.defaultPurchaseRate) {
+            unitCost = line.medicine.defaultPurchaseRate;
+          } else {
+            missingCostLinesCount++;
+            unitCost = 0;
+          }
+        }
+
+        const lineCogs = new Decimal(unitCost).times(line.quantity);
+        cogsDec = cogsDec.plus(lineCogs);
+
+        const pKey = line.medicineId;
+        if (!productProfitMap[pKey]) {
+          productProfitMap[pKey] = {
+            brandName: line.medicineName,
+            quantitySold: 0,
+            revenue: new Decimal(0),
+            cogs: new Decimal(0),
+          };
+        }
+        productProfitMap[pKey].quantitySold += line.quantity;
+        productProfitMap[pKey].revenue = productProfitMap[pKey].revenue.plus(line.lineTotal);
+        productProfitMap[pKey].cogs = productProfitMap[pKey].cogs.plus(lineCogs);
+      }
+
+      grossSalesDec = grossSalesDec.plus(invGross);
+      totalSalesDiscountsDec = totalSalesDiscountsDec.plus(inv.discountTotal);
+      totalSalesTaxDec = totalSalesTaxDec.plus(inv.taxTotal);
+
+      paymentBreakdown[inv.paymentMethod] = (paymentBreakdown[inv.paymentMethod] || 0) + inv.grandTotal;
+    }
+
+    const topProducts = Object.values(productProfitMap)
+      .map((p) => ({
+        brandName: p.brandName,
+        quantitySold: p.quantitySold,
+        revenue: p.revenue.toDecimalPlaces(2).toNumber(),
+        cogs: p.cogs.toDecimalPlaces(2).toNumber(),
+        grossProfit: p.revenue.minus(p.cogs).toDecimalPlaces(2).toNumber(),
+        marginPercent: p.revenue.greaterThan(0)
+          ? p.revenue.minus(p.cogs).dividedBy(p.revenue).times(100).toDecimalPlaces(1).toNumber()
+          : 0,
+      }))
+      .sort((a, b) => b.grossProfit - a.grossProfit)
+      .slice(0, 10);
+
+    let salesReturnsDec = new Decimal(0);
+    for (const cinv of cancelledInvoices) {
+      salesReturnsDec = salesReturnsDec.plus(cinv.grandTotal);
+    }
+
+    const netBilledSalesDec = salesInvoices.reduce((acc, inv) => acc.plus(inv.grandTotal), new Decimal(0));
+    const netSalesDec = netBilledSalesDec.minus(salesReturnsDec);
+
+    const grossProfitDec = netSalesDec.minus(cogsDec);
+    const grossMarginPct = netSalesDec.greaterThan(0)
+      ? grossProfitDec.dividedBy(netSalesDec).times(100).toDecimalPlaces(2).toNumber()
+      : 0;
+
+    let totalOperatingExpensesDec = new Decimal(0);
+    const expenseBreakdown: Record<string, number> = {};
+
+    for (const exp of expenses) {
+      const expAmt = new Decimal(exp.amount);
+      totalOperatingExpensesDec = totalOperatingExpensesDec.plus(expAmt);
+      expenseBreakdown[exp.category] = (expenseBreakdown[exp.category] || 0) + exp.amount;
+    }
+
+    const netProfitDec = grossProfitDec.minus(totalOperatingExpensesDec);
+    const netProfitMarginPct = netSalesDec.greaterThan(0)
+      ? netProfitDec.dividedBy(netSalesDec).times(100).toDecimalPlaces(2).toNumber()
+      : 0;
+
+    let totalPurchasesPeriodDec = new Decimal(0);
+    let totalPurchaseDiscountsPeriodDec = new Decimal(0);
+    let totalPurchaseTaxPeriodDec = new Decimal(0);
+    let totalPurchasePaidDec = new Decimal(0);
+    let totalPurchaseOutstandingDec = new Decimal(0);
+
+    for (const pur of purchases) {
+      totalPurchasesPeriodDec = totalPurchasesPeriodDec.plus(pur.grandTotal);
+      totalPurchaseDiscountsPeriodDec = totalPurchaseDiscountsPeriodDec.plus(pur.discountTotal || 0);
+      totalPurchaseTaxPeriodDec = totalPurchaseTaxPeriodDec.plus(pur.taxTotal);
+      totalPurchasePaidDec = totalPurchasePaidDec.plus(pur.paidAmount || 0);
+      totalPurchaseOutstandingDec = totalPurchaseOutstandingDec.plus(pur.outstandingAmount || 0);
+    }
+
+    let totalPurchaseReturnsPeriodDec = new Decimal(0);
+    for (const pret of purchaseReturns) {
+      totalPurchaseReturnsPeriodDec = totalPurchaseReturnsPeriodDec.plus(pret.grandTotal);
+    }
+
+    return res.json({
+      period: {
+        startDate: start.toISOString().split('T')[0],
+        endDate: end.toISOString().split('T')[0],
+      },
+      summary: {
+        grossSales: grossSalesDec.toDecimalPlaces(2).toNumber(),
+        salesDiscounts: totalSalesDiscountsDec.toDecimalPlaces(2).toNumber(),
+        salesReturns: salesReturnsDec.toDecimalPlaces(2).toNumber(),
+        netSales: netSalesDec.toDecimalPlaces(2).toNumber(),
+        costOfGoodsSold: cogsDec.toDecimalPlaces(2).toNumber(),
+        grossProfit: grossProfitDec.toDecimalPlaces(2).toNumber(),
+        grossMarginPercent: grossMarginPct,
+        operatingExpenses: totalOperatingExpensesDec.toDecimalPlaces(2).toNumber(),
+        netProfit: netProfitDec.toDecimalPlaces(2).toNumber(),
+        netProfitMarginPercent: netProfitMarginPct,
+      },
+      inventoryPurchasesSummary: {
+        totalPurchases: totalPurchasesPeriodDec.toDecimalPlaces(2).toNumber(),
+        purchaseDiscounts: totalPurchaseDiscountsPeriodDec.toDecimalPlaces(2).toNumber(),
+        purchaseTaxes: totalPurchaseTaxPeriodDec.toDecimalPlaces(2).toNumber(),
+        purchaseReturns: totalPurchaseReturnsPeriodDec.toDecimalPlaces(2).toNumber(),
+        paidAmount: totalPurchasePaidDec.toDecimalPlaces(2).toNumber(),
+        outstandingAmount: totalPurchaseOutstandingDec.toDecimalPlaces(2).toNumber(),
+        note: 'Purchases represent stock asset acquisitions, not Cost of Goods Sold. COGS accounts strictly for inventory sold.',
+      },
+      expenseBreakdown,
+      paymentBreakdown,
+      topProducts,
+      counts: {
+        completedInvoices: salesInvoices.length,
+        cancelledInvoices: cancelledInvoices.length,
+        purchasesCount: purchases.length,
+        expensesCount: expenses.length,
+        missingCostLinesCount,
+      },
+    });
+  } catch (error: any) {
+    console.error('Profit & Loss calculation error:', error);
+    return res.status(500).json({ message: error.message || 'Failed to generate Profit & Loss report' });
+  }
+};
+

@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { api } from '../services/api';
 import { MedicineProduct } from '../types';
-import { Pill, Plus, Search, Filter, AlertCircle, CheckCircle, Barcode } from 'lucide-react';
+import { Pill, Plus, Search, Filter, AlertCircle, CheckCircle, Barcode, DollarSign } from 'lucide-react';
 import { Badge } from '../components/Badge';
 import { Modal } from '../components/Modal';
 
@@ -25,9 +25,12 @@ export const ProductsPage: React.FC = () => {
     manufacturer: '',
     packSize: '10 Tablets',
     baseUnit: 'Strip',
-    hsnCode: '30049099',
+    hsnCode: '',
     gstRate: '12',
     mrp: '',
+    defaultPurchaseRate: '',
+    defaultSellingRate: '',
+    reorderLevel: '10',
     barcode: '',
     prescriptionType: 'Schedule H',
     storageNotes: '',
@@ -58,7 +61,13 @@ export const ProductsPage: React.FC = () => {
     e.preventDefault();
     setMessage(null);
     try {
-      await api.createProduct(addForm);
+      await api.createProduct({
+        ...addForm,
+        hsnCode: addForm.hsnCode.trim() || undefined,
+        defaultPurchaseRate: addForm.defaultPurchaseRate ? parseFloat(addForm.defaultPurchaseRate) : undefined,
+        defaultSellingRate: addForm.defaultSellingRate ? parseFloat(addForm.defaultSellingRate) : undefined,
+        reorderLevel: addForm.reorderLevel ? parseInt(addForm.reorderLevel) : 10,
+      });
       setMessage({ text: `Medicine '${addForm.brandName}' added to master catalogue.`, type: 'success' });
       setShowAddModal(false);
       setAddForm({
@@ -70,9 +79,12 @@ export const ProductsPage: React.FC = () => {
         manufacturer: '',
         packSize: '10 Tablets',
         baseUnit: 'Strip',
-        hsnCode: '30049099',
+        hsnCode: '',
         gstRate: '12',
         mrp: '',
+        defaultPurchaseRate: '',
+        defaultSellingRate: '',
+        reorderLevel: '10',
         barcode: '',
         prescriptionType: 'Schedule H',
         storageNotes: '',
@@ -95,7 +107,7 @@ export const ProductsPage: React.FC = () => {
         <div>
           <h1 className="text-xl font-bold text-slate-900">Medicine Master Catalogue</h1>
           <p className="text-xs text-slate-500 mt-0.5">
-            Central pharmaceutical master data shared across all physical pharmacy branches.
+            Central pharmaceutical master data with distinct MRP, Default Purchase Rate, Default Selling Rate, and optional HSN.
           </p>
         </div>
 
@@ -163,25 +175,27 @@ export const ProductsPage: React.FC = () => {
               <tr>
                 <th className="py-3 px-4">Internal Code</th>
                 <th className="py-3 px-4">Brand & Generic Name</th>
-                <th className="py-3 px-3">Strength</th>
-                <th className="py-3 px-3">Form</th>
+                <th className="py-3 px-3">Strength & Form</th>
                 <th className="py-3 px-3">Manufacturer</th>
                 <th className="py-3 px-3 text-center">HSN Code</th>
-                <th className="py-3 px-3 text-center">GST Rate</th>
-                <th className="py-3 px-3 text-right">Standard MRP</th>
+                <th className="py-3 px-3 text-center">GST</th>
+                <th className="py-3 px-3 text-right bg-blue-50/50 text-blue-900">Default Pur Rate</th>
+                <th className="py-3 px-3 text-right bg-emerald-50/50 text-emerald-900">Default Sell Rate</th>
+                <th className="py-3 px-3 text-right bg-amber-50/50 text-amber-900">Standard MRP</th>
+                <th className="py-3 px-3 text-center">Reorder Lvl</th>
                 <th className="py-3 px-4 text-center">Category</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 font-medium">
               {loading ? (
                 <tr>
-                  <td colSpan={9} className="py-8 text-center text-slate-400">
+                  <td colSpan={11} className="py-8 text-center text-slate-400">
                     Loading medicines catalogue...
                   </td>
                 </tr>
               ) : filteredProducts.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="py-8 text-center text-slate-400">
+                  <td colSpan={11} className="py-8 text-center text-slate-400">
                     No medicine records found.
                   </td>
                 </tr>
@@ -193,16 +207,27 @@ export const ProductsPage: React.FC = () => {
                       <span className="font-bold text-slate-900 block">{p.brandName}</span>
                       <span className="text-[11px] text-slate-500">{p.genericName}</span>
                     </td>
-                    <td className="py-3 px-3 font-mono text-slate-700">{p.strength}</td>
-                    <td className="py-3 px-3">
-                      <span className="px-2 py-0.5 rounded text-[11px] bg-slate-100 text-slate-700 font-medium">
-                        {p.dosageForm}
-                      </span>
+                    <td className="py-3 px-3 font-mono text-slate-700">
+                      <div>{p.strength}</div>
+                      <span className="text-[10px] text-slate-500 font-sans">{p.dosageForm}</span>
                     </td>
-                    <td className="py-3 px-3 text-slate-600 truncate max-w-[150px]">{p.manufacturer}</td>
-                    <td className="py-3 px-3 text-center font-mono text-slate-600">{p.hsnCode}</td>
+                    <td className="py-3 px-3 text-slate-600 truncate max-w-[140px]">{p.manufacturer}</td>
+                    <td className="py-3 px-3 text-center font-mono text-slate-600">
+                      {p.hsnCode || <span className="text-slate-400 italic">None</span>}
+                    </td>
                     <td className="py-3 px-3 text-center font-mono font-bold text-slate-800">{p.gstRate}%</td>
-                    <td className="py-3 px-3 text-right font-mono font-bold text-slate-900">₹{p.mrp.toFixed(2)}</td>
+                    <td className="py-3 px-3 text-right font-mono text-blue-800 bg-blue-50/20">
+                      {p.defaultPurchaseRate ? `₹${p.defaultPurchaseRate.toFixed(2)}` : <span className="text-slate-400">—</span>}
+                    </td>
+                    <td className="py-3 px-3 text-right font-mono font-semibold text-emerald-800 bg-emerald-50/20">
+                      {p.defaultSellingRate ? `₹${p.defaultSellingRate.toFixed(2)}` : <span className="text-slate-400">—</span>}
+                    </td>
+                    <td className="py-3 px-3 text-right font-mono font-bold text-slate-900 bg-amber-50/20">
+                      ₹{p.mrp.toFixed(2)}
+                    </td>
+                    <td className="py-3 px-3 text-center font-mono text-slate-600">
+                      {p.reorderLevel || 10}
+                    </td>
                     <td className="py-3 px-4 text-center">
                       <Badge
                         variant={
@@ -293,6 +318,52 @@ export const ProductsPage: React.FC = () => {
             </div>
           </div>
 
+          {/* Pricing & GST Classification Section */}
+          <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-3">
+            <p className="text-[11px] font-bold text-slate-700 uppercase tracking-wider">
+              Pricing Structure & Rates (Kept Strictly Separate)
+            </p>
+            <div className="grid grid-cols-3 gap-3">
+              <div>
+                <label className="text-xs font-bold text-blue-900 block mb-1">Default Purchase Rate (₹)</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  placeholder="e.g. 22.50"
+                  value={addForm.defaultPurchaseRate}
+                  onChange={(e) => setAddForm({ ...addForm, defaultPurchaseRate: e.target.value })}
+                  className="w-full px-3 py-2 text-xs bg-white border border-blue-200 rounded-lg font-mono font-bold text-blue-900 focus:ring-2 focus:ring-blue-500"
+                />
+                <span className="text-[10px] text-slate-400 block mt-0.5">Supplier baseline cost</span>
+              </div>
+              <div>
+                <label className="text-xs font-bold text-emerald-900 block mb-1">Default Selling Rate (₹)</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  placeholder="e.g. 30.00"
+                  value={addForm.defaultSellingRate}
+                  onChange={(e) => setAddForm({ ...addForm, defaultSellingRate: e.target.value })}
+                  className="w-full px-3 py-2 text-xs bg-white border border-emerald-200 rounded-lg font-mono font-bold text-emerald-900 focus:ring-2 focus:ring-emerald-500"
+                />
+                <span className="text-[10px] text-slate-400 block mt-0.5">Standard counter selling price</span>
+              </div>
+              <div>
+                <label className="text-xs font-bold text-amber-900 block mb-1">Maximum Retail Price (MRP) *</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  required
+                  placeholder="33.50"
+                  value={addForm.mrp}
+                  onChange={(e) => setAddForm({ ...addForm, mrp: e.target.value })}
+                  className="w-full px-3 py-2 text-xs bg-white border border-amber-300 rounded-lg font-mono font-bold text-slate-900 focus:ring-2 focus:ring-amber-500"
+                />
+                <span className="text-[10px] text-slate-400 block mt-0.5">Printed statutory maximum</span>
+              </div>
+            </div>
+          </div>
+
           <div className="grid grid-cols-4 gap-3">
             <div>
               <label className="text-xs font-bold text-slate-700 block mb-1">Pack Size *</label>
@@ -305,11 +376,12 @@ export const ProductsPage: React.FC = () => {
               />
             </div>
             <div>
-              <label className="text-xs font-bold text-slate-700 block mb-1">HSN Code *</label>
+              <label className="text-xs font-bold text-slate-700 block mb-1 flex items-center gap-1">
+                HSN Code <span className="text-[10px] text-emerald-600 font-normal">(Optional)</span>
+              </label>
               <input
                 type="text"
-                required
-                placeholder="30049060"
+                placeholder="e.g. 30049060"
                 value={addForm.hsnCode}
                 onChange={(e) => setAddForm({ ...addForm, hsnCode: e.target.value })}
                 className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-300 rounded-lg font-mono"
@@ -329,15 +401,13 @@ export const ProductsPage: React.FC = () => {
               </select>
             </div>
             <div>
-              <label className="text-xs font-bold text-slate-700 block mb-1">MRP (₹) *</label>
+              <label className="text-xs font-bold text-slate-700 block mb-1">Reorder Alert (Qty)</label>
               <input
                 type="number"
-                step="0.01"
-                required
-                placeholder="33.50"
-                value={addForm.mrp}
-                onChange={(e) => setAddForm({ ...addForm, mrp: e.target.value })}
-                className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-300 rounded-lg font-mono font-bold"
+                placeholder="10"
+                value={addForm.reorderLevel}
+                onChange={(e) => setAddForm({ ...addForm, reorderLevel: e.target.value })}
+                className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-300 rounded-lg font-mono"
               />
             </div>
           </div>
@@ -372,15 +442,15 @@ export const ProductsPage: React.FC = () => {
             <button
               type="button"
               onClick={() => setShowAddModal(false)}
-              className="px-4 py-2 border border-slate-300 rounded-lg text-xs font-semibold text-slate-600"
+              className="px-4 py-2 border border-slate-300 rounded-lg text-xs font-semibold text-slate-600 hover:bg-slate-50"
             >
               Cancel
             </button>
             <button
               type="submit"
-              className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold"
+              className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold shadow-xs"
             >
-              Save Medicine
+              Save Medicine to Catalogue
             </button>
           </div>
         </form>

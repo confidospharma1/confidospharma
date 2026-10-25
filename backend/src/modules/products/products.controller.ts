@@ -134,12 +134,15 @@ export const createProduct = async (req: Request, res: Response) => {
       hsnCode,
       gstRate,
       mrp,
+      defaultPurchaseRate,
+      defaultSellingRate,
+      reorderLevel,
       barcode,
       prescriptionType = 'Schedule H',
       storageNotes,
     } = req.body;
 
-    if (!brandName || !genericName || !strength || !dosageForm || !manufacturer || !hsnCode || gstRate === undefined || mrp === undefined) {
+    if (!brandName || !genericName || !strength || !dosageForm || !manufacturer || gstRate === undefined || mrp === undefined) {
       return res.status(400).json({ message: 'Missing required product information.' });
     }
 
@@ -177,9 +180,12 @@ export const createProduct = async (req: Request, res: Response) => {
         manufacturer: manufacturer.trim(),
         packSize: packSize ? packSize.trim() : '10 Tablets',
         baseUnit: baseUnit.trim(),
-        hsnCode: hsnCode.trim(),
+        hsnCode: hsnCode ? hsnCode.trim() : null,
         gstRate: parseFloat(gstRate),
         mrp: parseFloat(mrp),
+        defaultPurchaseRate: defaultPurchaseRate !== undefined && defaultPurchaseRate !== null && defaultPurchaseRate !== '' ? parseFloat(defaultPurchaseRate) : null,
+        defaultSellingRate: defaultSellingRate !== undefined && defaultSellingRate !== null && defaultSellingRate !== '' ? parseFloat(defaultSellingRate) : null,
+        reorderLevel: reorderLevel !== undefined && reorderLevel !== null && reorderLevel !== '' ? parseInt(reorderLevel) : 10,
         barcode: barcode ? barcode.trim() : null,
         prescriptionType,
         storageNotes: storageNotes ? storageNotes.trim() : null,
@@ -222,6 +228,9 @@ export const updateProduct = async (req: Request, res: Response) => {
       hsnCode,
       gstRate,
       mrp,
+      defaultPurchaseRate,
+      defaultSellingRate,
+      reorderLevel,
       barcode,
       prescriptionType,
       storageNotes,
@@ -238,9 +247,12 @@ export const updateProduct = async (req: Request, res: Response) => {
         ...(manufacturer && { manufacturer: manufacturer.trim() }),
         ...(packSize && { packSize: packSize.trim() }),
         ...(baseUnit && { baseUnit: baseUnit.trim() }),
-        ...(hsnCode && { hsnCode: hsnCode.trim() }),
+        ...(hsnCode !== undefined && { hsnCode: hsnCode ? hsnCode.trim() : null }),
         ...(gstRate !== undefined && { gstRate: parseFloat(gstRate) }),
         ...(mrp !== undefined && { mrp: parseFloat(mrp) }),
+        ...(defaultPurchaseRate !== undefined && { defaultPurchaseRate: defaultPurchaseRate !== null && defaultPurchaseRate !== '' ? parseFloat(defaultPurchaseRate) : null }),
+        ...(defaultSellingRate !== undefined && { defaultSellingRate: defaultSellingRate !== null && defaultSellingRate !== '' ? parseFloat(defaultSellingRate) : null }),
+        ...(reorderLevel !== undefined && { reorderLevel: reorderLevel !== null && reorderLevel !== '' ? parseInt(reorderLevel) : 10 }),
         ...(barcode !== undefined && { barcode: barcode ? barcode.trim() : null }),
         ...(prescriptionType && { prescriptionType }),
         ...(storageNotes !== undefined && { storageNotes: storageNotes ? storageNotes.trim() : null }),

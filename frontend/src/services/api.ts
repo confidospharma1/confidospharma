@@ -147,11 +147,34 @@ export const api = {
   // Purchases & Suppliers
   getSuppliers: () => apiRequest('/suppliers'),
   createSupplier: (data: any) => apiRequest('/suppliers', { method: 'POST', body: JSON.stringify(data) }),
-  getPurchases: (params?: { branchId?: string }) => {
-    const q = params?.branchId ? `?branchId=${params.branchId}` : '';
-    return apiRequest(`/purchases${q}`);
+  getPurchases: (params?: { branchId?: string; page?: number }) => {
+    const q = new URLSearchParams();
+    if (params?.branchId) q.append('branchId', params.branchId);
+    if (params?.page) q.append('page', params.page.toString());
+    return apiRequest(`/purchases?${q.toString()}`);
   },
   createPurchase: (data: any) => apiRequest('/purchases', { method: 'POST', body: JSON.stringify(data) }),
+  createPurchaseReturn: (data: any) => apiRequest('/purchases/returns', { method: 'POST', body: JSON.stringify(data) }),
+  getPurchaseReturns: (params?: { branchId?: string; page?: number }) => {
+    const q = new URLSearchParams();
+    if (params?.branchId) q.append('branchId', params.branchId);
+    if (params?.page) q.append('page', params.page.toString());
+    return apiRequest(`/purchases/returns?${q.toString()}`);
+  },
+
+  // Operating Expenses
+  getExpenses: (params?: { branchId?: string; category?: string; startDate?: string; endDate?: string; page?: number }) => {
+    const q = new URLSearchParams();
+    if (params?.branchId) q.append('branchId', params.branchId);
+    if (params?.category) q.append('category', params.category);
+    if (params?.startDate) q.append('startDate', params.startDate);
+    if (params?.endDate) q.append('endDate', params.endDate);
+    if (params?.page) q.append('page', params.page.toString());
+    return apiRequest(`/expenses?${q.toString()}`);
+  },
+  createExpense: (data: any) => apiRequest('/expenses', { method: 'POST', body: JSON.stringify(data) }),
+  updateExpense: (id: string, data: any) => apiRequest(`/expenses/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  deleteExpense: (id: string) => apiRequest(`/expenses/${id}`, { method: 'DELETE' }),
 
   // Bulk Imports
   uploadImportFile: (formData: FormData) => apiRequest('/imports/upload', { method: 'POST', body: formData }),
@@ -183,6 +206,13 @@ export const api = {
     return apiRequest(`/reports/gst-summary?${q.toString()}`);
   },
   getCompanyOverview: () => apiRequest('/reports/company-overview'),
+  getProfitLoss: (branchId?: string, startDate?: string, endDate?: string) => {
+    const q = new URLSearchParams();
+    if (branchId) q.append('branchId', branchId);
+    if (startDate) q.append('startDate', startDate);
+    if (endDate) q.append('endDate', endDate);
+    return apiRequest(`/reports/profit-loss?${q.toString()}`);
+  },
 
   // Audit Logs
   getAuditLogs: (params?: { branchId?: string; action?: string; page?: number }) => {

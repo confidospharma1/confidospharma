@@ -12,6 +12,7 @@ import purchaseRoutes from './modules/purchases/purchases.routes';
 import supplierRoutes from './modules/suppliers/suppliers.routes';
 import importRoutes from './modules/imports/imports.routes';
 import reportRoutes from './modules/reports/reports.routes';
+import expenseRoutes from './modules/expenses/expenses.routes';
 import auditRoutes from './modules/audit/audit.routes';
 import privacyRoutes from './modules/privacy/privacy.routes';
 
@@ -82,6 +83,7 @@ app.use('/api/purchases', purchaseRoutes);
 app.use('/api/suppliers', supplierRoutes);
 app.use('/api/imports', importRoutes);
 app.use('/api/reports', reportRoutes);
+app.use('/api/expenses', expenseRoutes);
 app.use('/api/audit', auditRoutes);
 app.use('/api/privacy', privacyRoutes);
 

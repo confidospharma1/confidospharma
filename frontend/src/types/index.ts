@@ -40,9 +40,12 @@ export interface MedicineProduct {
   manufacturer: string;
   packSize: string;
   baseUnit: string;
-  hsnCode: string;
+  hsnCode?: string | null;
   gstRate: number;
   mrp: number;
+  defaultPurchaseRate?: number | null;
+  defaultSellingRate?: number | null;
+  reorderLevel?: number | null;
   barcode?: string | null;
   prescriptionType: string;
   storageNotes?: string | null;
@@ -88,6 +91,7 @@ export interface SalesInvoiceLine {
   cgstAmount: number;
   sgstAmount: number;
   lineTotal: number;
+  purchaseRate?: number | null;
   medicine?: MedicineProduct;
 }
 
@@ -113,6 +117,144 @@ export interface SalesInvoice {
   createdAt: string;
   lines: SalesInvoiceLine[];
   branch?: Branch;
+}
+
+export interface PurchaseInvoiceLine {
+  id?: string;
+  purchaseInvoiceId?: string;
+  medicineId: string;
+  batchNumber: string;
+  expiryDate: string;
+  quantity: number;
+  freeQuantity?: number;
+  purchaseRate: number;
+  sellingRate?: number | null;
+  mrp: number;
+  discountPercent?: number;
+  discountAmount?: number;
+  gstRate: number;
+  taxAmount?: number;
+  lineTotal: number;
+  medicine?: MedicineProduct;
+}
+
+export interface PurchaseInvoice {
+  id: string;
+  invoiceNumber: string;
+  supplierInvoiceNumber: string;
+  supplierId: string;
+  branchId: string;
+  invoiceDate: string;
+  subtotal: number;
+  discountTotal?: number;
+  taxTotal: number;
+  additionalCharges?: number;
+  grandTotal: number;
+  paymentMode?: string;
+  paidAmount?: number;
+  outstandingAmount?: number;
+  status: 'DRAFT' | 'RECEIVED' | 'CANCELLED';
+  receivedByUserId: string;
+  notes?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  supplier?: Supplier;
+  branch?: Branch;
+  lines: PurchaseInvoiceLine[];
+  _count?: { lines?: number; returns?: number };
+}
+
+export interface PurchaseReturnLine {
+  id?: string;
+  purchaseReturnId?: string;
+  medicineId: string;
+  batchId?: string;
+  batchNumber: string;
+  quantity: number;
+  purchaseRate: number;
+  gstRate: number;
+  taxAmount: number;
+  lineTotal: number;
+  medicine?: MedicineProduct;
+}
+
+export interface PurchaseReturn {
+  id: string;
+  returnNumber: string;
+  purchaseInvoiceId?: string | null;
+  supplierId: string;
+  branchId: string;
+  returnDate: string;
+  subtotal: number;
+  taxTotal: number;
+  grandTotal: number;
+  reason: string;
+  status: 'COMPLETED' | 'CANCELLED';
+  createdById: string;
+  createdAt: string;
+  supplier?: Supplier;
+  branch?: Branch;
+  lines: PurchaseReturnLine[];
+}
+
+export interface Expense {
+  id: string;
+  branchId: string;
+  expenseDate: string;
+  category: string;
+  description: string;
+  amount: number;
+  paymentMode: string;
+  referenceNo?: string | null;
+  notes?: string | null;
+  createdById: string;
+  createdAt: string;
+  branch?: Branch;
+}
+
+export interface ProfitLossReport {
+  period: {
+    startDate: string;
+    endDate: string;
+  };
+  summary: {
+    grossSales: number;
+    salesDiscounts: number;
+    salesReturns: number;
+    netSales: number;
+    costOfGoodsSold: number;
+    grossProfit: number;
+    grossMarginPercent: number;
+    operatingExpenses: number;
+    netProfit: number;
+    netProfitMarginPercent: number;
+  };
+  inventoryPurchasesSummary: {
+    totalPurchases: number;
+    purchaseDiscounts: number;
+    purchaseTaxes: number;
+    purchaseReturns: number;
+    paidAmount: number;
+    outstandingAmount: number;
+    note: string;
+  };
+  expenseBreakdown: Record<string, number>;
+  paymentBreakdown: Record<string, number>;
+  topProducts: Array<{
+    brandName: string;
+    quantitySold: number;
+    revenue: number;
+    cogs: number;
+    grossProfit: number;
+    marginPercent: number;
+  }>;
+  counts: {
+    completedInvoices: number;
+    cancelledInvoices: number;
+    purchasesCount: number;
+    expensesCount: number;
+    missingCostLinesCount: number;
+  };
 }
 
 export interface Supplier {

@@ -69,9 +69,13 @@ export const uploadAndPreviewImport = async (req: Request, res: Response) => {
         const dosageForm = (row['Dosage Form'] || row['dosageForm'] || row['form'] || 'Tablet').toString().trim();
         const manufacturer = (row['Manufacturer'] || row['manufacturer'] || '').toString().trim();
         const packSize = (row['Pack Size'] || row['packSize'] || '10 Tablets').toString().trim();
-        const hsnCode = (row['HSN Code'] || row['hsnCode'] || '30049099').toString().trim();
+        const rawHsn = (row['HSN Code'] || row['hsnCode'] || '').toString().trim();
+        const hsnCode = rawHsn ? rawHsn : null;
         const gstRate = parseFloat(row['GST Rate'] || row['gstRate'] || '12');
         const mrp = parseFloat(row['MRP'] || row['mrp'] || '0');
+        const defaultPurchaseRate = parseFloat(row['Default Purchase Rate'] || row['purchaseRate'] || row['defaultPurchaseRate'] || '');
+        const defaultSellingRate = parseFloat(row['Default Selling Rate'] || row['sellingRate'] || row['defaultSellingRate'] || '');
+        const reorderLevel = parseInt(row['Reorder Level'] || row['reorderLevel'] || '10');
         const barcode = (row['Barcode'] || row['barcode'] || '').toString().trim();
         const prescriptionType = (row['Prescription Type'] || row['prescriptionType'] || 'Schedule H').toString().trim();
 
@@ -105,6 +109,9 @@ export const uploadAndPreviewImport = async (req: Request, res: Response) => {
           hsnCode,
           gstRate: isNaN(gstRate) ? 12 : gstRate,
           mrp: isNaN(mrp) ? 0 : mrp,
+          defaultPurchaseRate: isNaN(defaultPurchaseRate) ? null : defaultPurchaseRate,
+          defaultSellingRate: isNaN(defaultSellingRate) ? null : defaultSellingRate,
+          reorderLevel: isNaN(reorderLevel) ? 10 : reorderLevel,
           barcode: barcode || null,
           prescriptionType,
           status: errors.length > 0 ? 'ERROR' : 'READY',
@@ -320,9 +327,12 @@ export const commitImportJob = async (req: Request, res: Response) => {
               manufacturer: row.manufacturer,
               packSize: row.packSize,
               baseUnit: 'Strip',
-              hsnCode: row.hsnCode,
+              hsnCode: row.hsnCode || null,
               gstRate: row.gstRate,
               mrp: row.mrp,
+              defaultPurchaseRate: row.defaultPurchaseRate || null,
+              defaultSellingRate: row.defaultSellingRate || null,
+              reorderLevel: row.reorderLevel || 10,
               barcode: row.barcode,
               prescriptionType: row.prescriptionType,
             },
