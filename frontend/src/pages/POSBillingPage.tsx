@@ -619,17 +619,21 @@ export const POSBillingPage: React.FC = () => {
             </div>
             {totalDiscount > 0 && (
               <div className="flex justify-between text-emerald-700">
-                <span>Discount Applied:</span>
+                <span>Discount ({((totalDiscount / (subtotal + totalDiscount)) * 100).toFixed(1)}%):</span>
                 <span className="font-mono font-medium">-₹{totalDiscount.toFixed(2)}</span>
               </div>
             )}
             <div className="flex justify-between text-slate-500 text-[11px]">
-              <span>CGST (Intra-state Tax):</span>
+              <span>CGST ({subtotal > 0 ? ((cgst / subtotal) * 100).toFixed(1) : '2.5'}%):</span>
               <span className="font-mono">₹{cgst.toFixed(2)}</span>
             </div>
             <div className="flex justify-between text-slate-500 text-[11px]">
-              <span>SGST (State Tax):</span>
+              <span>SGST ({subtotal > 0 ? ((sgst / subtotal) * 100).toFixed(1) : '2.5'}%):</span>
               <span className="font-mono">₹{sgst.toFixed(2)}</span>
+            </div>
+            <div className="flex justify-between text-slate-700 text-[11px] font-medium">
+              <span>Total GST ({subtotal > 0 ? ((totalGst / subtotal) * 100).toFixed(1) : '5.0'}%):</span>
+              <span className="font-mono font-semibold">₹{totalGst.toFixed(2)}</span>
             </div>
             {roundOff !== 0 && (
               <div className="flex justify-between text-slate-500 text-[11px]">

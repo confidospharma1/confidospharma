@@ -13,8 +13,11 @@ async function main() {
   await prisma.auditEvent.deleteMany();
   await prisma.salesInvoiceLine.deleteMany();
   await prisma.salesInvoice.deleteMany();
+  await prisma.purchaseReturnLine.deleteMany();
+  await prisma.purchaseReturn.deleteMany();
   await prisma.purchaseInvoiceLine.deleteMany();
   await prisma.purchaseInvoice.deleteMany();
+  await prisma.expense.deleteMany();
   await prisma.stockMovement.deleteMany();
   await prisma.stockAdjustment.deleteMany();
   await prisma.stockTransfer.deleteMany();
@@ -571,6 +574,10 @@ async function main() {
   await prisma.systemSetting.createMany({
     data: [
       { key: 'COMPANY_NAME', value: 'Confidos Pharma Ltd.', description: 'Corporate entity display name' },
+      { key: 'DEFAULT_PURCHASE_DISCOUNT_PERCENT', value: '15.0', description: 'Default discount percentage applied on inward purchase invoices (15%-20%)' },
+      { key: 'DEFAULT_CGST_RATE', value: '2.5', description: 'Default Central GST rate (percentage)' },
+      { key: 'DEFAULT_SGST_RATE', value: '2.5', description: 'Default State GST rate (percentage)' },
+      { key: 'DEFAULT_COMBINED_GST_RATE', value: '5.0', description: 'Default combined GST rate (CGST + SGST)' },
       { key: 'DEFAULT_GST_RATE', value: '12.0', description: 'Standard pharma GST rate' },
       { key: 'NEAR_EXPIRY_THRESHOLD_DAYS', value: '60', description: 'Alert threshold for near-expiry batches' },
       { key: 'ALLOW_MANUAL_DISCOUNT', value: 'true', description: 'Allow cashier to apply up to 10% discount' },

@@ -274,3 +274,75 @@ export const updateProduct = async (req: Request, res: Response) => {
     return res.status(500).json({ message: error.message || 'Failed to update product' });
   }
 };
+
+export const deleteProduct = async (req: Request, res: Response) => {
+  try {
+    if (!req.user) return res.status(401).json({ message: 'Unauthorized' });
+
+    if (req.user.role === 'BILLING_USER') {
+      return res.status(403).json({ message: 'Billing users cannot delete products' });
+    }
+
+    const id = req.params.id as string;
+    const product = await prisma.medicineProduct.findUnique({
+      where: { id },
+      include: {
+        _count: {
+          select: {
+            batches: true,
+            salesLines: true,
+            purchaseLines: true,
+          },
+        },
+      },
+    });
+
+    if (!product) {
+      return res.status(404).json({ message: 'Product not found' });
+    }
+
+    const hasHistory = product._count.batches > 0 || product._count.salesLines > 0 || product._count.purchaseLines > 0;
+
+    if (hasHistory) {
+      // Soft-delete to preserve inventory batches and billing ledger auditability
+      const archived = await prisma.medicineProduct.update({
+        where: { id },
+        data: { isActive: false },
+      });
+
+      await logAuditEvent({
+        userId: req.user.id,
+        action: 'PRODUCT_ARCHIVE',
+        targetEntity: 'MEDICINE_PRODUCT',
+        entityId: archived.id,
+        details: { brandName: archived.brandName, reason: 'Archived due to historical stock batches or sales history' },
+        req,
+      });
+
+      return res.json({
+        message: `Medicine '${product.brandName}' has been archived from active catalogue.`,
+        product: archived,
+        archived: true,
+      });
+    }
+
+    await prisma.medicineProduct.delete({ where: { id } });
+
+    await logAuditEvent({
+      userId: req.user.id,
+      action: 'PRODUCT_DELETE',
+      targetEntity: 'MEDICINE_PRODUCT',
+      entityId: id,
+      details: { brandName: product.brandName },
+      req,
+    });
+
+    return res.json({
+      message: `Medicine '${product.brandName}' deleted permanently.`,
+      deleted: true,
+    });
+  } catch (error: any) {
+    return res.status(500).json({ message: error.message || 'Failed to delete product' });
+  }
+};
+

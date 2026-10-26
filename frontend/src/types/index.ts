@@ -267,6 +267,23 @@ export interface Supplier {
   address?: string | null;
   dlNumber?: string | null;
   isActive: boolean;
+  _count?: {
+    batches?: number;
+    purchases?: number;
+  };
+}
+
+export interface SystemSettings {
+  DEFAULT_PURCHASE_DISCOUNT_PERCENT: string;
+  DEFAULT_CGST_RATE: string;
+  DEFAULT_SGST_RATE: string;
+  DEFAULT_COMBINED_GST_RATE: string;
+  DEFAULT_GST_RATE?: string;
+  ALLOW_MANUAL_DISCOUNT?: string;
+  MAX_DISCOUNT_PERCENT?: string;
+  NEAR_EXPIRY_THRESHOLD_DAYS?: string;
+  COMPANY_NAME?: string;
+  [key: string]: string | undefined;
 }
 
 export interface StockTransfer {

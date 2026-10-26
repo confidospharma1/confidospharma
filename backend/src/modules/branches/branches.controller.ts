@@ -162,3 +162,76 @@ export const updateBranch = async (req: Request, res: Response) => {
     return res.status(500).json({ message: error.message || 'Failed to update branch' });
   }
 };
+
+export const deleteBranch = async (req: Request, res: Response) => {
+  try {
+    if (req.user?.role !== 'SUPER_ADMIN') {
+      return res.status(403).json({ message: 'Only Super Admin can delete or archive branches' });
+    }
+
+    const id = req.params.id as string;
+    const branch = await prisma.branch.findUnique({
+      where: { id },
+      include: {
+        _count: {
+          select: {
+            users: true,
+            batches: true,
+            salesInvoices: true,
+            purchaseInvoices: true,
+          },
+        },
+      },
+    });
+
+    if (!branch) {
+      return res.status(404).json({ message: 'Branch not found' });
+    }
+
+    const hasDependencies = branch._count.users > 0 ||
+      branch._count.batches > 0 ||
+      branch._count.salesInvoices > 0 ||
+      branch._count.purchaseInvoices > 0;
+
+    if (hasDependencies) {
+      const archived = await prisma.branch.update({
+        where: { id },
+        data: { isActive: false },
+      });
+
+      await logAuditEvent({
+        userId: req.user.id,
+        action: 'BRANCH_ARCHIVE',
+        targetEntity: 'BRANCH',
+        entityId: archived.id,
+        details: { code: archived.code, name: archived.name, reason: 'Archived due to associated staff or historical transactions' },
+        req,
+      });
+
+      return res.json({
+        message: `Branch '${branch.name}' (${branch.code}) has been archived/deactivated to preserve historical transaction audit trails.`,
+        branch: archived,
+        archived: true,
+      });
+    }
+
+    await prisma.branch.delete({ where: { id } });
+
+    await logAuditEvent({
+      userId: req.user.id,
+      action: 'BRANCH_DELETE',
+      targetEntity: 'BRANCH',
+      entityId: id,
+      details: { code: branch.code, name: branch.name },
+      req,
+    });
+
+    return res.json({
+      message: `Branch '${branch.name}' (${branch.code}) deleted permanently.`,
+      deleted: true,
+    });
+  } catch (error: any) {
+    return res.status(500).json({ message: error.message || 'Failed to delete branch' });
+  }
+};
+

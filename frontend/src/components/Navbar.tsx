@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { Building2, ShoppingCart, LogOut, ShieldCheck, User as UserIcon } from 'lucide-react';
+import { Building2, ShoppingCart, LogOut, ShieldCheck, User as UserIcon, Sliders } from 'lucide-react';
 import { Badge } from './Badge';
+import { SettingsModal } from './SettingsModal';
 
 interface NavbarProps {
   onOpenPOS: () => void;
@@ -9,7 +10,8 @@ interface NavbarProps {
 }
 
 export const Navbar: React.FC<NavbarProps> = ({ onOpenPOS, activeTab }) => {
-  const { user, isSuperAdmin, branches, selectedBranchId, setSelectedBranchId, logout, currentBranch } = useAuth();
+  const { user, isSuperAdmin, isBranchAdmin, branches, selectedBranchId, setSelectedBranchId, logout, currentBranch } = useAuth();
+  const [showSettingsModal, setShowSettingsModal] = useState(false);
 
   const getRoleVariant = (role?: string) => {
     switch (role) {
@@ -99,6 +101,18 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenPOS, activeTab }) => {
           </span>
         </button>
 
+        {/* Admin Settings & Customization Button */}
+        {(isSuperAdmin || isBranchAdmin) && (
+          <button
+            onClick={() => setShowSettingsModal(true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:text-emerald-800 bg-slate-100 hover:bg-emerald-50 border border-slate-300 hover:border-emerald-300 rounded-lg transition-all"
+            title="Configure default discount (15%-20%), GST settings, and system defaults"
+          >
+            <Sliders className="w-3.5 h-3.5 text-emerald-600" />
+            <span className="hidden md:inline">Settings</span>
+          </button>
+        )}
+
         {/* User Role Badge & Name */}
         <div className="hidden lg:flex items-center gap-2.5 pl-3 border-l border-slate-200">
           <div className="text-right">
@@ -121,6 +135,11 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenPOS, activeTab }) => {
           <span className="hidden sm:inline">Sign Out</span>
         </button>
       </div>
+
+      <SettingsModal
+        isOpen={showSettingsModal}
+        onClose={() => setShowSettingsModal(false)}
+      />
     </header>
   );
 };

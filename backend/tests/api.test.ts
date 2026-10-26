@@ -456,5 +456,362 @@ describe('Confidos Pharma API Test Suite', () => {
 
     expect(cashierPlRes.status).toBe(403);
   });
+
+  it('System Settings: exposes configurable discount (15%) and GST defaults (CGST 2.5%, SGST 2.5%, Total 5%)', async () => {
+    // 1. Get settings
+    const getRes = await request(app)
+      .get('/api/settings')
+      .set('Authorization', `Bearer ${vjaAdminToken}`);
+
+    expect(getRes.status).toBe(200);
+    expect(getRes.body.settings).toBeDefined();
+    expect(parseFloat(getRes.body.settings.DEFAULT_PURCHASE_DISCOUNT_PERCENT)).toBeGreaterThanOrEqual(15.0);
+    expect(getRes.body.settings.DEFAULT_CGST_RATE).toBe('2.5');
+    expect(getRes.body.settings.DEFAULT_SGST_RATE).toBe('2.5');
+    expect(getRes.body.settings.DEFAULT_COMBINED_GST_RATE).toBeDefined();
+
+    // 2. Super Admin updates discount to 18% and verifies auto-combined GST
+    const putRes = await request(app)
+      .put('/api/settings')
+      .set('Authorization', `Bearer ${superAdminToken}`)
+      .send({
+        settings: {
+          DEFAULT_PURCHASE_DISCOUNT_PERCENT: '18.0',
+          DEFAULT_CGST_RATE: '2.5',
+          DEFAULT_SGST_RATE: '2.5',
+        },
+      });
+
+    expect(putRes.status).toBe(200);
+    expect(putRes.body.settings.DEFAULT_PURCHASE_DISCOUNT_PERCENT).toBe('18.0');
+    expect(putRes.body.settings.DEFAULT_COMBINED_GST_RATE).toBe('5');
+
+    // 3. Billing User is barred from editing settings
+    const cashierPutRes = await request(app)
+      .put('/api/settings')
+      .set('Authorization', `Bearer ${vjaCashierToken}`)
+      .send({ settings: { DEFAULT_PURCHASE_DISCOUNT_PERCENT: '25.0' } });
+
+    expect(cashierPutRes.status).toBe(403);
+
+    // 4. Reset setting back to initial 15.0% for idempotency
+    await request(app)
+      .put('/api/settings')
+      .set('Authorization', `Bearer ${superAdminToken}`)
+      .send({
+        settings: {
+          DEFAULT_PURCHASE_DISCOUNT_PERCENT: '15.0',
+          DEFAULT_CGST_RATE: '2.5',
+          DEFAULT_SGST_RATE: '2.5',
+        },
+      });
+  });
+
+  it('Supplier Management: validates email format, duplicate checks, and CRUD operations', async () => {
+    // 1. Rejects invalid email
+    const invalidEmailRes = await request(app)
+      .post('/api/suppliers')
+      .set('Authorization', `Bearer ${vjaAdminToken}`)
+      .send({
+        name: 'Invalid Email Pharma',
+        phone: '9988776655',
+        email: 'invalid-email-address',
+      });
+
+    expect(invalidEmailRes.status).toBe(400);
+    expect(invalidEmailRes.body.message).toMatch(/valid.*email/i);
+
+    // 2. Successfully creates supplier with valid email (using unique phone)
+    const uniqueSuffix = Date.now().toString().slice(-6);
+    const validSupplierRes = await request(app)
+      .post('/api/suppliers')
+      .set('Authorization', `Bearer ${vjaAdminToken}`)
+      .send({
+        name: `Apex Healthcare ${uniqueSuffix}`,
+        contactPerson: 'Kalyan Chakravarthy',
+        phone: `98${uniqueSuffix}1`,
+        email: `orders_${uniqueSuffix}@apexhealthcare.in`,
+        gstin: '37AAAAA0000A1Z5',
+        address: 'Bunder Road, Vijayawada',
+      });
+
+    expect(validSupplierRes.status).toBe(201);
+    const supplierId = validSupplierRes.body.id;
+    expect(validSupplierRes.body.email).toBe(`orders_${uniqueSuffix}@apexhealthcare.in`);
+
+    // 3. Rejects duplicate supplier with same name or phone
+    const duplicateRes = await request(app)
+      .post('/api/suppliers')
+      .set('Authorization', `Bearer ${vjaAdminToken}`)
+      .send({
+        name: `Apex Healthcare ${uniqueSuffix}`,
+        phone: `98${uniqueSuffix}1`,
+        email: 'another@apex.in',
+      });
+
+    expect(duplicateRes.status).toBe(409);
+
+    // 4. Update supplier email and details
+    const updateRes = await request(app)
+      .put(`/api/suppliers/${supplierId}`)
+      .set('Authorization', `Bearer ${vjaAdminToken}`)
+      .send({
+        email: `support_${uniqueSuffix}@apexhealthcare.in`,
+        contactPerson: 'Kalyan C.',
+      });
+
+    expect(updateRes.status).toBe(200);
+    expect(updateRes.body.email).toBe(`support_${uniqueSuffix}@apexhealthcare.in`);
+    expect(updateRes.body.contactPerson).toBe('Kalyan C.');
+
+    // 5. Delete newly created unreferenced supplier permanently
+    const deleteRes = await request(app)
+      .delete(`/api/suppliers/${supplierId}`)
+      .set('Authorization', `Bearer ${vjaAdminToken}`);
+
+    expect(deleteRes.status).toBe(200);
+    expect(deleteRes.body.deleted).toBe(true);
+  });
+
+  it('Purchase Invoice: records purchase, reconciles stock delta on edit, and safely cancels invoice', async () => {
+    // 1. Create a test supplier with unique credentials
+    const uniquePur = Date.now().toString().slice(-6);
+    const supRes = await request(app)
+      .post('/api/suppliers')
+      .set('Authorization', `Bearer ${vjaAdminToken}`)
+      .send({
+        name: `Inward Test Pharma ${uniquePur}`,
+        phone: `97${uniquePur}2`,
+        email: `inwards_${uniquePur}@testpharma.com`,
+      });
+    expect(supRes.status).toBe(201);
+    const testSupplierId = supRes.body.id;
+
+    const testBatchNumber = `TEST-REC-${uniquePur}`;
+
+    // 2. Create purchase invoice with 50 units of Dolo 650
+    const purRes = await request(app)
+      .post('/api/purchases')
+      .set('Authorization', `Bearer ${vjaAdminToken}`)
+      .send({
+        branchId: vjaBranchId,
+        supplierId: testSupplierId,
+        supplierInvoiceNumber: `INV-TEST-${Date.now()}`,
+        invoiceDate: '2026-10-26',
+        paymentMode: 'CREDIT',
+        invoiceDiscountPercent: 15,
+        lines: [
+          {
+            medicineId: doloProductId,
+            batchNumber: testBatchNumber,
+            expiryDate: '2028-12-31',
+            quantity: 50,
+            freeQuantity: 5, // 55 total units
+            purchaseRate: 20,
+            sellingRate: 30,
+            mrp: 30,
+            discountPercent: 10,
+            gstRate: 5.0,
+          },
+        ],
+      });
+
+    expect(purRes.status).toBe(201);
+    const invoiceId = purRes.body.id;
+    expect(purRes.body.grandTotal).toBeGreaterThan(0);
+
+    // Verify batch stock is 55
+    const batchCheck1 = await request(app)
+      .get(`/api/inventory/batches?branchId=${vjaBranchId}&medicineId=${doloProductId}`)
+      .set('Authorization', `Bearer ${vjaAdminToken}`);
+
+    const batchRecord1 = batchCheck1.body.find((b: any) => b.batchNumber === testBatchNumber);
+    expect(batchRecord1).toBeDefined();
+    expect(batchRecord1.availableQuantity).toBe(55);
+
+    // 3. Edit purchase invoice: increase quantity to 70 (+ 5 free = 75 units, delta = +20)
+    const editRes1 = await request(app)
+      .put(`/api/purchases/${invoiceId}`)
+      .set('Authorization', `Bearer ${vjaAdminToken}`)
+      .send({
+        lines: [
+          {
+            medicineId: doloProductId,
+            batchNumber: testBatchNumber,
+            expiryDate: '2028-12-31',
+            quantity: 70,
+            freeQuantity: 5,
+            purchaseRate: 20,
+            sellingRate: 30,
+            mrp: 30,
+            discountPercent: 10,
+            gstRate: 5.0,
+          },
+        ],
+      });
+
+    expect(editRes1.status).toBe(200);
+
+    // Check reconciled stock: should now be 75
+    const batchCheck2 = await request(app)
+      .get(`/api/inventory/batches?branchId=${vjaBranchId}&medicineId=${doloProductId}`)
+      .set('Authorization', `Bearer ${vjaAdminToken}`);
+
+    const batchRecord2 = batchCheck2.body.find((b: any) => b.batchNumber === testBatchNumber);
+    expect(batchRecord2.availableQuantity).toBe(75);
+
+    // 4. Edit purchase invoice: decrease quantity to 30 (+ 0 free = 30 units, delta = -45)
+    const editRes2 = await request(app)
+      .put(`/api/purchases/${invoiceId}`)
+      .set('Authorization', `Bearer ${vjaAdminToken}`)
+      .send({
+        lines: [
+          {
+            medicineId: doloProductId,
+            batchNumber: testBatchNumber,
+            expiryDate: '2028-12-31',
+            quantity: 30,
+            freeQuantity: 0,
+            purchaseRate: 20,
+            sellingRate: 30,
+            mrp: 30,
+            discountPercent: 10,
+            gstRate: 5.0,
+          },
+        ],
+      });
+
+    expect(editRes2.status).toBe(200);
+
+    const batchCheck3 = await request(app)
+      .get(`/api/inventory/batches?branchId=${vjaBranchId}&medicineId=${doloProductId}`)
+      .set('Authorization', `Bearer ${vjaAdminToken}`);
+
+    const batchRecord3 = batchCheck3.body.find((b: any) => b.batchNumber === testBatchNumber);
+    expect(batchRecord3.availableQuantity).toBe(30);
+
+    // 5. Cancel purchase invoice: safely deducts remaining 30 units from batch
+    const cancelRes = await request(app)
+      .post(`/api/purchases/${invoiceId}/cancel`)
+      .set('Authorization', `Bearer ${vjaAdminToken}`)
+      .send({ reason: 'Audit test: Supplier shipment cancelled' });
+
+    expect(cancelRes.status).toBe(200);
+    expect(cancelRes.body.message).toMatch(/cancelled successfully/i);
+
+    // Verify batch available quantity is now 0 (depleted)
+    const batchCheck4 = await request(app)
+      .get(`/api/inventory/batches?branchId=${vjaBranchId}&medicineId=${doloProductId}`)
+      .set('Authorization', `Bearer ${vjaAdminToken}`);
+
+    const batchRecord4 = batchCheck4.body.find((b: any) => b.batchNumber === testBatchNumber);
+    expect(batchRecord4.availableQuantity).toBe(0);
+  });
+
+  it('Admin Panel CRUD: supports edit and safe archival for Products, Branches, and Staff Users', async () => {
+    // 1. Product Edit and Safe Archive
+    const prodRes = await request(app)
+      .post('/api/products')
+      .set('Authorization', `Bearer ${vjaAdminToken}`)
+      .send({
+        brandName: 'Test Cold Relief Extra',
+        genericName: 'Chlorpheniramine + Phenylephrine',
+        strength: '5mg',
+        dosageForm: 'Tablet',
+        manufacturer: 'Cipla Laboratories',
+        mrp: 45.0,
+        gstRate: 5.0,
+      });
+
+    expect(prodRes.status).toBe(201);
+    const prodId = prodRes.body.id;
+
+    // Edit Product
+    const editProdRes = await request(app)
+      .put(`/api/products/${prodId}`)
+      .set('Authorization', `Bearer ${vjaAdminToken}`)
+      .send({
+        brandName: 'Test Cold Relief Max',
+        mrp: 50.0,
+      });
+
+    expect(editProdRes.status).toBe(200);
+    expect(editProdRes.body.brandName).toBe('Test Cold Relief Max');
+    expect(editProdRes.body.mrp).toBe(50.0);
+
+    // Delete unreferenced product permanently
+    const delProdRes = await request(app)
+      .delete(`/api/products/${prodId}`)
+      .set('Authorization', `Bearer ${vjaAdminToken}`);
+
+    expect(delProdRes.status).toBe(200);
+    expect(delProdRes.body.deleted).toBe(true);
+
+    // 2. Branch Edit and Deactivation
+    const branchRes = await request(app)
+      .post('/api/branches')
+      .set('Authorization', `Bearer ${superAdminToken}`)
+      .send({
+        code: `B-KNL-${Date.now().toString().slice(-4)}`,
+        name: 'Kurnool City Branch',
+        address: 'Park Road, Kurnool',
+        phone: '9848099887',
+        gstin: '37BBBBB1111B1Z2',
+      });
+
+    expect(branchRes.status).toBe(201);
+    const branchId = branchRes.body.id;
+
+    // Edit branch
+    const editBranchRes = await request(app)
+      .put(`/api/branches/${branchId}`)
+      .set('Authorization', `Bearer ${superAdminToken}`)
+      .send({ phone: '9848099999' });
+
+    expect(editBranchRes.status).toBe(200);
+    expect(editBranchRes.body.phone).toBe('9848099999');
+
+    // Delete empty branch permanently
+    const delBranchRes = await request(app)
+      .delete(`/api/branches/${branchId}`)
+      .set('Authorization', `Bearer ${superAdminToken}`);
+
+    expect(delBranchRes.status).toBe(200);
+    expect(delBranchRes.body.deleted).toBe(true);
+
+    // 3. User Edit and Deactivation
+    const userRes = await request(app)
+      .post('/api/users')
+      .set('Authorization', `Bearer ${vjaAdminToken}`)
+      .send({
+        username: `cashier_temp_${Date.now().toString().slice(-4)}`,
+        email: `cashier_${Date.now().toString().slice(-4)}@confidos.com`,
+        fullName: 'Temporary Billing Operator',
+        password: 'Pharma@2026',
+        role: 'BILLING_USER',
+        branchId: vjaBranchId,
+      });
+
+    expect(userRes.status).toBe(201);
+    const newUserId = userRes.body.id;
+
+    // Edit user
+    const editUserRes = await request(app)
+      .put(`/api/users/${newUserId}`)
+      .set('Authorization', `Bearer ${vjaAdminToken}`)
+      .send({ fullName: 'Senior Billing Operator' });
+
+    expect(editUserRes.status).toBe(200);
+    expect(editUserRes.body.fullName).toBe('Senior Billing Operator');
+
+    // Deactivate user
+    const deactUserRes = await request(app)
+      .delete(`/api/users/${newUserId}`)
+      .set('Authorization', `Bearer ${vjaAdminToken}`);
+
+    expect(deactUserRes.status).toBe(200);
+    expect(deactUserRes.body.archived).toBe(true);
+    expect(deactUserRes.body.user.isActive).toBe(false);
+  });
 });
 

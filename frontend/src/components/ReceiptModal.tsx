@@ -141,17 +141,21 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
             </div>
             {invoice.discountTotal > 0 && (
               <div className="flex justify-between text-emerald-700">
-                <span>Discount Total:</span>
+                <span>Discount ({((invoice.discountTotal / (invoice.subtotal + invoice.discountTotal)) * 100).toFixed(1)}%):</span>
                 <span>-₹{invoice.discountTotal.toFixed(2)}</span>
               </div>
             )}
             <div className="flex justify-between text-slate-600">
-              <span>CGST (Intra-state Tax):</span>
+              <span>CGST ({invoice.subtotal > 0 ? ((invoice.cgstTotal / invoice.subtotal) * 100).toFixed(1) : '2.5'}%):</span>
               <span>₹{invoice.cgstTotal.toFixed(2)}</span>
             </div>
             <div className="flex justify-between text-slate-600">
-              <span>SGST (State Tax):</span>
+              <span>SGST ({invoice.subtotal > 0 ? ((invoice.sgstTotal / invoice.subtotal) * 100).toFixed(1) : '2.5'}%):</span>
               <span>₹{invoice.sgstTotal.toFixed(2)}</span>
+            </div>
+            <div className="flex justify-between text-slate-700 font-medium">
+              <span>Total GST ({invoice.subtotal > 0 ? ((invoice.taxTotal / invoice.subtotal) * 100).toFixed(1) : '5.0'}%):</span>
+              <span>₹{invoice.taxTotal.toFixed(2)}</span>
             </div>
             {invoice.roundOff !== 0 && (
               <div className="flex justify-between text-slate-500">

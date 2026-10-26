@@ -175,3 +175,58 @@ export const updateUser = async (req: Request, res: Response) => {
     return res.status(500).json({ message: error.message || 'Failed to update user' });
   }
 };
+
+export const deleteUser = async (req: Request, res: Response) => {
+  try {
+    if (!req.user) return res.status(401).json({ message: 'Unauthorized' });
+
+    const id = req.params.id as string;
+    const existingUser = await prisma.user.findUnique({ where: { id } });
+    if (!existingUser) return res.status(404).json({ message: 'User not found' });
+
+    // Prevent self-deletion
+    if (req.user.id === id) {
+      return res.status(400).json({ message: 'Cannot delete your own user account' });
+    }
+
+    if (req.user.role === 'BRANCH_ADMIN') {
+      if (existingUser.branchId !== req.user.branchId || existingUser.role !== 'BILLING_USER') {
+        return res.status(403).json({ message: 'Access denied: You can only remove billing users in your branch.' });
+      }
+    } else if (req.user.role !== 'SUPER_ADMIN') {
+      return res.status(403).json({ message: 'Forbidden' });
+    }
+
+    // Soft-deactivate to preserve historical billing, movements, and audit compliance
+    const deactivated = await prisma.user.update({
+      where: { id },
+      data: { isActive: false },
+      select: {
+        id: true,
+        username: true,
+        fullName: true,
+        role: true,
+        isActive: true,
+      },
+    });
+
+    await logAuditEvent({
+      userId: req.user.id,
+      branchId: existingUser.branchId,
+      action: 'USER_DEACTIVATE',
+      targetEntity: 'USER',
+      entityId: deactivated.id,
+      details: { username: deactivated.username, role: deactivated.role },
+      req,
+    });
+
+    return res.json({
+      message: `User account '${deactivated.username}' has been deactivated.`,
+      user: deactivated,
+      archived: true,
+    });
+  } catch (error: any) {
+    return res.status(500).json({ message: error.message || 'Failed to delete user' });
+  }
+};
+

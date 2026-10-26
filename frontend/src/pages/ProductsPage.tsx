@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { api } from '../services/api';
 import { MedicineProduct } from '../types';
-import { Pill, Plus, Search, Filter, AlertCircle, CheckCircle, Barcode, DollarSign } from 'lucide-react';
+import { Pill, Plus, Search, Filter, AlertCircle, CheckCircle, Barcode, DollarSign, Edit2, Trash2 } from 'lucide-react';
 import { Badge } from '../components/Badge';
 import { Modal } from '../components/Modal';
 
@@ -35,6 +35,33 @@ export const ProductsPage: React.FC = () => {
     prescriptionType: 'Schedule H',
     storageNotes: '',
   });
+
+  // Edit Product Modal
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editingProduct, setEditingProduct] = useState<MedicineProduct | null>(null);
+  const [editForm, setEditForm] = useState({
+    brandName: '',
+    genericName: '',
+    strength: '',
+    dosageForm: 'Tablet',
+    manufacturer: '',
+    packSize: '10 Tablets',
+    baseUnit: 'Strip',
+    hsnCode: '',
+    gstRate: '12',
+    mrp: '',
+    defaultPurchaseRate: '',
+    defaultSellingRate: '',
+    reorderLevel: '10',
+    barcode: '',
+    prescriptionType: 'Schedule H',
+    storageNotes: '',
+    isActive: true,
+  });
+
+  // Delete/Archive Confirmation Modal
+  const [deleteTarget, setDeleteTarget] = useState<MedicineProduct | null>(null);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
 
   const [message, setMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
 
@@ -92,6 +119,66 @@ export const ProductsPage: React.FC = () => {
       loadProducts();
     } catch (err: any) {
       setMessage({ text: err.message || 'Failed to create medicine.', type: 'error' });
+    }
+  };
+
+  const openEdit = (p: MedicineProduct) => {
+    setEditingProduct(p);
+    setEditForm({
+      brandName: p.brandName,
+      genericName: p.genericName,
+      strength: p.strength,
+      dosageForm: p.dosageForm,
+      manufacturer: p.manufacturer,
+      packSize: p.packSize || '10 Tablets',
+      baseUnit: p.baseUnit || 'Strip',
+      hsnCode: p.hsnCode || '',
+      gstRate: String(p.gstRate ?? 12),
+      mrp: String(p.mrp ?? 0),
+      defaultPurchaseRate: p.defaultPurchaseRate !== undefined && p.defaultPurchaseRate !== null ? String(p.defaultPurchaseRate) : '',
+      defaultSellingRate: p.defaultSellingRate !== undefined && p.defaultSellingRate !== null ? String(p.defaultSellingRate) : '',
+      reorderLevel: String(p.reorderLevel || 10),
+      barcode: p.barcode || '',
+      prescriptionType: p.prescriptionType || 'Schedule H',
+      storageNotes: p.storageNotes || '',
+      isActive: p.isActive !== false,
+    });
+    setShowEditModal(true);
+  };
+
+  const handleUpdateProduct = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingProduct) return;
+    setMessage(null);
+    try {
+      await api.updateProduct(editingProduct.id, {
+        ...editForm,
+        hsnCode: editForm.hsnCode.trim() || undefined,
+        defaultPurchaseRate: editForm.defaultPurchaseRate ? parseFloat(editForm.defaultPurchaseRate) : null,
+        defaultSellingRate: editForm.defaultSellingRate ? parseFloat(editForm.defaultSellingRate) : null,
+        reorderLevel: editForm.reorderLevel ? parseInt(editForm.reorderLevel) : 10,
+        mrp: parseFloat(editForm.mrp),
+        gstRate: parseFloat(editForm.gstRate),
+      });
+      setMessage({ text: `Medicine '${editForm.brandName}' updated successfully.`, type: 'success' });
+      setShowEditModal(false);
+      loadProducts();
+    } catch (err: any) {
+      setMessage({ text: err.message || 'Failed to update medicine.', type: 'error' });
+    }
+  };
+
+  const handleDeleteProduct = async () => {
+    if (!deleteTarget) return;
+    setMessage(null);
+    try {
+      const res = await api.deleteProduct(deleteTarget.id);
+      setMessage({ text: res.message || `Medicine '${deleteTarget.brandName}' removed / archived successfully.`, type: 'success' });
+      setShowDeleteModal(false);
+      setDeleteTarget(null);
+      loadProducts();
+    } catch (err: any) {
+      setMessage({ text: err.message || 'Failed to delete/archive medicine.', type: 'error' });
     }
   };
 
@@ -184,18 +271,19 @@ export const ProductsPage: React.FC = () => {
                 <th className="py-3 px-3 text-right bg-amber-50/50 text-amber-900">Standard MRP</th>
                 <th className="py-3 px-3 text-center">Reorder Lvl</th>
                 <th className="py-3 px-4 text-center">Category</th>
+                {!isBillingUser && <th className="py-3 px-4 text-center">Actions</th>}
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 font-medium">
               {loading ? (
                 <tr>
-                  <td colSpan={11} className="py-8 text-center text-slate-400">
+                  <td colSpan={isBillingUser ? 11 : 12} className="py-8 text-center text-slate-400">
                     Loading medicines catalogue...
                   </td>
                 </tr>
               ) : filteredProducts.length === 0 ? (
                 <tr>
-                  <td colSpan={11} className="py-8 text-center text-slate-400">
+                  <td colSpan={isBillingUser ? 11 : 12} className="py-8 text-center text-slate-400">
                     No medicine records found.
                   </td>
                 </tr>
@@ -242,6 +330,31 @@ export const ProductsPage: React.FC = () => {
                         {p.prescriptionType}
                       </Badge>
                     </td>
+                    {!isBillingUser && (
+                      <td className="py-3 px-4 text-center">
+                        <div className="flex items-center justify-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => openEdit(p)}
+                            title="Edit Medicine Details & Pricing"
+                            className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-md transition-colors"
+                          >
+                            <Edit2 className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setDeleteTarget(p);
+                              setShowDeleteModal(true);
+                            }}
+                            title="Archive / Remove Medicine"
+                            className="p-1.5 text-rose-600 hover:bg-rose-50 rounded-md transition-colors"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </td>
+                    )}
                   </tr>
                 ))
               )}
@@ -454,6 +567,236 @@ export const ProductsPage: React.FC = () => {
             </button>
           </div>
         </form>
+      </Modal>
+
+      {/* Modal: Edit Medicine */}
+      <Modal isOpen={showEditModal} onClose={() => setShowEditModal(false)} title="Edit Medicine Master Record" maxWidth="2xl">
+        <form onSubmit={handleUpdateProduct} className="space-y-4">
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs font-bold text-slate-700 block mb-1">Brand Name *</label>
+              <input
+                type="text"
+                required
+                value={editForm.brandName}
+                onChange={(e) => setEditForm({ ...editForm, brandName: e.target.value })}
+                className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-300 rounded-lg focus:bg-white focus:ring-2 focus:ring-emerald-500 font-medium"
+              />
+            </div>
+            <div>
+              <label className="text-xs font-bold text-slate-700 block mb-1">Generic / Active Ingredient *</label>
+              <input
+                type="text"
+                required
+                value={editForm.genericName}
+                onChange={(e) => setEditForm({ ...editForm, genericName: e.target.value })}
+                className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-300 rounded-lg focus:bg-white focus:ring-2 focus:ring-emerald-500"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-3 gap-3">
+            <div>
+              <label className="text-xs font-bold text-slate-700 block mb-1">Strength *</label>
+              <input
+                type="text"
+                required
+                value={editForm.strength}
+                onChange={(e) => setEditForm({ ...editForm, strength: e.target.value })}
+                className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-300 rounded-lg focus:bg-white focus:ring-2 focus:ring-emerald-500 font-mono"
+              />
+            </div>
+            <div>
+              <label className="text-xs font-bold text-slate-700 block mb-1">Dosage Form *</label>
+              <select
+                value={editForm.dosageForm}
+                onChange={(e) => setEditForm({ ...editForm, dosageForm: e.target.value })}
+                className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-300 rounded-lg focus:bg-white focus:ring-2 focus:ring-emerald-500"
+              >
+                <option value="Tablet">Tablet</option>
+                <option value="Capsule">Capsule</option>
+                <option value="Syrup">Syrup</option>
+                <option value="Injection">Injection</option>
+                <option value="Ointment">Ointment</option>
+                <option value="Drops">Drops</option>
+              </select>
+            </div>
+            <div>
+              <label className="text-xs font-bold text-slate-700 block mb-1">Manufacturer *</label>
+              <input
+                type="text"
+                required
+                value={editForm.manufacturer}
+                onChange={(e) => setEditForm({ ...editForm, manufacturer: e.target.value })}
+                className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-300 rounded-lg focus:bg-white focus:ring-2 focus:ring-emerald-500"
+              />
+            </div>
+          </div>
+
+          {/* Pricing & GST Classification Section */}
+          <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-3">
+            <p className="text-[11px] font-bold text-slate-700 uppercase tracking-wider">
+              Pricing Structure & Rates (Kept Strictly Separate)
+            </p>
+            <div className="grid grid-cols-3 gap-3">
+              <div>
+                <label className="text-xs font-bold text-blue-900 block mb-1">Default Purchase Rate (₹)</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={editForm.defaultPurchaseRate}
+                  onChange={(e) => setEditForm({ ...editForm, defaultPurchaseRate: e.target.value })}
+                  className="w-full px-3 py-2 text-xs bg-white border border-blue-200 rounded-lg font-mono font-bold text-blue-900 focus:ring-2 focus:ring-blue-500"
+                />
+                <span className="text-[10px] text-slate-400 block mt-0.5">Supplier baseline cost</span>
+              </div>
+              <div>
+                <label className="text-xs font-bold text-emerald-900 block mb-1">Default Selling Rate (₹)</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={editForm.defaultSellingRate}
+                  onChange={(e) => setEditForm({ ...editForm, defaultSellingRate: e.target.value })}
+                  className="w-full px-3 py-2 text-xs bg-white border border-emerald-200 rounded-lg font-mono font-bold text-emerald-900 focus:ring-2 focus:ring-emerald-500"
+                />
+                <span className="text-[10px] text-slate-400 block mt-0.5">Standard counter selling price</span>
+              </div>
+              <div>
+                <label className="text-xs font-bold text-amber-900 block mb-1">Maximum Retail Price (MRP) *</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  required
+                  value={editForm.mrp}
+                  onChange={(e) => setEditForm({ ...editForm, mrp: e.target.value })}
+                  className="w-full px-3 py-2 text-xs bg-white border border-amber-300 rounded-lg font-mono font-bold text-slate-900 focus:ring-2 focus:ring-amber-500"
+                />
+                <span className="text-[10px] text-slate-400 block mt-0.5">Printed statutory maximum</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-4 gap-3">
+            <div>
+              <label className="text-xs font-bold text-slate-700 block mb-1">Pack Size *</label>
+              <input
+                type="text"
+                value={editForm.packSize}
+                onChange={(e) => setEditForm({ ...editForm, packSize: e.target.value })}
+                className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-300 rounded-lg font-mono"
+              />
+            </div>
+            <div>
+              <label className="text-xs font-bold text-slate-700 block mb-1 flex items-center gap-1">
+                HSN Code <span className="text-[10px] text-emerald-600 font-normal">(Optional)</span>
+              </label>
+              <input
+                type="text"
+                value={editForm.hsnCode}
+                onChange={(e) => setEditForm({ ...editForm, hsnCode: e.target.value })}
+                className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-300 rounded-lg font-mono"
+              />
+            </div>
+            <div>
+              <label className="text-xs font-bold text-slate-700 block mb-1">GST Rate (%) *</label>
+              <select
+                value={editForm.gstRate}
+                onChange={(e) => setEditForm({ ...editForm, gstRate: e.target.value })}
+                className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-300 rounded-lg font-mono font-bold"
+              >
+                <option value="5">5%</option>
+                <option value="12">12% (Standard)</option>
+                <option value="18">18%</option>
+                <option value="28">28%</option>
+              </select>
+            </div>
+            <div>
+              <label className="text-xs font-bold text-slate-700 block mb-1">Reorder Alert (Qty)</label>
+              <input
+                type="number"
+                value={editForm.reorderLevel}
+                onChange={(e) => setEditForm({ ...editForm, reorderLevel: e.target.value })}
+                className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-300 rounded-lg font-mono"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs font-bold text-slate-700 block mb-1">Barcode / EAN</label>
+              <input
+                type="text"
+                value={editForm.barcode}
+                onChange={(e) => setEditForm({ ...editForm, barcode: e.target.value })}
+                className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-300 rounded-lg font-mono"
+              />
+            </div>
+            <div>
+              <label className="text-xs font-bold text-slate-700 block mb-1">Schedule / Restriction</label>
+              <select
+                value={editForm.prescriptionType}
+                onChange={(e) => setEditForm({ ...editForm, prescriptionType: e.target.value })}
+                className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-300 rounded-lg"
+              >
+                <option value="OTC">OTC (Over the Counter)</option>
+                <option value="Schedule H">Schedule H (Prescription)</option>
+                <option value="Schedule H1">Schedule H1 (Controlled Drug)</option>
+                <option value="Schedule X">Schedule X (Narcotic/Restricted)</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="flex justify-end gap-2 pt-4 border-t border-slate-200">
+            <button
+              type="button"
+              onClick={() => setShowEditModal(false)}
+              className="px-4 py-2 border border-slate-300 rounded-lg text-xs font-semibold text-slate-600 hover:bg-slate-50"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold shadow-xs"
+            >
+              Save Changes
+            </button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* Modal: Delete/Archive Confirmation */}
+      <Modal isOpen={showDeleteModal} onClose={() => setShowDeleteModal(false)} title="Confirm Medicine Deletion / Archival" maxWidth="md">
+        <div className="space-y-4">
+          <div className="flex items-start gap-3 p-3 bg-rose-50 border border-rose-200 rounded-lg text-rose-800 text-xs">
+            <AlertCircle className="w-5 h-5 flex-shrink-0 text-rose-600 mt-0.5" />
+            <div>
+              <p className="font-bold mb-1">Are you sure you want to remove this medicine?</p>
+              <p>
+                Medicine: <strong className="font-semibold text-slate-900">{deleteTarget?.brandName}</strong> ({deleteTarget?.internalCode})
+              </p>
+              <p className="text-[11px] text-rose-700 mt-1">
+                If this medicine has historical batch or sales/purchase records, it will be safely deactivated/archived to preserve ledger integrity. If unreferenced, it will be permanently deleted.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex justify-end gap-2 pt-2 border-t border-slate-200">
+            <button
+              type="button"
+              onClick={() => setShowDeleteModal(false)}
+              className="px-4 py-2 border border-slate-300 rounded-lg text-xs font-semibold text-slate-600 hover:bg-slate-50"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={handleDeleteProduct}
+              className="px-5 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-xs font-bold shadow-xs"
+            >
+              Confirm Remove / Archive
+            </button>
+          </div>
+        </div>
       </Modal>
     </div>
   );

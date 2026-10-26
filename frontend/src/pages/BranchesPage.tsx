@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { api } from '../services/api';
 import { Branch } from '../types';
-import { Building2, Plus, Phone, MapPin, FileText, CheckCircle2 } from 'lucide-react';
+import { Building2, Plus, Phone, MapPin, FileText, CheckCircle2, Edit2, Trash2, AlertCircle } from 'lucide-react';
 import { Badge } from '../components/Badge';
 import { Modal } from '../components/Modal';
 
@@ -22,6 +22,22 @@ export const BranchesPage: React.FC = () => {
     gstin: '',
     drugLicenseNo: '',
   });
+
+  // Edit Branch Modal
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editingBranch, setEditingBranch] = useState<Branch | null>(null);
+  const [editBranchForm, setEditBranchForm] = useState({
+    name: '',
+    address: '',
+    phone: '',
+    email: '',
+    gstin: '',
+    drugLicenseNo: '',
+  });
+
+  // Delete/Archive Confirmation Modal
+  const [deleteTarget, setDeleteTarget] = useState<Branch | null>(null);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
 
   const [message, setMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
 
@@ -60,6 +76,51 @@ export const BranchesPage: React.FC = () => {
       loadBranches();
     } catch (err: any) {
       setMessage({ text: err.message || 'Failed to create branch.', type: 'error' });
+    }
+  };
+
+  const openEdit = (b: Branch) => {
+    setEditingBranch(b);
+    setEditBranchForm({
+      name: b.name,
+      address: b.address,
+      phone: b.phone,
+      email: b.email || '',
+      gstin: b.gstin,
+      drugLicenseNo: b.drugLicenseNo || '',
+    });
+    setShowEditModal(true);
+  };
+
+  const handleUpdateBranch = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingBranch) return;
+    setMessage(null);
+    try {
+      await api.updateBranch(editingBranch.id, {
+        ...editBranchForm,
+        email: editBranchForm.email.trim() || null,
+        drugLicenseNo: editBranchForm.drugLicenseNo.trim() || null,
+      });
+      setMessage({ text: `Branch '${editBranchForm.name}' updated successfully.`, type: 'success' });
+      setShowEditModal(false);
+      loadBranches();
+    } catch (err: any) {
+      setMessage({ text: err.message || 'Failed to update branch.', type: 'error' });
+    }
+  };
+
+  const handleDeleteBranch = async () => {
+    if (!deleteTarget) return;
+    setMessage(null);
+    try {
+      const res = await api.deleteBranch(deleteTarget.id);
+      setMessage({ text: res.message || `Branch '${deleteTarget.name}' archived/removed successfully.`, type: 'success' });
+      setShowDeleteModal(false);
+      setDeleteTarget(null);
+      loadBranches();
+    } catch (err: any) {
+      setMessage({ text: err.message || 'Failed to delete/archive branch.', type: 'error' });
     }
   };
 
@@ -111,10 +172,35 @@ export const BranchesPage: React.FC = () => {
                 <Badge variant="brand" size="sm">
                   {b.code}
                 </Badge>
-                <span className="flex items-center gap-1.5 text-xs text-emerald-600 font-bold">
-                  <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
-                  Active
-                </span>
+                <div className="flex items-center gap-2">
+                  <span className="flex items-center gap-1.5 text-xs text-emerald-600 font-bold">
+                    <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+                    Active
+                  </span>
+                  {isSuperAdmin && (
+                    <div className="flex items-center gap-1 ml-2 border-l border-slate-200 pl-2">
+                      <button
+                        type="button"
+                        onClick={() => openEdit(b)}
+                        title="Edit Branch Details"
+                        className="p-1 text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                      >
+                        <Edit2 className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setDeleteTarget(b);
+                          setShowDeleteModal(true);
+                        }}
+                        title="Archive / Remove Branch"
+                        className="p-1 text-rose-600 hover:bg-rose-50 rounded transition-colors"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  )}
+                </div>
               </div>
 
               <h2 className="text-base font-bold text-slate-900 mb-2">{b.name}</h2>
@@ -254,6 +340,128 @@ export const BranchesPage: React.FC = () => {
             </button>
           </div>
         </form>
+      </Modal>
+
+      {/* Modal: Edit Branch */}
+      <Modal isOpen={showEditModal} onClose={() => setShowEditModal(false)} title="Edit Pharmacy Branch Record" maxWidth="lg">
+        <form onSubmit={handleUpdateBranch} className="space-y-4">
+          <div>
+            <label className="text-xs font-bold text-slate-700 block mb-1">Branch Name *</label>
+            <input
+              type="text"
+              required
+              value={editBranchForm.name}
+              onChange={(e) => setEditBranchForm({ ...editBranchForm, name: e.target.value })}
+              className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-300 rounded-lg font-medium"
+            />
+          </div>
+
+          <div>
+            <label className="text-xs font-bold text-slate-700 block mb-1">Physical Address *</label>
+            <textarea
+              required
+              rows={2}
+              value={editBranchForm.address}
+              onChange={(e) => setEditBranchForm({ ...editBranchForm, address: e.target.value })}
+              className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-300 rounded-lg"
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs font-bold text-slate-700 block mb-1">Phone *</label>
+              <input
+                type="text"
+                required
+                value={editBranchForm.phone}
+                onChange={(e) => setEditBranchForm({ ...editBranchForm, phone: e.target.value })}
+                className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-300 rounded-lg font-mono"
+              />
+            </div>
+            <div>
+              <label className="text-xs font-bold text-slate-700 block mb-1">Email</label>
+              <input
+                type="email"
+                value={editBranchForm.email}
+                onChange={(e) => setEditBranchForm({ ...editBranchForm, email: e.target.value })}
+                className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-300 rounded-lg"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs font-bold text-slate-700 block mb-1">GSTIN *</label>
+              <input
+                type="text"
+                required
+                value={editBranchForm.gstin}
+                onChange={(e) => setEditBranchForm({ ...editBranchForm, gstin: e.target.value })}
+                className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-300 rounded-lg uppercase font-mono font-bold"
+              />
+            </div>
+            <div>
+              <label className="text-xs font-bold text-slate-700 block mb-1">Drug License Number</label>
+              <input
+                type="text"
+                value={editBranchForm.drugLicenseNo}
+                onChange={(e) => setEditBranchForm({ ...editBranchForm, drugLicenseNo: e.target.value })}
+                className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-300 rounded-lg font-mono"
+              />
+            </div>
+          </div>
+
+          <div className="flex justify-end gap-2 pt-4 border-t border-slate-200">
+            <button
+              type="button"
+              onClick={() => setShowEditModal(false)}
+              className="px-4 py-2 border border-slate-300 rounded-lg text-xs font-semibold text-slate-600"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold"
+            >
+              Save Changes
+            </button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* Modal: Delete/Archive Confirmation */}
+      <Modal isOpen={showDeleteModal} onClose={() => setShowDeleteModal(false)} title="Confirm Branch Deactivation / Archival" maxWidth="md">
+        <div className="space-y-4">
+          <div className="flex items-start gap-3 p-3 bg-rose-50 border border-rose-200 rounded-lg text-rose-800 text-xs">
+            <AlertCircle className="w-5 h-5 flex-shrink-0 text-rose-600 mt-0.5" />
+            <div>
+              <p className="font-bold mb-1">Are you sure you want to deactivate or remove this branch?</p>
+              <p>
+                Branch: <strong className="font-semibold text-slate-900">{deleteTarget?.name}</strong> ({deleteTarget?.code})
+              </p>
+              <p className="text-[11px] text-rose-700 mt-1">
+                If this branch has active users, inventory batches, or invoices, it will be safely deactivated/archived to protect financial and tax audits. If completely unreferenced, it will be deleted.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex justify-end gap-2 pt-2 border-t border-slate-200">
+            <button
+              type="button"
+              onClick={() => setShowDeleteModal(false)}
+              className="px-4 py-2 border border-slate-300 rounded-lg text-xs font-semibold text-slate-600"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={handleDeleteBranch}
+              className="px-5 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-xs font-bold"
+            >
+              Confirm Deactivate / Remove
+            </button>
+          </div>
+        </div>
       </Modal>
     </div>
   );

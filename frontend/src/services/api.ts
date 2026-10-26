@@ -84,11 +84,13 @@ export const api = {
   getBranch: (id: string) => apiRequest(`/branches/${id}`),
   createBranch: (data: any) => apiRequest('/branches', { method: 'POST', body: JSON.stringify(data) }),
   updateBranch: (id: string, data: any) => apiRequest(`/branches/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  deleteBranch: (id: string) => apiRequest(`/branches/${id}`, { method: 'DELETE' }),
 
   // Users
   getUsers: () => apiRequest('/users'),
   createUser: (data: any) => apiRequest('/users', { method: 'POST', body: JSON.stringify(data) }),
   updateUser: (id: string, data: any) => apiRequest(`/users/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  deleteUser: (id: string) => apiRequest(`/users/${id}`, { method: 'DELETE' }),
 
   // Products
   getProducts: (params?: { search?: string; barcode?: string; branchId?: string; page?: number; limit?: number }) => {
@@ -103,6 +105,7 @@ export const api = {
   getProduct: (id: string) => apiRequest(`/products/${id}`),
   createProduct: (data: any) => apiRequest('/products', { method: 'POST', body: JSON.stringify(data) }),
   updateProduct: (id: string, data: any) => apiRequest(`/products/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  deleteProduct: (id: string) => apiRequest(`/products/${id}`, { method: 'DELETE' }),
 
   // Inventory
   getBatches: (params?: { branchId?: string; medicineId?: string; status?: string; nearExpiry?: boolean; expired?: boolean }) => {
@@ -145,15 +148,30 @@ export const api = {
     apiRequest(`/billing/invoices/${id}/cancel`, { method: 'POST', body: JSON.stringify({ reason }) }),
 
   // Purchases & Suppliers
-  getSuppliers: () => apiRequest('/suppliers'),
+  getSuppliers: (params?: { search?: string; includeInactive?: boolean }) => {
+    const q = new URLSearchParams();
+    if (params?.search) q.append('search', params.search);
+    if (params?.includeInactive) q.append('includeInactive', 'true');
+    const queryString = q.toString() ? `?${q.toString()}` : '';
+    return apiRequest(`/suppliers${queryString}`);
+  },
+  getSupplier: (id: string) => apiRequest(`/suppliers/${id}`),
   createSupplier: (data: any) => apiRequest('/suppliers', { method: 'POST', body: JSON.stringify(data) }),
-  getPurchases: (params?: { branchId?: string; page?: number }) => {
+  updateSupplier: (id: string, data: any) => apiRequest(`/suppliers/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  deleteSupplier: (id: string) => apiRequest(`/suppliers/${id}`, { method: 'DELETE' }),
+
+  getPurchases: (params?: { branchId?: string; search?: string; page?: number }) => {
     const q = new URLSearchParams();
     if (params?.branchId) q.append('branchId', params.branchId);
+    if (params?.search) q.append('search', params.search);
     if (params?.page) q.append('page', params.page.toString());
     return apiRequest(`/purchases?${q.toString()}`);
   },
+  getPurchase: (id: string) => apiRequest(`/purchases/${id}`),
   createPurchase: (data: any) => apiRequest('/purchases', { method: 'POST', body: JSON.stringify(data) }),
+  updatePurchase: (id: string, data: any) => apiRequest(`/purchases/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  cancelPurchase: (id: string, reason: string) =>
+    apiRequest(`/purchases/${id}/cancel`, { method: 'POST', body: JSON.stringify({ reason }) }),
   createPurchaseReturn: (data: any) => apiRequest('/purchases/returns', { method: 'POST', body: JSON.stringify(data) }),
   getPurchaseReturns: (params?: { branchId?: string; page?: number }) => {
     const q = new URLSearchParams();
@@ -161,6 +179,10 @@ export const api = {
     if (params?.page) q.append('page', params.page.toString());
     return apiRequest(`/purchases/returns?${q.toString()}`);
   },
+
+  // System Settings & Customization
+  getSettings: () => apiRequest('/settings'),
+  updateSettings: (settings: any) => apiRequest('/settings', { method: 'PUT', body: JSON.stringify({ settings }) }),
 
   // Operating Expenses
   getExpenses: (params?: { branchId?: string; category?: string; startDate?: string; endDate?: string; page?: number }) => {
