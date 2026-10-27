@@ -15,10 +15,9 @@ const upload = multer({
   limits: { fileSize: 10 * 1024 * 1024 }, // 10MB limit
 });
 
-router.get('/template/:type', downloadTemplate);
-
 router.use(authenticate);
 
+router.get('/template/:type', downloadTemplate);
 router.post('/upload', upload.single('file'), uploadAndPreviewImport);
 router.get('/:id', getImportJob);
 router.post('/:id/commit', commitImportJob);

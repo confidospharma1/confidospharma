@@ -109,7 +109,7 @@ export const uploadAndPreviewImport = async (req: Request, res: Response) => {
         const packSize = (mapped.packSize || '10 Tablets').toString().trim();
         const rawHsn = (mapped.hsnCode || '').toString().trim();
         const hsnCode = rawHsn ? rawHsn : null;
-        const gstRate = parseCleanNumber(mapped.gstRate, 12);
+        const gstRate = parseCleanNumber(mapped.gstRate, 5);
         const mrp = parseCleanNumber(mapped.mrp, 0);
         const defaultPurchaseRate = parseCleanNumber(mapped.defaultPurchaseRate, NaN);
         const defaultSellingRate = parseCleanNumber(mapped.defaultSellingRate, NaN);
@@ -145,7 +145,7 @@ export const uploadAndPreviewImport = async (req: Request, res: Response) => {
           manufacturer: manufacturer || 'Standard Pharma',
           packSize,
           hsnCode,
-          gstRate: isNaN(gstRate) ? 12 : gstRate,
+          gstRate: isNaN(gstRate) ? 5 : gstRate,
           mrp: isNaN(mrp) ? 0 : mrp,
           defaultPurchaseRate: isNaN(defaultPurchaseRate) ? null : defaultPurchaseRate,
           defaultSellingRate: isNaN(defaultSellingRate) ? null : defaultSellingRate,
@@ -546,7 +546,7 @@ export const downloadTemplate = async (req: Request, res: Response) => {
         'Manufacturer': 'Glenmark',
         'Pack Size': '15 Tablets',
         'HSN Code': '30049099',
-        'GST Rate': 12,
+        'GST Rate': 5,
         'MRP': 98.00,
         'Barcode': '8901117009999',
         'Prescription Type': 'Schedule H',

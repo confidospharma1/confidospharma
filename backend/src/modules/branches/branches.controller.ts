@@ -82,13 +82,29 @@ export const createBranch = async (req: Request, res: Response) => {
 
     const { code, name, address, phone, email, gstin, drugLicenseNo } = req.body;
 
-    if (!code || !name || !address || !phone || !gstin) {
-      return res.status(400).json({ message: 'Code, Name, Address, Phone, and GSTIN are required' });
+    if (!code || !name || !address || !phone) {
+      return res.status(400).json({ message: 'Code, Name, Address, and Phone are required.' });
     }
 
-    const existingCode = await prisma.branch.findUnique({ where: { code } });
+    const trimmedEmail = email && typeof email === 'string' && email.trim() ? email.trim() : null;
+    if (trimmedEmail) {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(trimmedEmail)) {
+        return res.status(400).json({ message: 'Please provide a valid email address format (e.g. branch@domain.com).' });
+      }
+    }
+
+    const trimmedGstin = gstin && typeof gstin === 'string' && gstin.trim() ? gstin.trim().toUpperCase() : null;
+    if (trimmedGstin) {
+      const gstinRegex = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/;
+      if (!gstinRegex.test(trimmedGstin)) {
+        return res.status(400).json({ message: 'Please provide a valid 15-character GSTIN (e.g. 37AAAAA1234A1Z8).' });
+      }
+    }
+
+    const existingCode = await prisma.branch.findUnique({ where: { code: code.toUpperCase().trim() } });
     if (existingCode) {
-      return res.status(409).json({ message: `Branch code '${code}' already exists` });
+      return res.status(409).json({ message: `Branch code '${code}' already exists.` });
     }
 
     // Get or create primary company
@@ -98,10 +114,10 @@ export const createBranch = async (req: Request, res: Response) => {
         data: {
           name: 'Confidos Pharma Ltd.',
           legalName: 'Confidos Healthcare & Pharmaceuticals Private Limited',
-          gstin: gstin.toUpperCase().trim(),
+          gstin: trimmedGstin,
           address: address.trim(),
           phone: phone.trim(),
-          email: email ? email.trim() : null,
+          email: trimmedEmail,
         },
       });
     }
@@ -113,9 +129,9 @@ export const createBranch = async (req: Request, res: Response) => {
         name: name.trim(),
         address: address.trim(),
         phone: phone.trim(),
-        email: email ? email.trim() : null,
-        gstin: gstin.toUpperCase().trim(),
-        drugLicenseNo: drugLicenseNo ? drugLicenseNo.trim() : null,
+        email: trimmedEmail,
+        gstin: trimmedGstin,
+        drugLicenseNo: drugLicenseNo && typeof drugLicenseNo === 'string' && drugLicenseNo.trim() ? drugLicenseNo.trim() : null,
         isActive: true,
       },
     });
@@ -138,11 +154,27 @@ export const createBranch = async (req: Request, res: Response) => {
 export const updateBranch = async (req: Request, res: Response) => {
   try {
     if (req.user?.role !== 'SUPER_ADMIN') {
-      return res.status(403).json({ message: 'Only Super Admin can update branches' });
+      return res.status(403).json({ message: 'You do not have permission to modify this record. Please contact the Super Admin for assistance.' });
     }
 
     const id = req.params.id as string;
     const { name, address, phone, email, gstin, drugLicenseNo, isActive } = req.body;
+
+    const trimmedEmail = email !== undefined ? (email && typeof email === 'string' && email.trim() ? email.trim() : null) : undefined;
+    if (trimmedEmail) {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(trimmedEmail)) {
+        return res.status(400).json({ message: 'Please provide a valid email address format.' });
+      }
+    }
+
+    const trimmedGstin = gstin !== undefined ? (gstin && typeof gstin === 'string' && gstin.trim() ? gstin.trim().toUpperCase() : null) : undefined;
+    if (trimmedGstin) {
+      const gstinRegex = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/;
+      if (!gstinRegex.test(trimmedGstin)) {
+        return res.status(400).json({ message: 'Please provide a valid 15-character GSTIN.' });
+      }
+    }
 
     const updated = await prisma.branch.update({
       where: { id },
@@ -150,9 +182,9 @@ export const updateBranch = async (req: Request, res: Response) => {
         ...(name && { name: name.trim() }),
         ...(address && { address: address.trim() }),
         ...(phone && { phone: phone.trim() }),
-        ...(email !== undefined && { email: email ? email.trim() : null }),
-        ...(gstin && { gstin: gstin.toUpperCase().trim() }),
-        ...(drugLicenseNo !== undefined && { drugLicenseNo: drugLicenseNo ? drugLicenseNo.trim() : null }),
+        ...(trimmedEmail !== undefined && { email: trimmedEmail }),
+        ...(trimmedGstin !== undefined && { gstin: trimmedGstin }),
+        ...(drugLicenseNo !== undefined && { drugLicenseNo: drugLicenseNo && drugLicenseNo.trim() ? drugLicenseNo.trim() : null }),
         ...(isActive !== undefined && { isActive }),
       },
     });
@@ -175,7 +207,7 @@ export const updateBranch = async (req: Request, res: Response) => {
 export const deleteBranch = async (req: Request, res: Response) => {
   try {
     if (req.user?.role !== 'SUPER_ADMIN') {
-      return res.status(403).json({ message: 'Only Super Admin can delete or archive branches' });
+      return res.status(403).json({ message: 'You do not have permission to modify this record. Please contact the Super Admin for assistance.' });
     }
 
     const id = req.params.id as string;

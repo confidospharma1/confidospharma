@@ -145,8 +145,8 @@ export const updateSupplier = async (req: Request, res: Response) => {
   try {
     if (!req.user) return res.status(401).json({ message: 'Unauthorized' });
 
-    if (req.user.role === 'BILLING_USER') {
-      return res.status(403).json({ message: 'Billing users cannot modify suppliers' });
+    if (req.user.role !== 'SUPER_ADMIN') {
+      return res.status(403).json({ message: 'You do not have permission to modify this record. Please contact the Super Admin for assistance.' });
     }
 
     const id = req.params.id as string;
@@ -213,8 +213,8 @@ export const deleteSupplier = async (req: Request, res: Response) => {
   try {
     if (!req.user) return res.status(401).json({ message: 'Unauthorized' });
 
-    if (req.user.role !== 'SUPER_ADMIN' && req.user.role !== 'BRANCH_ADMIN') {
-      return res.status(403).json({ message: 'Only administrators can delete or archive suppliers' });
+    if (req.user.role !== 'SUPER_ADMIN') {
+      return res.status(403).json({ message: 'You do not have permission to modify this record. Please contact the Super Admin for assistance.' });
     }
 
     const id = req.params.id as string;

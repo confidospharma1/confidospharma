@@ -7,9 +7,10 @@ import { Badge } from '../components/Badge';
 import { Modal } from '../components/Modal';
 import { FilterButton } from '../components/FilterButton';
 import { FilterField, FilterSelect, FilterInput } from '../components/FilterControls';
+import { PermissionDeniedModal } from '../components/PermissionDeniedModal';
 
 export const ProductsPage: React.FC = () => {
-  const { isBillingUser } = useAuth();
+  const { isSuperAdmin, isBillingUser } = useAuth();
 
   const [products, setProducts] = useState<MedicineProduct[]>([]);
   const [loading, setLoading] = useState(true);
@@ -20,6 +21,9 @@ export const ProductsPage: React.FC = () => {
   const [minMrp, setMinMrp] = useState('');
   const [maxMrp, setMaxMrp] = useState('');
   const [hsnStatus, setHsnStatus] = useState('');
+
+  // Permission Restriction Modal for Branch Admin
+  const [showPermissionModal, setShowPermissionModal] = useState(false);
 
   const activeFilterCount = [
     formFilter,
@@ -51,7 +55,7 @@ export const ProductsPage: React.FC = () => {
     packSize: '10 Tablets',
     baseUnit: 'Strip',
     hsnCode: '',
-    gstRate: '12',
+    gstRate: '5',
     mrp: '',
     defaultPurchaseRate: '',
     defaultSellingRate: '',
@@ -73,7 +77,7 @@ export const ProductsPage: React.FC = () => {
     packSize: '10 Tablets',
     baseUnit: 'Strip',
     hsnCode: '',
-    gstRate: '12',
+    gstRate: '5',
     mrp: '',
     defaultPurchaseRate: '',
     defaultSellingRate: '',
@@ -132,7 +136,7 @@ export const ProductsPage: React.FC = () => {
         packSize: '10 Tablets',
         baseUnit: 'Strip',
         hsnCode: '',
-        gstRate: '12',
+        gstRate: '5',
         mrp: '',
         defaultPurchaseRate: '',
         defaultSellingRate: '',
@@ -148,6 +152,10 @@ export const ProductsPage: React.FC = () => {
   };
 
   const openEdit = (p: MedicineProduct) => {
+    if (!isSuperAdmin) {
+      setShowPermissionModal(true);
+      return;
+    }
     setEditingProduct(p);
     setEditForm({
       brandName: p.brandName,
@@ -158,7 +166,7 @@ export const ProductsPage: React.FC = () => {
       packSize: p.packSize || '10 Tablets',
       baseUnit: p.baseUnit || 'Strip',
       hsnCode: p.hsnCode || '',
-      gstRate: String(p.gstRate ?? 12),
+      gstRate: String(p.gstRate ?? 5),
       mrp: String(p.mrp ?? 0),
       defaultPurchaseRate: p.defaultPurchaseRate !== undefined && p.defaultPurchaseRate !== null ? String(p.defaultPurchaseRate) : '',
       defaultSellingRate: p.defaultSellingRate !== undefined && p.defaultSellingRate !== null ? String(p.defaultSellingRate) : '',
@@ -515,6 +523,10 @@ export const ProductsPage: React.FC = () => {
                           <button
                             type="button"
                             onClick={() => {
+                              if (!isSuperAdmin) {
+                                setShowPermissionModal(true);
+                                return;
+                              }
                               setDeleteTarget(p);
                               setShowDeleteModal(true);
                             }}
@@ -609,41 +621,44 @@ export const ProductsPage: React.FC = () => {
             </p>
             <div className="grid grid-cols-3 gap-3">
               <div>
-                <label className="text-xs font-bold text-blue-900 block mb-1">Default Purchase Rate (₹)</label>
+                <label className="text-xs font-bold text-blue-900 block mb-1">Default Purchase Rate</label>
                 <input
                   type="number"
                   step="0.01"
-                  placeholder="e.g. 22.50"
+                  min="0"
+                  placeholder="e.g., 15.00"
                   value={addForm.defaultPurchaseRate}
                   onChange={(e) => setAddForm({ ...addForm, defaultPurchaseRate: e.target.value })}
                   className="w-full px-3 py-2 text-xs bg-white border border-blue-200 rounded-lg font-mono font-bold text-blue-900 focus:ring-2 focus:ring-blue-500"
                 />
-                <span className="text-[10px] text-slate-400 block mt-0.5">Supplier baseline cost</span>
+                <span className="text-[10px] text-slate-500 block mt-0.5 leading-tight">The usual price paid to purchase one unit of this medicine from a supplier. Enter the amount in your currency.</span>
               </div>
               <div>
-                <label className="text-xs font-bold text-emerald-900 block mb-1">Default Selling Rate (₹)</label>
+                <label className="text-xs font-bold text-emerald-900 block mb-1">Default Selling Rate</label>
                 <input
                   type="number"
                   step="0.01"
-                  placeholder="e.g. 30.00"
+                  min="0"
+                  placeholder="e.g., 20.00"
                   value={addForm.defaultSellingRate}
                   onChange={(e) => setAddForm({ ...addForm, defaultSellingRate: e.target.value })}
                   className="w-full px-3 py-2 text-xs bg-white border border-emerald-200 rounded-lg font-mono font-bold text-emerald-900 focus:ring-2 focus:ring-emerald-500"
                 />
-                <span className="text-[10px] text-slate-400 block mt-0.5">Standard counter selling price</span>
+                <span className="text-[10px] text-slate-500 block mt-0.5 leading-tight">The usual price charged to the customer for one unit. This is a default value, not necessarily the final billed price.</span>
               </div>
               <div>
                 <label className="text-xs font-bold text-amber-900 block mb-1">Maximum Retail Price (MRP) *</label>
                 <input
                   type="number"
                   step="0.01"
+                  min="0"
                   required
-                  placeholder="33.50"
+                  placeholder="e.g., 25.00"
                   value={addForm.mrp}
                   onChange={(e) => setAddForm({ ...addForm, mrp: e.target.value })}
                   className="w-full px-3 py-2 text-xs bg-white border border-amber-300 rounded-lg font-mono font-bold text-slate-900 focus:ring-2 focus:ring-amber-500"
                 />
-                <span className="text-[10px] text-slate-400 block mt-0.5">Printed statutory maximum</span>
+                <span className="text-[10px] text-slate-500 block mt-0.5 leading-tight">The maximum retail price printed on the medicine packaging for the specified pack or unit.</span>
               </div>
             </div>
           </div>
@@ -678,10 +693,11 @@ export const ProductsPage: React.FC = () => {
                 onChange={(e) => setAddForm({ ...addForm, gstRate: e.target.value })}
                 className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-300 rounded-lg font-mono font-bold"
               >
-                <option value="5">5%</option>
-                <option value="12">12% (Standard)</option>
+                <option value="5">5% (CGST 2.5% + SGST 2.5%)</option>
+                <option value="12">12%</option>
                 <option value="18">18%</option>
                 <option value="28">28%</option>
+                <option value="0">0% (Nil)</option>
               </select>
             </div>
             <div>
@@ -811,38 +827,44 @@ export const ProductsPage: React.FC = () => {
             </p>
             <div className="grid grid-cols-3 gap-3">
               <div>
-                <label className="text-xs font-bold text-blue-900 block mb-1">Default Purchase Rate (₹)</label>
+                <label className="text-xs font-bold text-blue-900 block mb-1">Default Purchase Rate</label>
                 <input
                   type="number"
                   step="0.01"
+                  min="0"
+                  placeholder="e.g., 15.00"
                   value={editForm.defaultPurchaseRate}
                   onChange={(e) => setEditForm({ ...editForm, defaultPurchaseRate: e.target.value })}
                   className="w-full px-3 py-2 text-xs bg-white border border-blue-200 rounded-lg font-mono font-bold text-blue-900 focus:ring-2 focus:ring-blue-500"
                 />
-                <span className="text-[10px] text-slate-400 block mt-0.5">Supplier baseline cost</span>
+                <span className="text-[10px] text-slate-500 block mt-0.5 leading-tight">The usual price paid to purchase one unit of this medicine from a supplier. Enter the amount in your currency.</span>
               </div>
               <div>
-                <label className="text-xs font-bold text-emerald-900 block mb-1">Default Selling Rate (₹)</label>
+                <label className="text-xs font-bold text-emerald-900 block mb-1">Default Selling Rate</label>
                 <input
                   type="number"
                   step="0.01"
+                  min="0"
+                  placeholder="e.g., 20.00"
                   value={editForm.defaultSellingRate}
                   onChange={(e) => setEditForm({ ...editForm, defaultSellingRate: e.target.value })}
                   className="w-full px-3 py-2 text-xs bg-white border border-emerald-200 rounded-lg font-mono font-bold text-emerald-900 focus:ring-2 focus:ring-emerald-500"
                 />
-                <span className="text-[10px] text-slate-400 block mt-0.5">Standard counter selling price</span>
+                <span className="text-[10px] text-slate-500 block mt-0.5 leading-tight">The usual price charged to the customer for one unit. This is a default value, not necessarily the final billed price.</span>
               </div>
               <div>
                 <label className="text-xs font-bold text-amber-900 block mb-1">Maximum Retail Price (MRP) *</label>
                 <input
                   type="number"
                   step="0.01"
+                  min="0"
                   required
+                  placeholder="e.g., 25.00"
                   value={editForm.mrp}
                   onChange={(e) => setEditForm({ ...editForm, mrp: e.target.value })}
                   className="w-full px-3 py-2 text-xs bg-white border border-amber-300 rounded-lg font-mono font-bold text-slate-900 focus:ring-2 focus:ring-amber-500"
                 />
-                <span className="text-[10px] text-slate-400 block mt-0.5">Printed statutory maximum</span>
+                <span className="text-[10px] text-slate-500 block mt-0.5 leading-tight">The maximum retail price printed on the medicine packaging for the specified pack or unit.</span>
               </div>
             </div>
           </div>
@@ -875,10 +897,11 @@ export const ProductsPage: React.FC = () => {
                 onChange={(e) => setEditForm({ ...editForm, gstRate: e.target.value })}
                 className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-300 rounded-lg font-mono font-bold"
               >
-                <option value="5">5%</option>
-                <option value="12">12% (Standard)</option>
+                <option value="5">5% (CGST 2.5% + SGST 2.5%)</option>
+                <option value="12">12%</option>
                 <option value="18">18%</option>
                 <option value="28">28%</option>
+                <option value="0">0% (Nil)</option>
               </select>
             </div>
             <div>
@@ -969,6 +992,12 @@ export const ProductsPage: React.FC = () => {
           </div>
         </div>
       </Modal>
+
+      {/* Permission Restriction Modal */}
+      <PermissionDeniedModal
+        isOpen={showPermissionModal}
+        onClose={() => setShowPermissionModal(false)}
+      />
     </div>
   );
 };

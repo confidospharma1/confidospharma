@@ -15,19 +15,53 @@ import {
   Layers,
   Filter,
   X,
+  Edit2,
+  Trash2,
+  Eye,
+  CheckSquare,
+  Square,
 } from 'lucide-react';
 import { Badge } from '../components/Badge';
 import { Modal } from '../components/Modal';
 import { FilterButton } from '../components/FilterButton';
 import { FilterField, FilterSelect, FilterInput } from '../components/FilterControls';
+import { PermissionDeniedModal } from '../components/PermissionDeniedModal';
 
 export const InventoryPage: React.FC = () => {
-  const { currentBranch, selectedBranchId, isBillingUser } = useAuth();
+  const { currentBranch, selectedBranchId, isSuperAdmin, isBillingUser } = useAuth();
 
   const [batches, setBatches] = useState<StockBatch[]>([]);
   const [loading, setLoading] = useState(true);
   const [filterTab, setFilterTab] = useState<'ALL' | 'ACTIVE' | 'NEAR_EXPIRY' | 'EXPIRED'>('ACTIVE');
   const [searchQuery, setSearchQuery] = useState('');
+
+  // Bulk Selection State
+  const [selectedBatchIds, setSelectedBatchIds] = useState<string[]>([]);
+  const [showBulkModal, setShowBulkModal] = useState(false);
+  const [bulkActionType, setBulkActionType] = useState<'QUARANTINE' | 'ACTIVE' | 'DEPLETED' | 'DELETE' | null>(null);
+  const [isExecutingBulk, setIsExecutingBulk] = useState(false);
+
+  // Edit Batch Modal
+  const [editingBatch, setEditingBatch] = useState<StockBatch | null>(null);
+  const [showEditBatchModal, setShowEditBatchModal] = useState(false);
+  const [editBatchForm, setEditBatchForm] = useState({
+    batchNumber: '',
+    expiryDate: '',
+    mrp: '',
+    sellingPrice: '',
+    status: 'ACTIVE',
+  });
+
+  // Delete Batch Confirmation Modal
+  const [deletingBatch, setDeletingBatch] = useState<StockBatch | null>(null);
+  const [showDeleteBatchModal, setShowDeleteBatchModal] = useState(false);
+
+  // View Batch Details Modal
+  const [viewingBatch, setViewingBatch] = useState<StockBatch | null>(null);
+  const [showViewBatchModal, setShowViewBatchModal] = useState(false);
+
+  // Permission Restriction Modal for Branch Admin
+  const [showPermissionModal, setShowPermissionModal] = useState(false);
 
   // Detailed Filter State
   const [dosageFilter, setDosageFilter] = useState('');
@@ -186,6 +220,127 @@ export const InventoryPage: React.FC = () => {
       loadBatches();
     } catch (err: any) {
       setMessage({ text: err.message || 'Failed to adjust stock.', type: 'error' });
+    }
+  };
+
+  // Selection Handlers
+  const handleToggleSelect = (id: string) => {
+    setSelectedBatchIds((prev) =>
+      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
+    );
+  };
+
+  const handleSelectAllVisible = () => {
+    if (selectedBatchIds.length === filteredBatches.length && filteredBatches.length > 0) {
+      setSelectedBatchIds([]);
+    } else {
+      setSelectedBatchIds(filteredBatches.map((b) => b.id));
+    }
+  };
+
+  const handleClearSelection = () => {
+    setSelectedBatchIds([]);
+  };
+
+  // View Batch Details
+  const handleOpenViewBatch = (batch: StockBatch) => {
+    setViewingBatch(batch);
+    setShowViewBatchModal(true);
+  };
+
+  // Edit Batch
+  const handleOpenEditBatch = (batch: StockBatch) => {
+    if (!isSuperAdmin) {
+      setShowPermissionModal(true);
+      return;
+    }
+    setEditingBatch(batch);
+    setEditBatchForm({
+      batchNumber: batch.batchNumber,
+      expiryDate: batch.expiryDate ? new Date(batch.expiryDate).toISOString().split('T')[0] : '',
+      mrp: batch.mrp.toString(),
+      sellingPrice: (batch.sellingPrice || batch.mrp).toString(),
+      status: batch.status,
+    });
+    setShowEditBatchModal(true);
+  };
+
+  const handleUpdateBatch = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingBatch) return;
+    setMessage(null);
+    try {
+      await api.updateBatch(editingBatch.id, {
+        batchNumber: editBatchForm.batchNumber,
+        expiryDate: editBatchForm.expiryDate,
+        mrp: parseFloat(editBatchForm.mrp),
+        sellingPrice: parseFloat(editBatchForm.sellingPrice),
+        status: editBatchForm.status,
+      });
+      setMessage({ text: 'Stock batch updated successfully.', type: 'success' });
+      setShowEditBatchModal(false);
+      setEditingBatch(null);
+      loadBatches();
+    } catch (err: any) {
+      setMessage({ text: err.message || 'Failed to update stock batch.', type: 'error' });
+    }
+  };
+
+  // Delete Batch
+  const handleOpenDeleteBatch = (batch: StockBatch) => {
+    if (!isSuperAdmin) {
+      setShowPermissionModal(true);
+      return;
+    }
+    setDeletingBatch(batch);
+    setShowDeleteBatchModal(true);
+  };
+
+  const handleConfirmDeleteBatch = async () => {
+    if (!deletingBatch) return;
+    setMessage(null);
+    try {
+      const res = await api.deleteBatch(deletingBatch.id);
+      setMessage({ text: res.message || 'Stock batch removed successfully.', type: 'success' });
+      setShowDeleteBatchModal(false);
+      setDeletingBatch(null);
+      loadBatches();
+    } catch (err: any) {
+      setMessage({ text: err.message || 'Failed to remove stock batch.', type: 'error' });
+    }
+  };
+
+  // Bulk Operations
+  const handleOpenBulkAction = (action: 'QUARANTINE' | 'ACTIVE' | 'DEPLETED' | 'DELETE') => {
+    if (!isSuperAdmin) {
+      setShowPermissionModal(true);
+      return;
+    }
+    setBulkActionType(action);
+    setShowBulkModal(true);
+  };
+
+  const handleExecuteBulkAction = async () => {
+    if (!bulkActionType || selectedBatchIds.length === 0) return;
+    setIsExecutingBulk(true);
+    setMessage(null);
+    try {
+      const res = await api.bulkBatchAction({
+        batchIds: selectedBatchIds,
+        action: bulkActionType,
+      });
+      setMessage({
+        text: `Bulk action completed: ${res.affectedCount || selectedBatchIds.length} batch(es) processed.${res.quarantinedCount ? ` (${res.quarantinedCount} safely quarantined due to historical movements)` : ''}`,
+        type: 'success',
+      });
+      setShowBulkModal(false);
+      setSelectedBatchIds([]);
+      setBulkActionType(null);
+      loadBatches();
+    } catch (err: any) {
+      setMessage({ text: err.message || 'Failed to execute bulk batch operation.', type: 'error' });
+    } finally {
+      setIsExecutingBulk(false);
     }
   };
 
@@ -443,12 +598,63 @@ export const InventoryPage: React.FC = () => {
         )}
       </div>
 
+      {/* Bulk Selection Action Bar */}
+      {selectedBatchIds.length > 0 && (
+        <div className="bg-brand-50 border border-brand-200 rounded-xl p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
+          <div className="flex items-center gap-2 text-xs font-bold text-brand-900">
+            <CheckSquare className="w-4 h-4 text-brand-600" />
+            <span>{selectedBatchIds.length} batch(es) selected across active filter</span>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              onClick={() => handleOpenBulkAction('QUARANTINE')}
+              className="px-2.5 py-1.5 bg-amber-100 hover:bg-amber-200 text-amber-800 rounded-lg text-xs font-bold border border-amber-300 transition-colors"
+            >
+              Quarantine Selected
+            </button>
+            <button
+              onClick={() => handleOpenBulkAction('ACTIVE')}
+              className="px-2.5 py-1.5 bg-emerald-100 hover:bg-emerald-200 text-emerald-800 rounded-lg text-xs font-bold border border-emerald-300 transition-colors"
+            >
+              Mark Active
+            </button>
+            <button
+              onClick={() => handleOpenBulkAction('DEPLETED')}
+              className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-lg text-xs font-bold border border-slate-300 transition-colors"
+            >
+              Mark Depleted
+            </button>
+            <button
+              onClick={() => handleOpenBulkAction('DELETE')}
+              className="px-2.5 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-xs font-bold shadow-xs transition-colors"
+            >
+              Delete / Safe Removal
+            </button>
+            <button
+              onClick={handleClearSelection}
+              className="px-2.5 py-1.5 bg-white hover:bg-slate-100 text-slate-600 rounded-lg text-xs font-semibold border border-slate-300 transition-colors"
+            >
+              Clear Selection
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Batches Table Card */}
       <div className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs">
             <thead className="bg-slate-50 text-slate-700 font-bold border-b border-slate-200">
               <tr>
+                <th className="py-3 px-3 w-10 text-center">
+                  <input
+                    type="checkbox"
+                    checked={filteredBatches.length > 0 && selectedBatchIds.length === filteredBatches.length}
+                    onChange={handleSelectAllVisible}
+                    className="rounded border-slate-300 text-brand-600 focus:ring-brand-500 cursor-pointer"
+                    title="Select all visible batches"
+                  />
+                </th>
                 <th className="py-3 px-4">Medicine & Form</th>
                 <th className="py-3 px-3">Batch Number</th>
                 <th className="py-3 px-3 text-center">Expiry Date</th>
@@ -456,19 +662,19 @@ export const InventoryPage: React.FC = () => {
                 <th className="py-3 px-3 text-right">Purchase Rate</th>
                 <th className="py-3 px-3 text-right">MRP</th>
                 <th className="py-3 px-3 text-center">Status</th>
-                {!isBillingUser && <th className="py-3 px-4 text-right">Action</th>}
+                {!isBillingUser && <th className="py-3 px-4 text-right">Actions</th>}
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 font-medium">
               {loading ? (
                 <tr>
-                  <td colSpan={8} className="py-8 text-center text-slate-400">
+                  <td colSpan={9} className="py-8 text-center text-slate-400">
                     Loading stock batches...
                   </td>
                 </tr>
               ) : batches.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="py-12 text-center text-slate-500">
+                  <td colSpan={9} className="py-12 text-center text-slate-500">
                     <p className="text-sm font-bold text-slate-800">No inventory available.</p>
                     <p className="text-xs text-slate-500 mt-1">Receive stock through the authorized purchase invoice or stock-receipt workflow.</p>
                     {!isBillingUser && (
@@ -484,7 +690,7 @@ export const InventoryPage: React.FC = () => {
                 </tr>
               ) : filteredBatches.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="py-12 text-center text-slate-500">
+                  <td colSpan={9} className="py-12 text-center text-slate-500">
                     <p className="text-sm font-bold text-slate-700">No stock batches match your filter criteria.</p>
                     <p className="text-xs text-slate-400 mt-1">Try resetting the filter options or adjusting your search term.</p>
                     <button
@@ -504,7 +710,20 @@ export const InventoryPage: React.FC = () => {
                   const isExpired = new Date(batch.expiryDate) <= new Date();
 
                   return (
-                    <tr key={batch.id} className="hover:bg-slate-50/80 transition-colors">
+                    <tr
+                      key={batch.id}
+                      className={`hover:bg-slate-50/80 transition-colors ${
+                        selectedBatchIds.includes(batch.id) ? 'bg-brand-50/40' : ''
+                      }`}
+                    >
+                      <td className="py-3 px-3 text-center">
+                        <input
+                          type="checkbox"
+                          checked={selectedBatchIds.includes(batch.id)}
+                          onChange={() => handleToggleSelect(batch.id)}
+                          className="rounded border-slate-300 text-brand-600 focus:ring-brand-500 cursor-pointer"
+                        />
+                      </td>
                       <td className="py-3 px-4">
                         <span className="font-bold text-slate-900 block">{batch.medicine?.brandName}</span>
                         <span className="text-[11px] text-slate-500">
@@ -548,12 +767,36 @@ export const InventoryPage: React.FC = () => {
                       </td>
                       {!isBillingUser && (
                         <td className="py-3 px-4 text-right">
-                          <button
-                            onClick={() => handleOpenAdjust(batch)}
-                            className="px-2.5 py-1 text-xs font-semibold text-slate-700 hover:text-emerald-700 bg-slate-100 hover:bg-slate-200 rounded border border-slate-300 transition-colors"
-                          >
-                            Adjust Stock
-                          </button>
+                          <div className="flex items-center justify-end gap-1">
+                            <button
+                              onClick={() => handleOpenViewBatch(batch)}
+                              title="View Batch Details"
+                              className="p-1 text-slate-500 hover:text-brand-600 hover:bg-slate-100 rounded transition-colors"
+                            >
+                              <Eye className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={() => handleOpenAdjust(batch)}
+                              title="Audit Stock Adjustment"
+                              className="px-2 py-1 text-xs font-semibold text-slate-700 hover:text-emerald-700 bg-slate-100 hover:bg-slate-200 rounded border border-slate-300 transition-colors"
+                            >
+                              Adjust
+                            </button>
+                            <button
+                              onClick={() => handleOpenEditBatch(batch)}
+                              title="Edit Stock Batch Record"
+                              className="p-1 text-slate-500 hover:text-blue-600 hover:bg-slate-100 rounded transition-colors"
+                            >
+                              <Edit2 className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={() => handleOpenDeleteBatch(batch)}
+                              title="Delete / Safe Removal"
+                              className="p-1 text-slate-500 hover:text-rose-600 hover:bg-slate-100 rounded transition-colors"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
                         </td>
                       )}
                     </tr>
@@ -815,6 +1058,245 @@ export const InventoryPage: React.FC = () => {
           </table>
         </div>
       </Modal>
+
+      {/* Modal: View Batch Details */}
+      <Modal isOpen={showViewBatchModal} onClose={() => setShowViewBatchModal(false)} title="Stock Batch Details & Audit" maxWidth="md">
+        {viewingBatch && (
+          <div className="space-y-4 text-xs">
+            <div className="p-3 bg-slate-50 rounded-lg border border-slate-200 space-y-1.5">
+              <div className="flex justify-between items-start">
+                <div>
+                  <h4 className="font-bold text-slate-900 text-sm">{viewingBatch.medicine?.brandName}</h4>
+                  <p className="text-slate-500">{viewingBatch.medicine?.genericName} • {viewingBatch.medicine?.strength}</p>
+                </div>
+                <Badge
+                  variant={
+                    viewingBatch.status === 'ACTIVE'
+                      ? 'success'
+                      : viewingBatch.status === 'EXPIRED'
+                      ? 'danger'
+                      : 'warning'
+                  }
+                  size="sm"
+                >
+                  {viewingBatch.status}
+                </Badge>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3 bg-white p-3 rounded-lg border border-slate-100">
+              <div>
+                <span className="text-slate-400 block text-[11px]">Batch Number</span>
+                <span className="font-mono font-bold text-slate-800">{viewingBatch.batchNumber}</span>
+              </div>
+              <div>
+                <span className="text-slate-400 block text-[11px]">Available Quantity</span>
+                <span className="font-mono font-black text-slate-900 text-sm">{viewingBatch.availableQuantity} units</span>
+              </div>
+              <div>
+                <span className="text-slate-400 block text-[11px]">Expiry Date</span>
+                <span className="font-mono text-slate-800">
+                  {new Date(viewingBatch.expiryDate).toLocaleDateString('en-IN', {
+                    day: '2-digit',
+                    month: 'short',
+                    year: 'numeric',
+                  })}
+                </span>
+              </div>
+              <div>
+                <span className="text-slate-400 block text-[11px]">Supplier / Vendor</span>
+                <span className="font-medium text-slate-700">{viewingBatch.supplier?.name || 'Direct / Stock In'}</span>
+              </div>
+              <div>
+                <span className="text-slate-400 block text-[11px]">Purchase Rate</span>
+                <span className="font-mono text-slate-800">₹{viewingBatch.purchaseRate.toFixed(2)}</span>
+              </div>
+              <div>
+                <span className="text-slate-400 block text-[11px]">MRP / Selling Rate</span>
+                <span className="font-mono font-bold text-slate-800">
+                  ₹{viewingBatch.mrp.toFixed(2)} / ₹{(viewingBatch.sellingPrice || viewingBatch.mrp).toFixed(2)}
+                </span>
+              </div>
+            </div>
+
+            <div className="flex justify-end pt-3 border-t border-slate-200">
+              <button
+                type="button"
+                onClick={() => setShowViewBatchModal(false)}
+                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold transition-colors"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        )}
+      </Modal>
+
+      {/* Modal: Edit Stock Batch Record */}
+      <Modal isOpen={showEditBatchModal} onClose={() => setShowEditBatchModal(false)} title="Edit Stock Batch Record (Super Admin)" maxWidth="md">
+        {editingBatch && (
+          <form onSubmit={handleUpdateBatch} className="space-y-4">
+            <div className="p-3 bg-slate-50 rounded-lg border border-slate-200 text-xs">
+              <p><strong>Medicine:</strong> {editingBatch.medicine?.brandName}</p>
+              <p><strong>Available Qty:</strong> {editingBatch.availableQuantity} units</p>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs font-bold text-slate-700 block mb-1">Batch Number *</label>
+                <input
+                  type="text"
+                  required
+                  value={editBatchForm.batchNumber}
+                  onChange={(e) => setEditBatchForm({ ...editBatchForm, batchNumber: e.target.value })}
+                  className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-300 rounded-lg font-mono focus:bg-white focus:ring-2 focus:ring-brand-500"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-bold text-slate-700 block mb-1">Expiry Date *</label>
+                <input
+                  type="date"
+                  required
+                  value={editBatchForm.expiryDate}
+                  onChange={(e) => setEditBatchForm({ ...editBatchForm, expiryDate: e.target.value })}
+                  className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-300 rounded-lg font-mono focus:bg-white focus:ring-2 focus:ring-brand-500"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs font-bold text-slate-700 block mb-1">MRP (₹) *</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  required
+                  value={editBatchForm.mrp}
+                  onChange={(e) => setEditBatchForm({ ...editBatchForm, mrp: e.target.value })}
+                  className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-300 rounded-lg font-mono focus:bg-white focus:ring-2 focus:ring-brand-500"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-bold text-slate-700 block mb-1">Selling Price (₹) *</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  required
+                  value={editBatchForm.sellingPrice}
+                  onChange={(e) => setEditBatchForm({ ...editBatchForm, sellingPrice: e.target.value })}
+                  className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-300 rounded-lg font-mono focus:bg-white focus:ring-2 focus:ring-brand-500"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="text-xs font-bold text-slate-700 block mb-1">Status *</label>
+              <select
+                value={editBatchForm.status}
+                onChange={(e) => setEditBatchForm({ ...editBatchForm, status: e.target.value })}
+                className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-300 rounded-lg focus:bg-white focus:ring-2 focus:ring-brand-500"
+              >
+                <option value="ACTIVE">ACTIVE (Saleable)</option>
+                <option value="QUARANTINE">QUARANTINE (Withdrawn / Hold)</option>
+                <option value="DEPLETED">DEPLETED (Zero Stock)</option>
+              </select>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-4 border-t border-slate-200">
+              <button
+                type="button"
+                onClick={() => setShowEditBatchModal(false)}
+                className="px-4 py-2 border border-slate-300 rounded-lg text-xs font-semibold text-slate-600 hover:bg-slate-100"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className="px-5 py-2 bg-brand-500 hover:bg-brand-600 text-white rounded-lg text-xs font-bold shadow-xs transition-colors"
+              >
+                Save Changes
+              </button>
+            </div>
+          </form>
+        )}
+      </Modal>
+
+      {/* Modal: Confirm Batch Deletion / Safe Removal */}
+      <Modal isOpen={showDeleteBatchModal} onClose={() => setShowDeleteBatchModal(false)} title="Confirm Batch Removal" maxWidth="md">
+        {deletingBatch && (
+          <div className="space-y-4 text-xs">
+            <div className="p-3 bg-rose-50 border border-rose-200 rounded-lg text-rose-800">
+              <p className="font-bold">Are you sure you want to remove this stock batch?</p>
+              <p className="mt-1">
+                Batch <strong>{deletingBatch.batchNumber}</strong> ({deletingBatch.medicine?.brandName}) with <strong>{deletingBatch.availableQuantity} units</strong>.
+              </p>
+            </div>
+            <p className="text-slate-500 text-[11px] leading-relaxed">
+              <strong>Pharmaceutical Audit Compliance:</strong> If this batch has associated sales invoices or historical stock movements, it will be safely <strong>quarantined</strong> and marked depleted to preserve audit compliance rather than permanently deleted.
+            </p>
+            <div className="flex justify-end gap-2 pt-3 border-t border-slate-200">
+              <button
+                type="button"
+                onClick={() => setShowDeleteBatchModal(false)}
+                className="px-4 py-2 border border-slate-300 rounded-lg text-xs font-semibold text-slate-600 hover:bg-slate-100"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmDeleteBatch}
+                className="px-5 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-xs font-bold transition-colors"
+              >
+                Confirm Removal
+              </button>
+            </div>
+          </div>
+        )}
+      </Modal>
+
+      {/* Modal: Confirm Bulk Batch Operation */}
+      <Modal isOpen={showBulkModal} onClose={() => setShowBulkModal(false)} title="Confirm Bulk Batch Operation" maxWidth="md">
+        <div className="space-y-4 text-xs">
+          <div className="p-3 bg-brand-50 border border-brand-200 rounded-lg text-brand-900">
+            <p className="font-bold">
+              Execute <u>{bulkActionType}</u> across {selectedBatchIds.length} selected batch(es)?
+            </p>
+            <p className="mt-1 text-slate-600">
+              This action will update all selected batches across the active filter. Batches with historical sales will be safely managed to preserve audit integrity.
+            </p>
+          </div>
+          <div className="flex justify-end gap-2 pt-3 border-t border-slate-200">
+            <button
+              type="button"
+              disabled={isExecutingBulk}
+              onClick={() => setShowBulkModal(false)}
+              className="px-4 py-2 border border-slate-300 rounded-lg text-xs font-semibold text-slate-600 hover:bg-slate-100"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              disabled={isExecutingBulk}
+              onClick={handleExecuteBulkAction}
+              className={`px-5 py-2 text-white rounded-lg text-xs font-bold transition-colors ${
+                bulkActionType === 'DELETE'
+                  ? 'bg-rose-600 hover:bg-rose-700'
+                  : 'bg-brand-500 hover:bg-brand-600'
+              }`}
+            >
+              {isExecutingBulk ? 'Processing...' : 'Confirm Bulk Execution'}
+            </button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Super Admin Required Restriction Modal */}
+      <PermissionDeniedModal
+        isOpen={showPermissionModal}
+        onClose={() => setShowPermissionModal(false)}
+      />
     </div>
   );
 };

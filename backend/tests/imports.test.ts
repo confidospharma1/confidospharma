@@ -189,19 +189,32 @@ describe('Bulk Import Unit & Integration Tests', () => {
   });
 
   describe('3. Template Download API Endpoints', () => {
-    it('downloads Catalogue CSV template without requiring auth header', async () => {
+    it('rejects unauthenticated requests to template download with 401', async () => {
       const res = await request(app).get('/api/imports/template/catalogue');
+      expect(res.status).toBe(401);
+    });
+
+    it('downloads Catalogue CSV template with authorized session', async () => {
+      if (!superAdminToken) return;
+      const res = await request(app)
+        .get('/api/imports/template/catalogue')
+        .set('Authorization', `Bearer ${superAdminToken}`);
       expect(res.status).toBe(200);
       expect(res.headers['content-type']).toContain('text/csv');
+      expect(res.headers['content-disposition']).toContain('attachment');
       expect(res.text).toContain('Brand Name');
       expect(res.text).toContain('Generic Name');
       expect(res.text).toContain('Telma 20');
     });
 
-    it('downloads Stock Receipt CSV template without requiring auth header', async () => {
-      const res = await request(app).get('/api/imports/template/stock_receipt');
+    it('downloads Stock Receipt CSV template with authorized session', async () => {
+      if (!superAdminToken) return;
+      const res = await request(app)
+        .get('/api/imports/template/stock_receipt')
+        .set('Authorization', `Bearer ${superAdminToken}`);
       expect(res.status).toBe(200);
       expect(res.headers['content-type']).toContain('text/csv');
+      expect(res.headers['content-disposition']).toContain('attachment');
       expect(res.text).toContain('Batch Number');
       expect(res.text).toContain('Expiry Date');
       expect(res.text).toContain('Dolo 650');

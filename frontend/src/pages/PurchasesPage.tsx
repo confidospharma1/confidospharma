@@ -167,6 +167,8 @@ export const PurchasesPage: React.FC = () => {
   // Modal: Inline Add New Medicine
   const [showInlineMedicineModal, setShowInlineMedicineModal] = useState(false);
   const [inlineMedicineTargetIdx, setInlineMedicineTargetIdx] = useState<number | null>(null);
+  const [inlineMedicineError, setInlineMedicineError] = useState<string | null>(null);
+  const [isSavingInlineMedicine, setIsSavingInlineMedicine] = useState(false);
   const [inlineMedicineForm, setInlineMedicineForm] = useState({
     brandName: '',
     genericName: '',
@@ -535,20 +537,47 @@ export const PurchasesPage: React.FC = () => {
   // Inline Quick Add Medicine
   const handleSaveInlineMedicine = async (e: React.FormEvent) => {
     e.preventDefault();
-    setMessage(null);
+    setInlineMedicineError(null);
+    setIsSavingInlineMedicine(true);
+
     try {
       const created = await api.createProduct({
-        ...inlineMedicineForm,
-        gstRate: parseFloat(inlineMedicineForm.gstRate),
-        mrp: parseFloat(inlineMedicineForm.mrp),
-        defaultPurchaseRate: parseFloat(inlineMedicineForm.defaultPurchaseRate),
-        defaultSellingRate: parseFloat(inlineMedicineForm.defaultSellingRate),
+        brandName: inlineMedicineForm.brandName.trim(),
+        genericName: inlineMedicineForm.genericName.trim(),
+        strength: inlineMedicineForm.strength.trim(),
+        dosageForm: inlineMedicineForm.dosageForm.trim(),
+        manufacturer: inlineMedicineForm.manufacturer.trim(),
+        hsnCode: inlineMedicineForm.hsnCode.trim() || undefined,
+        gstRate: parseFloat(inlineMedicineForm.gstRate) || 5.0,
+        mrp: parseFloat(inlineMedicineForm.mrp) || 0,
+        defaultPurchaseRate: parseFloat(inlineMedicineForm.defaultPurchaseRate) || undefined,
+        defaultSellingRate: parseFloat(inlineMedicineForm.defaultSellingRate) || undefined,
       });
 
-      setProducts((prev) => [...prev, created]);
+      // Update catalogue products cache
+      setProducts((prev) => {
+        const exists = prev.some((p) => p.id === created.id);
+        return exists ? prev : [...prev, created];
+      });
+
+      // Directly update the target invoice line with full rates from the new medicine
       if (inlineMedicineTargetIdx !== null) {
-        updateLine(inlineMedicineTargetIdx, 'medicineId', created.id);
+        setLines((prevLines) => {
+          const nextLines = [...prevLines];
+          if (nextLines[inlineMedicineTargetIdx]) {
+            nextLines[inlineMedicineTargetIdx] = {
+              ...nextLines[inlineMedicineTargetIdx],
+              medicineId: created.id,
+              mrp: created.mrp,
+              sellingRate: created.defaultSellingRate || created.mrp,
+              purchaseRate: created.defaultPurchaseRate || Math.round(created.mrp * 0.7),
+              gstRate: created.gstRate !== undefined ? created.gstRate : 5.0,
+            };
+          }
+          return nextLines;
+        });
       }
+
       setShowInlineMedicineModal(false);
       setInlineMedicineForm({
         brandName: '',
@@ -564,7 +593,9 @@ export const PurchasesPage: React.FC = () => {
       });
       setMessage({ text: `Medicine '${created.brandName}' registered in catalogue and linked to invoice line.`, type: 'success' });
     } catch (err: any) {
-      setMessage({ text: err.message || 'Failed to create medicine.', type: 'error' });
+      setInlineMedicineError(err.message || 'Failed to create medicine. Please check your fields and try again.');
+    } finally {
+      setIsSavingInlineMedicine(false);
     }
   };
 
@@ -1949,6 +1980,12 @@ export const PurchasesPage: React.FC = () => {
       {/* Inline Quick Add Medicine Modal */}
       <Modal isOpen={showInlineMedicineModal} onClose={() => setShowInlineMedicineModal(false)} title="Quick Register Medicine to Catalogue" maxWidth="md">
         <form onSubmit={handleSaveInlineMedicine} className="space-y-3 text-xs">
+          {inlineMedicineError && (
+            <div className="p-2.5 bg-rose-50 border border-rose-200 text-rose-800 rounded-lg text-xs font-medium">
+              {inlineMedicineError}
+            </div>
+          )}
+
           <div className="grid grid-cols-2 gap-2">
             <div>
               <label className="font-bold text-slate-700 block mb-1">Brand Name *</label>
@@ -2012,7 +2049,29 @@ export const PurchasesPage: React.FC = () => {
               </select>
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-3 gap-2">
+            <div>
+              <label className="font-bold text-slate-700 block mb-1">Purchase Rate (₹)</label>
+              <input
+                type="number"
+                step="0.01"
+                placeholder="e.g. 70.00"
+                value={inlineMedicineForm.defaultPurchaseRate}
+                onChange={(e) => setInlineMedicineForm({ ...inlineMedicineForm, defaultPurchaseRate: e.target.value })}
+                className="w-full px-3 py-1.5 bg-slate-50 border border-slate-300 rounded-lg focus:bg-white font-mono"
+              />
+            </div>
+            <div>
+              <label className="font-bold text-slate-700 block mb-1">Selling Rate (₹)</label>
+              <input
+                type="number"
+                step="0.01"
+                placeholder="e.g. 100.00"
+                value={inlineMedicineForm.defaultSellingRate}
+                onChange={(e) => setInlineMedicineForm({ ...inlineMedicineForm, defaultSellingRate: e.target.value })}
+                className="w-full px-3 py-1.5 bg-slate-50 border border-slate-300 rounded-lg focus:bg-white font-mono"
+              />
+            </div>
             <div>
               <label className="font-bold text-slate-700 block mb-1">MRP (₹) *</label>
               <input
@@ -2024,30 +2083,33 @@ export const PurchasesPage: React.FC = () => {
                 className="w-full px-3 py-1.5 bg-slate-50 border border-slate-300 rounded-lg focus:bg-white font-mono"
               />
             </div>
-            <div>
-              <label className="font-bold text-slate-700 block mb-1">Manufacturer</label>
-              <input
-                type="text"
-                placeholder="e.g. Micro Labs Ltd"
-                value={inlineMedicineForm.manufacturer}
-                onChange={(e) => setInlineMedicineForm({ ...inlineMedicineForm, manufacturer: e.target.value })}
-                className="w-full px-3 py-1.5 bg-slate-50 border border-slate-300 rounded-lg focus:bg-white"
-              />
-            </div>
+          </div>
+          <div>
+            <label className="font-bold text-slate-700 block mb-1">Manufacturer *</label>
+            <input
+              type="text"
+              required
+              placeholder="e.g. Micro Labs Ltd"
+              value={inlineMedicineForm.manufacturer}
+              onChange={(e) => setInlineMedicineForm({ ...inlineMedicineForm, manufacturer: e.target.value })}
+              className="w-full px-3 py-1.5 bg-slate-50 border border-slate-300 rounded-lg focus:bg-white"
+            />
           </div>
           <div className="flex justify-end gap-2 pt-3 border-t border-slate-200">
             <button
               type="button"
+              disabled={isSavingInlineMedicine}
               onClick={() => setShowInlineMedicineModal(false)}
-              className="px-3 py-1.5 border border-slate-300 rounded-lg text-slate-600"
+              className="px-3 py-1.5 border border-slate-300 rounded-lg text-slate-600 disabled:opacity-50"
             >
               Cancel
             </button>
             <button
               type="submit"
-              className="px-4 py-1.5 bg-brand-500 hover:bg-brand-600 active:bg-brand-700 text-white rounded-lg font-bold transition-colors"
+              disabled={isSavingInlineMedicine}
+              className="px-4 py-1.5 bg-brand-500 hover:bg-brand-600 active:bg-brand-700 text-white rounded-lg font-bold transition-colors disabled:opacity-50"
             >
-              Save & Link Medicine
+              {isSavingInlineMedicine ? 'Saving & Linking...' : 'Save & Link Medicine'}
             </button>
           </div>
         </form>

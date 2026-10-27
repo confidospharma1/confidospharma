@@ -81,7 +81,16 @@ export const BranchesPage: React.FC = () => {
     e.preventDefault();
     setMessage(null);
     try {
-      await api.createBranch(branchForm);
+      await api.createBranch({
+        ...branchForm,
+        code: branchForm.code.trim().toUpperCase(),
+        name: branchForm.name.trim(),
+        address: branchForm.address.trim(),
+        phone: branchForm.phone.trim(),
+        email: branchForm.email.trim() || undefined,
+        gstin: branchForm.gstin.trim().toUpperCase() || undefined,
+        drugLicenseNo: branchForm.drugLicenseNo.trim() || undefined,
+      });
       setMessage({ text: `Branch '${branchForm.name}' (${branchForm.code}) added successfully.`, type: 'success' });
       setShowModal(false);
       setBranchForm({
@@ -106,7 +115,7 @@ export const BranchesPage: React.FC = () => {
       address: b.address,
       phone: b.phone,
       email: b.email || '',
-      gstin: b.gstin,
+      gstin: b.gstin || '',
       drugLicenseNo: b.drugLicenseNo || '',
     });
     setShowEditModal(true);
@@ -119,8 +128,12 @@ export const BranchesPage: React.FC = () => {
     try {
       await api.updateBranch(editingBranch.id, {
         ...editBranchForm,
-        email: editBranchForm.email.trim() || null,
-        drugLicenseNo: editBranchForm.drugLicenseNo.trim() || null,
+        name: editBranchForm.name.trim(),
+        address: editBranchForm.address.trim(),
+        phone: editBranchForm.phone.trim(),
+        email: editBranchForm.email.trim() || undefined,
+        gstin: editBranchForm.gstin.trim().toUpperCase() || undefined,
+        drugLicenseNo: editBranchForm.drugLicenseNo.trim() || undefined,
       });
       setMessage({ text: `Branch '${editBranchForm.name}' updated successfully.`, type: 'success' });
       setShowEditModal(false);
@@ -482,7 +495,9 @@ export const BranchesPage: React.FC = () => {
               />
             </div>
             <div>
-              <label className="text-xs font-bold text-slate-700 block mb-1">Email</label>
+              <label className="text-xs font-bold text-slate-700 block mb-1">
+                Email <span className="text-[10px] text-emerald-600 font-normal">(Optional)</span>
+              </label>
               <input
                 type="email"
                 placeholder="eluru.branch@confidospharma.com"
@@ -495,10 +510,11 @@ export const BranchesPage: React.FC = () => {
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="text-xs font-bold text-slate-700 block mb-1">GSTIN *</label>
+              <label className="text-xs font-bold text-slate-700 block mb-1">
+                GSTIN <span className="text-[10px] text-emerald-600 font-normal">(Optional)</span>
+              </label>
               <input
                 type="text"
-                required
                 placeholder="37AAAAA1234A1Z8"
                 value={branchForm.gstin}
                 onChange={(e) => setBranchForm({ ...branchForm, gstin: e.target.value })}
@@ -572,7 +588,9 @@ export const BranchesPage: React.FC = () => {
               />
             </div>
             <div>
-              <label className="text-xs font-bold text-slate-700 block mb-1">Email</label>
+              <label className="text-xs font-bold text-slate-700 block mb-1">
+                Email <span className="text-[10px] text-emerald-600 font-normal">(Optional)</span>
+              </label>
               <input
                 type="email"
                 value={editBranchForm.email}
@@ -584,10 +602,11 @@ export const BranchesPage: React.FC = () => {
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="text-xs font-bold text-slate-700 block mb-1">GSTIN *</label>
+              <label className="text-xs font-bold text-slate-700 block mb-1">
+                GSTIN <span className="text-[10px] text-emerald-600 font-normal">(Optional)</span>
+              </label>
               <input
                 type="text"
-                required
                 value={editBranchForm.gstin}
                 onChange={(e) => setEditBranchForm({ ...editBranchForm, gstin: e.target.value })}
                 className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-300 rounded-lg uppercase font-mono font-bold"

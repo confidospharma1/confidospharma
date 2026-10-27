@@ -124,6 +124,10 @@ export const api = {
     return apiRequest(`/inventory/fefo/${medicineId}${q}`);
   },
   receiveBatch: (data: any) => apiRequest('/inventory/batches', { method: 'POST', body: JSON.stringify(data) }),
+  updateBatch: (id: string, data: any) => apiRequest(`/inventory/batches/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  deleteBatch: (id: string) => apiRequest(`/inventory/batches/${id}`, { method: 'DELETE' }),
+  bulkBatchAction: (data: { batchIds: string[]; action: 'QUARANTINE' | 'ACTIVE' | 'DEPLETED' | 'DELETE' }) =>
+    apiRequest('/inventory/batches/bulk-action', { method: 'POST', body: JSON.stringify(data) }),
   adjustStock: (data: { batchId: string; adjustmentType: string; quantityDelta: number; reason: string }) =>
     apiRequest('/inventory/adjust', { method: 'POST', body: JSON.stringify(data) }),
   getMovements: (params?: { branchId?: string; page?: number }) => {
@@ -217,6 +221,27 @@ export const api = {
   getImportJob: (id: string) => apiRequest(`/imports/${id}`),
   commitImport: (id: string) => apiRequest(`/imports/${id}/commit`, { method: 'POST' }),
   downloadTemplateUrl: (type: string) => `${BASE_URL}/imports/template/${type}`,
+  downloadTemplate: async (type: string): Promise<Blob> => {
+    const token = getAuthToken();
+    const headers: Record<string, string> = {};
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+
+    const response = await fetch(`${BASE_URL}/imports/template/${type}`, {
+      method: 'GET',
+      headers,
+    });
+
+    if (!response.ok) {
+      let errMsg = 'Failed to download CSV template.';
+      try {
+        const errJson = await response.json();
+        if (errJson?.message) errMsg = errJson.message;
+      } catch (_) {}
+      throw new Error(errMsg);
+    }
+
+    return response.blob();
+  },
   downloadErrorsUrl: (importId: string) => {
     const token = getAuthToken();
     return `${BASE_URL}/imports/${importId}/download-errors${token ? `?token=${encodeURIComponent(token)}` : ''}`;

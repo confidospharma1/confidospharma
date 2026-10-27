@@ -88,8 +88,23 @@ export const BulkImportPage: React.FC = () => {
     }
   };
 
-  const handleDownloadTemplate = (type: 'catalogue' | 'stock_receipt') => {
-    window.open(api.downloadTemplateUrl(type), '_blank');
+  const handleDownloadTemplate = async (type: 'catalogue' | 'stock_receipt') => {
+    try {
+      const blob = await api.downloadTemplate(type);
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = type === 'catalogue' ? 'confidos_catalogue_template.csv' : 'confidos_stock_receipt_template.csv';
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } catch (err: any) {
+      setCommitMessage({
+        text: err.message || 'Failed to download CSV template. Please ensure you are logged in.',
+        type: 'error',
+      });
+    }
   };
 
   const handleDownloadErrors = () => {

@@ -602,3 +602,239 @@ export const receiveTransfer = async (req: Request, res: Response) => {
     return res.status(500).json({ message: error.message || 'Failed to receive transfer' });
   }
 };
+
+export const updateBatch = async (req: Request, res: Response) => {
+  try {
+    if (!req.user) return res.status(401).json({ message: 'Unauthorized' });
+
+    if (req.user.role !== 'SUPER_ADMIN') {
+      return res.status(403).json({
+        message: 'You do not have permission to modify this record. Please contact the Super Admin for assistance.',
+      });
+    }
+
+    const id = req.params.id as string;
+    const { batchNumber, expiryDate, mrp, sellingPrice, status } = req.body;
+
+    const existing = await prisma.stockBatch.findUnique({ where: { id } });
+    if (!existing) {
+      return res.status(404).json({ message: 'Stock batch not found' });
+    }
+
+    let parsedExpiry: Date | undefined;
+    if (expiryDate) {
+      parsedExpiry = new Date(expiryDate);
+      if (isNaN(parsedExpiry.getTime())) {
+        return res.status(400).json({ message: 'Invalid expiry date format' });
+      }
+    }
+
+    const updated = await prisma.stockBatch.update({
+      where: { id },
+      data: {
+        ...(batchNumber && { batchNumber: batchNumber.trim() }),
+        ...(parsedExpiry && { expiryDate: parsedExpiry }),
+        ...(mrp !== undefined && { mrp: parseFloat(mrp) }),
+        ...(sellingPrice !== undefined && { sellingPrice: parseFloat(sellingPrice) }),
+        ...(status && { status }),
+      },
+      include: {
+        medicine: true,
+        branch: { select: { id: true, code: true, name: true } },
+      },
+    });
+
+    await logAuditEvent({
+      userId: req.user.id,
+      branchId: updated.branchId,
+      action: 'BATCH_UPDATE',
+      targetEntity: 'STOCK_BATCH',
+      entityId: updated.id,
+      details: { batchNumber: updated.batchNumber, status: updated.status },
+      req,
+    });
+
+    return res.json(updated);
+  } catch (error: any) {
+    return res.status(500).json({ message: error.message || 'Failed to update stock batch' });
+  }
+};
+
+export const deleteBatch = async (req: Request, res: Response) => {
+  try {
+    if (!req.user) return res.status(401).json({ message: 'Unauthorized' });
+
+    if (req.user.role !== 'SUPER_ADMIN') {
+      return res.status(403).json({
+        message: 'You do not have permission to modify this record. Please contact the Super Admin for assistance.',
+      });
+    }
+
+    const id = req.params.id as string;
+    const batch = await prisma.stockBatch.findUnique({
+      where: { id },
+      include: {
+        medicine: true,
+      },
+    });
+
+    if (!batch) {
+      return res.status(404).json({ message: 'Stock batch not found' });
+    }
+
+    // Check if used in sales invoice lines
+    const salesCount = await prisma.salesInvoiceLine.count({
+      where: { batchId: id },
+    });
+
+    // Check movements other than initial purchase/receipt
+    const nonReceiptMovements = await prisma.stockMovement.count({
+      where: {
+        batchId: id,
+        movementType: {
+          in: ['SALE', 'TRANSFER_OUT', 'TRANSFER_IN', 'CUSTOMER_RETURN', 'SUPPLIER_RETURN'],
+        },
+      },
+    });
+
+    if (salesCount > 0 || nonReceiptMovements > 0) {
+      // Cannot hard delete without corrupting financial/audit records. Safely quarantine and set available quantity to 0
+      await prisma.stockBatch.update({
+        where: { id },
+        data: {
+          status: 'QUARANTINE',
+          availableQuantity: 0,
+        },
+      });
+
+      await logAuditEvent({
+        userId: req.user.id,
+        branchId: batch.branchId,
+        action: 'BATCH_QUARANTINE',
+        targetEntity: 'STOCK_BATCH',
+        entityId: id,
+        details: {
+          batchNumber: batch.batchNumber,
+          reason: 'Safely quarantined instead of hard-deleting because sales or movement history exists.',
+        },
+        req,
+      });
+
+      return res.json({
+        success: true,
+        quarantined: true,
+        message: `Batch '${batch.batchNumber}' has active transactions or sales history. To preserve financial ledger auditability, it has been quarantined and removed from saleable inventory.`,
+      });
+    }
+
+    // Safe hard-delete if no sales or movements
+    await prisma.$transaction([
+      prisma.stockMovement.deleteMany({ where: { batchId: id } }),
+      prisma.stockBatch.delete({ where: { id } }),
+    ]);
+
+    await logAuditEvent({
+      userId: req.user.id,
+      branchId: batch.branchId,
+      action: 'BATCH_DELETE',
+      targetEntity: 'STOCK_BATCH',
+      entityId: id,
+      details: { batchNumber: batch.batchNumber },
+      req,
+    });
+
+    return res.json({
+      success: true,
+      message: `Batch '${batch.batchNumber}' removed successfully.`,
+    });
+  } catch (error: any) {
+    return res.status(500).json({ message: error.message || 'Failed to delete stock batch' });
+  }
+};
+
+export const bulkBatchAction = async (req: Request, res: Response) => {
+  try {
+    if (!req.user) return res.status(401).json({ message: 'Unauthorized' });
+
+    if (req.user.role !== 'SUPER_ADMIN') {
+      return res.status(403).json({
+        message: 'You do not have permission to modify this record. Please contact the Super Admin for assistance.',
+      });
+    }
+
+    const { batchIds, action } = req.body;
+    if (!Array.isArray(batchIds) || batchIds.length === 0) {
+      return res.status(400).json({ message: 'A non-empty array of batchIds is required' });
+    }
+
+    if (!['QUARANTINE', 'ACTIVE', 'DEPLETED', 'DELETE'].includes(action)) {
+      return res.status(400).json({ message: 'Invalid action. Supported: QUARANTINE, ACTIVE, DEPLETED, DELETE' });
+    }
+
+    let affectedCount = 0;
+    const quarantinedIds: string[] = [];
+    const deletedIds: string[] = [];
+    const updatedIds: string[] = [];
+
+    for (const id of batchIds) {
+      const batch = await prisma.stockBatch.findUnique({ where: { id } });
+      if (!batch) continue;
+
+      if (action === 'DELETE') {
+        const salesCount = await prisma.salesInvoiceLine.count({ where: { batchId: id } });
+        const nonReceipt = await prisma.stockMovement.count({
+          where: {
+            batchId: id,
+            movementType: { in: ['SALE', 'TRANSFER_OUT', 'TRANSFER_IN', 'CUSTOMER_RETURN', 'SUPPLIER_RETURN'] },
+          },
+        });
+
+        if (salesCount > 0 || nonReceipt > 0) {
+          await prisma.stockBatch.update({
+            where: { id },
+            data: { status: 'QUARANTINE', availableQuantity: 0 },
+          });
+          quarantinedIds.push(id);
+        } else {
+          await prisma.stockMovement.deleteMany({ where: { batchId: id } });
+          await prisma.stockBatch.delete({ where: { id } });
+          deletedIds.push(id);
+        }
+      } else {
+        await prisma.stockBatch.update({
+          where: { id },
+          data: {
+            status: action,
+            ...(action === 'DEPLETED' ? { availableQuantity: 0 } : {}),
+          },
+        });
+        updatedIds.push(id);
+      }
+      affectedCount++;
+    }
+
+    await logAuditEvent({
+      userId: req.user.id,
+      action: 'BATCH_BULK_ACTION',
+      targetEntity: 'STOCK_BATCH',
+      details: { action, count: affectedCount, quarantinedIds, deletedIds, updatedIds },
+      req,
+    });
+
+    let message = `Successfully processed ${affectedCount} batches with action '${action}'.`;
+    if (quarantinedIds.length > 0) {
+      message += ` (${quarantinedIds.length} batch(es) had sales records and were quarantined to protect audit history).`;
+    }
+
+    return res.json({
+      success: true,
+      affectedCount,
+      quarantinedCount: quarantinedIds.length,
+      deletedCount: deletedIds.length,
+      updatedCount: updatedIds.length,
+      message,
+    });
+  } catch (error: any) {
+    return res.status(500).json({ message: error.message || 'Failed to execute bulk batch action' });
+  }
+};

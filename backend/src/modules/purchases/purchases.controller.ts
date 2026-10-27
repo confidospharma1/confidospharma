@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import Decimal from 'decimal.js';
 import prisma from '../../database/prisma';
 import { logAuditEvent } from '../../utils/audit';
+import { generateUniqueMedicineCode } from '../../utils/codeGenerator';
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -268,8 +269,7 @@ export const createPurchase = async (req: Request, res: Response) => {
           if (existingMed) {
             medicineId = existingMed.id;
           } else {
-            const medCount = await tx.medicineProduct.count();
-            const internalCode = `MED-${newMedicine.brandName.slice(0, 3).toUpperCase()}-${String(medCount + 1).padStart(4, '0')}`;
+            const internalCode = await generateUniqueMedicineCode(tx);
             const createdMed = await tx.medicineProduct.create({
               data: {
                 internalCode,
