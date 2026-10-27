@@ -7,6 +7,12 @@ import bcrypt from 'bcryptjs';
 const prisma = new PrismaClient();
 
 async function main() {
+  if (process.env.NODE_ENV === 'production' || process.env.ALLOW_DEMO_SEED !== 'true') {
+    console.log('⚠️ Demo database seeding is disabled to preserve empty database production integrity.');
+    console.log('Set ALLOW_DEMO_SEED=true in environment if you explicitly want to load mock data.');
+    return;
+  }
+
   console.log('Seeding Confidos Pharma Database...');
 
   // Clean existing tables (in order of relations)
