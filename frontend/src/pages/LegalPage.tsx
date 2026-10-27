@@ -223,8 +223,8 @@ export const LegalPage: React.FC = () => {
             </div>
 
             {dsrSuccess && (
-              <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-lg text-emerald-800 flex items-center gap-2">
-                <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+              <div className="p-3 bg-pharmagreen-50 border border-pharmagreen-200 rounded-lg text-pharmagreen-800 flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 text-pharmagreen-600 flex-shrink-0" />
                 <span>{dsrSuccess}</span>
               </div>
             )}
@@ -302,7 +302,7 @@ export const LegalPage: React.FC = () => {
               <button
                 type="submit"
                 disabled={isSubmitting}
-                className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold shadow-xs transition-colors"
+                className="px-5 py-2.5 bg-brand-500 hover:bg-brand-600 active:bg-brand-700 text-white rounded-lg text-xs font-bold shadow-xs transition-colors"
               >
                 {isSubmitting ? 'Submitting...' : 'Submit Data Request'}
               </button>

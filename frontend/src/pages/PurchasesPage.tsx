@@ -638,7 +638,7 @@ export const PurchasesPage: React.FC = () => {
             </button>
             <button
               onClick={openNewPurchaseModal}
-              className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold shadow-xs transition-colors"
+              className="flex items-center gap-2 px-4 py-2 bg-brand-500 hover:bg-brand-600 active:bg-brand-700 text-white rounded-lg text-xs font-bold shadow-xs transition-colors"
             >
               <Plus className="w-4 h-4" />
               Record Purchase Invoice
@@ -651,7 +651,7 @@ export const PurchasesPage: React.FC = () => {
         <div
           className={`p-3.5 rounded-lg text-xs flex items-center justify-between ${
             message.type === 'success'
-              ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+              ? 'bg-pharmagreen-50 text-pharmagreen-800 border border-pharmagreen-200'
               : 'bg-rose-50 text-rose-800 border border-rose-200'
           }`}
         >
@@ -668,7 +668,7 @@ export const PurchasesPage: React.FC = () => {
           onClick={() => setActiveSubTab('invoices')}
           className={`pb-2.5 px-3 border-b-2 transition-colors flex items-center gap-1.5 ${
             activeSubTab === 'invoices'
-              ? 'border-emerald-600 text-emerald-800'
+              ? 'border-brand-500 text-brand-700'
               : 'border-transparent text-slate-500 hover:text-slate-800'
           }`}
         >
@@ -679,7 +679,7 @@ export const PurchasesPage: React.FC = () => {
           onClick={() => setActiveSubTab('suppliers')}
           className={`pb-2.5 px-3 border-b-2 transition-colors flex items-center gap-1.5 ${
             activeSubTab === 'suppliers'
-              ? 'border-emerald-600 text-emerald-800'
+              ? 'border-brand-500 text-brand-700'
               : 'border-transparent text-slate-500 hover:text-slate-800'
           }`}
         >
@@ -690,7 +690,7 @@ export const PurchasesPage: React.FC = () => {
           onClick={() => setActiveSubTab('returns')}
           className={`pb-2.5 px-3 border-b-2 transition-colors flex items-center gap-1.5 ${
             activeSubTab === 'returns'
-              ? 'border-emerald-600 text-emerald-800'
+              ? 'border-brand-500 text-brand-700'
               : 'border-transparent text-slate-500 hover:text-slate-800'
           }`}
         >
@@ -710,11 +710,11 @@ export const PurchasesPage: React.FC = () => {
                 value={invoiceSearch}
                 onChange={(e) => setInvoiceSearch(e.target.value)}
                 placeholder="Search by Invoice #, Supplier Invoice #, Supplier..."
-                className="w-full pl-9 pr-3 py-1.5 text-xs bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500"
+                className="w-full pl-9 pr-3 py-1.5 text-xs bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
               />
             </div>
             <div className="text-xs text-slate-500 flex items-center gap-3">
-              <span>Default Inward Discount: <strong className="text-emerald-700 font-mono">{configuredDiscount}%</strong></span>
+              <span>Default Inward Discount: <strong className="text-pharmagreen-700 font-mono">{configuredDiscount}%</strong></span>
               <span>Default GST: <strong className="text-slate-800 font-mono">{configuredCombinedGST}%</strong> (CGST {configuredCGST}% + SGST {configuredSGST}%)</span>
             </div>
           </div>
@@ -745,8 +745,16 @@ export const PurchasesPage: React.FC = () => {
                     </tr>
                   ) : purchases.length === 0 ? (
                     <tr>
-                      <td colSpan={10} className="py-8 text-center text-slate-400">
-                        No purchase invoices recorded yet.
+                      <td colSpan={10} className="py-12 text-center text-slate-500">
+                        <p className="text-sm font-bold text-slate-800">No purchase invoices available yet.</p>
+                        <p className="text-xs text-slate-500 mt-1">Record inward purchases to automatically generate batches and stock movements.</p>
+                        <button
+                          onClick={openNewPurchaseModal}
+                          className="mt-3 inline-flex items-center gap-1.5 px-3 py-1.5 bg-brand-500 hover:bg-brand-600 text-white rounded-lg text-xs font-bold transition-colors"
+                        >
+                          <Plus className="w-3.5 h-3.5" />
+                          Record First Purchase
+                        </button>
                       </td>
                     </tr>
                   ) : (
@@ -851,7 +859,7 @@ export const PurchasesPage: React.FC = () => {
             {!isBillingUser && (
               <button
                 onClick={openNewSupplierModal}
-                className="flex items-center gap-1.5 px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition-colors"
+                className="flex items-center gap-1.5 px-3.5 py-1.5 bg-brand-500 hover:bg-brand-600 text-white rounded-lg text-xs font-bold transition-colors shadow-xs"
               >
                 <Plus className="w-3.5 h-3.5" />
                 Add New Supplier
@@ -877,8 +885,16 @@ export const PurchasesPage: React.FC = () => {
                 <tbody className="divide-y divide-slate-100 font-medium">
                   {suppliers.length === 0 ? (
                     <tr>
-                      <td colSpan={8} className="py-8 text-center text-slate-400">
-                        No suppliers registered yet.
+                      <td colSpan={8} className="py-12 text-center text-slate-500">
+                        <p className="text-sm font-bold text-slate-800">No suppliers found.</p>
+                        <p className="text-xs text-slate-500 mt-1">Add your first supplier to continue with purchasing and vendor management.</p>
+                        <button
+                          onClick={openNewSupplierModal}
+                          className="mt-3 inline-flex items-center gap-1.5 px-3 py-1.5 bg-brand-500 hover:bg-brand-600 text-white rounded-lg text-xs font-bold transition-colors"
+                        >
+                          <Plus className="w-3.5 h-3.5" />
+                          Add First Supplier
+                        </button>
                       </td>
                     </tr>
                   ) : (
@@ -1441,7 +1457,7 @@ export const PurchasesPage: React.FC = () => {
             </button>
             <button
               type="submit"
-              className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold shadow-xs transition-colors"
+              className="px-5 py-2 bg-brand-500 hover:bg-brand-600 active:bg-brand-700 text-white rounded-lg text-xs font-bold shadow-xs transition-colors"
             >
               {isEditing ? 'Save Changes & Reconcile Stock' : 'Confirm Purchase & Receive Stock'}
             </button>
@@ -1518,7 +1534,7 @@ export const PurchasesPage: React.FC = () => {
             </button>
             <button
               type="submit"
-              className="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-bold"
+              className="px-4 py-1.5 bg-brand-500 hover:bg-brand-600 active:bg-brand-700 text-white rounded-lg font-bold transition-colors"
             >
               Create & Select Supplier
             </button>
@@ -1625,7 +1641,7 @@ export const PurchasesPage: React.FC = () => {
             </button>
             <button
               type="submit"
-              className="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-bold"
+              className="px-4 py-1.5 bg-brand-500 hover:bg-brand-600 active:bg-brand-700 text-white rounded-lg font-bold transition-colors"
             >
               Save & Link Medicine
             </button>
@@ -1745,7 +1761,7 @@ export const PurchasesPage: React.FC = () => {
             </button>
             <button
               type="submit"
-              className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-bold shadow-xs"
+              className="px-5 py-2 bg-brand-500 hover:bg-brand-600 active:bg-brand-700 text-white rounded-lg font-bold shadow-xs transition-colors"
             >
               {isEditingSupplier ? 'Update Supplier' : 'Register Supplier'}
             </button>

@@ -54,7 +54,7 @@ export const AuditLogsPage: React.FC = () => {
           <select
             value={actionFilter}
             onChange={(e) => setActionFilter(e.target.value)}
-            className="text-xs bg-white border border-slate-300 rounded-lg px-3 py-1.5 focus:ring-2 focus:ring-emerald-500 font-medium"
+            className="text-xs bg-white border border-slate-300 rounded-lg px-3 py-1.5 focus:ring-2 focus:ring-brand-500 focus:border-brand-500 font-medium"
           >
             <option value="">All Audit Actions</option>
             <option value="LOGIN_SUCCESS">LOGIN_SUCCESS</option>
@@ -127,7 +127,7 @@ export const AuditLogsPage: React.FC = () => {
                     <td className="py-3 px-3 text-right">
                       <button
                         onClick={() => setSelectedEvent(log)}
-                        className="p-1 text-slate-400 hover:text-emerald-700 transition-colors"
+                        className="p-1 text-slate-400 hover:text-brand-700 transition-colors"
                         title="View details"
                       >
                         <Eye className="w-4 h-4" />

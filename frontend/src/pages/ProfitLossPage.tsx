@@ -180,7 +180,7 @@ export const ProfitLossPage: React.FC = () => {
             <button
               onClick={() => applyPreset('today')}
               className={`px-2.5 py-1 rounded font-semibold transition-colors ${
-                datePreset === 'today' ? 'bg-emerald-600 text-white' : 'text-slate-600 hover:bg-slate-100'
+                datePreset === 'today' ? 'bg-brand-500 text-white' : 'text-slate-600 hover:bg-slate-100'
               }`}
             >
               Today
@@ -188,7 +188,7 @@ export const ProfitLossPage: React.FC = () => {
             <button
               onClick={() => applyPreset('this_month')}
               className={`px-2.5 py-1 rounded font-semibold transition-colors ${
-                datePreset === 'this_month' ? 'bg-emerald-600 text-white' : 'text-slate-600 hover:bg-slate-100'
+                datePreset === 'this_month' ? 'bg-brand-500 text-white' : 'text-slate-600 hover:bg-slate-100'
               }`}
             >
               This Month
@@ -196,7 +196,7 @@ export const ProfitLossPage: React.FC = () => {
             <button
               onClick={() => applyPreset('last_30_days')}
               className={`px-2.5 py-1 rounded font-semibold transition-colors ${
-                datePreset === 'last_30_days' ? 'bg-emerald-600 text-white' : 'text-slate-600 hover:bg-slate-100'
+                datePreset === 'last_30_days' ? 'bg-brand-500 text-white' : 'text-slate-600 hover:bg-slate-100'
               }`}
             >
               Last 30 Days
@@ -204,7 +204,7 @@ export const ProfitLossPage: React.FC = () => {
             <button
               onClick={() => setDatePreset('custom')}
               className={`px-2.5 py-1 rounded font-semibold transition-colors ${
-                datePreset === 'custom' ? 'bg-emerald-600 text-white' : 'text-slate-600 hover:bg-slate-100'
+                datePreset === 'custom' ? 'bg-brand-500 text-white' : 'text-slate-600 hover:bg-slate-100'
               }`}
             >
               Custom
@@ -231,7 +231,7 @@ export const ProfitLossPage: React.FC = () => {
 
           <button
             onClick={() => setShowExpenseModal(true)}
-            className="flex items-center gap-1.5 px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold shadow-xs transition-colors"
+            className="flex items-center gap-1.5 px-3.5 py-2 bg-brand-500 hover:bg-brand-600 active:bg-brand-700 text-white rounded-lg text-xs font-bold shadow-xs transition-colors"
           >
             <Plus className="w-4 h-4" />
             Record Operating Expense
@@ -348,20 +348,20 @@ export const ProfitLossPage: React.FC = () => {
 
         {/* 5. Net Profit / Loss */}
         <div className={`p-4 rounded-xl border shadow-xs flex flex-col justify-between ${
-          isNetProfit ? 'bg-emerald-50/50 border-emerald-200' : 'bg-rose-50/50 border-rose-200'
+          isNetProfit ? 'bg-pharmagreen-50/50 border-pharmagreen-200' : 'bg-rose-50/50 border-rose-200'
         }`}>
           <div className="flex items-center justify-between">
             <span className="text-[11px] font-bold text-slate-700 uppercase tracking-wider">Net Realized Profit</span>
-            <span className={`p-1.5 rounded-lg ${isNetProfit ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>
+            <span className={`p-1.5 rounded-lg ${isNetProfit ? 'bg-pharmagreen-100 text-pharmagreen-700' : 'bg-rose-100 text-rose-700'}`}>
               {isNetProfit ? <ArrowUpRight className="w-4 h-4" /> : <ArrowDownRight className="w-4 h-4" />}
             </span>
           </div>
           <div className="my-2">
-            <div className={`text-xl font-bold font-mono ${isNetProfit ? 'text-emerald-800' : 'text-rose-800'}`}>
+            <div className={`text-xl font-bold font-mono ${isNetProfit ? 'text-pharmagreen-800' : 'text-rose-800'}`}>
               {loading ? '...' : formatCurrency(s?.netProfit)}
             </div>
             <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border ${
-              isNetProfit ? 'bg-emerald-100 text-emerald-800 border-emerald-300' : 'bg-rose-100 text-rose-800 border-rose-300'
+              isNetProfit ? 'bg-pharmagreen-100 text-pharmagreen-800 border-pharmagreen-300' : 'bg-rose-100 text-rose-800 border-rose-300'
             }`}>
               Net Margin: {s?.netProfitMarginPercent?.toFixed(1) || 0}%
             </span>
@@ -668,7 +668,7 @@ export const ProfitLossPage: React.FC = () => {
             <button
               type="submit"
               disabled={expenseSubmitting}
-              className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold shadow-xs"
+              className="px-5 py-2 bg-brand-500 hover:bg-brand-600 active:bg-brand-700 text-white rounded-lg text-xs font-bold shadow-xs transition-colors"
             >
               {expenseSubmitting ? 'Recording...' : 'Record Expense Voucher'}
             </button>

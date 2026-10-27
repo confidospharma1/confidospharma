@@ -297,7 +297,7 @@ export const POSBillingPage: React.FC = () => {
                 onChange={(e) => setSearchQuery(e.target.value)}
                 onKeyDown={handleSearchKeyDown}
                 placeholder="Search medicine by Brand, Generic name, or Scan Barcode... (F2 to focus)"
-                className="w-full pl-11 pr-24 py-2.5 text-sm bg-slate-50 border border-slate-300 rounded-lg focus:bg-white focus:border-emerald-600 focus:ring-2 focus:ring-emerald-500/20 font-medium text-slate-900 transition-all placeholder:text-slate-400"
+                className="w-full pl-11 pr-24 py-2.5 text-sm bg-slate-50 border border-slate-300 rounded-lg focus:bg-white focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 font-medium text-slate-900 transition-all placeholder:text-slate-400"
               />
               <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1.5 text-xs text-slate-400">
                 <Barcode className="w-4 h-4 text-slate-500" />
@@ -321,7 +321,7 @@ export const POSBillingPage: React.FC = () => {
                     key={prod.id}
                     onClick={() => addItemToBill(prod)}
                     className={`p-3.5 flex items-center justify-between cursor-pointer transition-colors ${
-                      isSelected ? 'bg-emerald-50/80 border-l-4 border-emerald-600' : 'hover:bg-slate-50'
+                      isSelected ? 'bg-brand-50/80 border-l-4 border-brand-500' : 'hover:bg-slate-50'
                     }`}
                   >
                     <div>
@@ -341,8 +341,8 @@ export const POSBillingPage: React.FC = () => {
                         {fefoBatch && (
                           <>
                             <span>•</span>
-                            <span className="text-emerald-700 font-mono text-[11px] font-semibold flex items-center gap-1">
-                              <Sparkles className="w-3 h-3 text-emerald-600" />
+                            <span className="text-pharmagreen-700 font-mono text-[11px] font-semibold flex items-center gap-1">
+                              <Sparkles className="w-3 h-3 text-pharmagreen-600" />
                               FEFO Batch: {fefoBatch.batchNumber} (Exp: {new Date(fefoBatch.expiryDate).toLocaleDateString('en-IN', { month: '2-digit', year: '2-digit' })})
                             </span>
                           </>
@@ -356,7 +356,7 @@ export const POSBillingPage: React.FC = () => {
                       </div>
                       <div className="mt-0.5">
                         {hasStock ? (
-                          <Badge variant="success" size="sm">
+                          <Badge variant="brandGreen" size="sm">
                             {prod.totalAvailableStock} in stock
                           </Badge>
                         ) : (
@@ -399,7 +399,7 @@ export const POSBillingPage: React.FC = () => {
               <h2 className="text-xs font-bold uppercase tracking-wider text-slate-700">
                 Selected Bill Items
               </h2>
-              <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800">
+              <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-brand-50 text-brand-700 border border-brand-200">
                 {billItems.length}
               </span>
             </div>
@@ -577,11 +577,11 @@ export const POSBillingPage: React.FC = () => {
                 onClick={() => setPaymentMethod('CASH')}
                 className={`py-2 px-2 text-xs font-bold rounded-lg border flex flex-col items-center gap-1 transition-all ${
                   paymentMethod === 'CASH'
-                    ? 'bg-emerald-50 border-emerald-500 text-emerald-800 shadow-xs'
+                    ? 'bg-brand-50 border-brand-500 text-brand-800 shadow-xs'
                     : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
                 }`}
               >
-                <Banknote className="w-4 h-4 text-emerald-600" />
+                <Banknote className={`w-4 h-4 ${paymentMethod === 'CASH' ? 'text-brand-600' : 'text-slate-500'}`} />
                 <span>Cash</span>
               </button>
               <button
@@ -589,11 +589,11 @@ export const POSBillingPage: React.FC = () => {
                 onClick={() => setPaymentMethod('UPI')}
                 className={`py-2 px-2 text-xs font-bold rounded-lg border flex flex-col items-center gap-1 transition-all ${
                   paymentMethod === 'UPI'
-                    ? 'bg-emerald-50 border-emerald-500 text-emerald-800 shadow-xs'
+                    ? 'bg-brand-50 border-brand-500 text-brand-800 shadow-xs'
                     : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
                 }`}
               >
-                <QrCode className="w-4 h-4 text-emerald-600" />
+                <QrCode className={`w-4 h-4 ${paymentMethod === 'UPI' ? 'text-brand-600' : 'text-slate-500'}`} />
                 <span>UPI / QR</span>
               </button>
               <button
@@ -601,11 +601,11 @@ export const POSBillingPage: React.FC = () => {
                 onClick={() => setPaymentMethod('CARD')}
                 className={`py-2 px-2 text-xs font-bold rounded-lg border flex flex-col items-center gap-1 transition-all ${
                   paymentMethod === 'CARD'
-                    ? 'bg-emerald-50 border-emerald-500 text-emerald-800 shadow-xs'
+                    ? 'bg-brand-50 border-brand-500 text-brand-800 shadow-xs'
                     : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
                 }`}
               >
-                <CreditCard className="w-4 h-4 text-emerald-600" />
+                <CreditCard className={`w-4 h-4 ${paymentMethod === 'CARD' ? 'text-brand-600' : 'text-slate-500'}`} />
                 <span>Card</span>
               </button>
             </div>
@@ -618,7 +618,7 @@ export const POSBillingPage: React.FC = () => {
               <span className="font-mono font-medium">₹{subtotal.toFixed(2)}</span>
             </div>
             {totalDiscount > 0 && (
-              <div className="flex justify-between text-emerald-700">
+              <div className="flex justify-between text-pharmagreen-700">
                 <span>Discount ({((totalDiscount / (subtotal + totalDiscount)) * 100).toFixed(1)}%):</span>
                 <span className="font-mono font-medium">-₹{totalDiscount.toFixed(2)}</span>
               </div>
@@ -645,7 +645,7 @@ export const POSBillingPage: React.FC = () => {
             )}
             <div className="border-t border-slate-200 pt-2 flex justify-between items-baseline">
               <span className="text-sm font-bold text-slate-900">Total Payable:</span>
-              <span className="text-2xl font-black font-mono text-emerald-700">
+              <span className="text-2xl font-black font-mono text-brand-900">
                 ₹{grandTotal.toFixed(2)}
               </span>
             </div>
@@ -657,10 +657,10 @@ export const POSBillingPage: React.FC = () => {
           <button
             onClick={handleCompleteBill}
             disabled={isSubmitting || billItems.length === 0}
-            className={`w-full py-3.5 px-4 rounded-xl font-bold text-sm flex items-center justify-center gap-2 shadow-sm transition-all focus:ring-4 focus:ring-emerald-500/20 ${
+            className={`w-full py-3.5 px-4 rounded-xl font-bold text-sm flex items-center justify-center gap-2 shadow-xs transition-all focus:ring-4 focus:ring-brand-500/20 ${
               billItems.length === 0 || isSubmitting
                 ? 'bg-slate-200 text-slate-400 cursor-not-allowed'
-                : 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-600/20'
+                : 'bg-brand-500 hover:bg-brand-600 active:bg-brand-700 text-white shadow-brand-500/20'
             }`}
           >
             {isSubmitting ? (

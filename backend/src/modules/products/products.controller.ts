@@ -13,11 +13,11 @@ export const getProducts = async (req: Request, res: Response) => {
     if (search) {
       const q = (search as string).trim();
       whereClause.OR = [
-        { brandName: { contains: q } },
-        { genericName: { contains: q } },
-        { internalCode: { contains: q } },
-        { manufacturer: { contains: q } },
-        { barcode: { contains: q } },
+        { brandName: { contains: q, mode: 'insensitive' } },
+        { genericName: { contains: q, mode: 'insensitive' } },
+        { internalCode: { contains: q, mode: 'insensitive' } },
+        { manufacturer: { contains: q, mode: 'insensitive' } },
+        { barcode: { contains: q, mode: 'insensitive' } },
       ];
     }
 

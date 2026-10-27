@@ -99,7 +99,7 @@ export const TransfersPage: React.FC = () => {
         {!isBillingUser && (
           <button
             onClick={handleOpenTransferModal}
-            className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold shadow-xs transition-colors"
+            className="flex items-center gap-2 px-4 py-2 bg-brand-500 hover:bg-brand-600 active:bg-brand-700 text-white rounded-lg text-xs font-bold shadow-xs transition-colors"
           >
             <Plus className="w-4 h-4" />
             Dispatch New Transfer
@@ -111,7 +111,7 @@ export const TransfersPage: React.FC = () => {
         <div
           className={`p-3.5 rounded-lg text-xs flex items-center justify-between ${
             message.type === 'success'
-              ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+              ? 'bg-pharmagreen-50 text-pharmagreen-800 border border-pharmagreen-200'
               : 'bg-rose-50 text-rose-800 border border-rose-200'
           }`}
         >
@@ -171,7 +171,7 @@ export const TransfersPage: React.FC = () => {
                         {canReceive ? (
                           <button
                             onClick={() => handleReceiveTransfer(t.id)}
-                            className="px-3 py-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded text-xs shadow-xs"
+                            className="px-3 py-1 bg-brand-500 hover:bg-brand-600 active:bg-brand-700 text-white font-bold rounded text-xs shadow-xs transition-colors"
                           >
                             Confirm Receipt
                           </button>
@@ -263,7 +263,7 @@ export const TransfersPage: React.FC = () => {
             </button>
             <button
               type="submit"
-              className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold"
+              className="px-5 py-2 bg-brand-500 hover:bg-brand-600 active:bg-brand-700 text-white rounded-lg text-xs font-bold shadow-xs transition-colors"
             >
               Dispatch Transfer
             </button>

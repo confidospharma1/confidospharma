@@ -137,7 +137,7 @@ export const BranchesPage: React.FC = () => {
         {isSuperAdmin && (
           <button
             onClick={() => setShowModal(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold shadow-xs transition-colors"
+            className="flex items-center gap-2 px-4 py-2 bg-brand-500 hover:bg-brand-600 active:bg-brand-700 text-white rounded-lg text-xs font-bold shadow-xs transition-colors"
           >
             <Plus className="w-4 h-4" />
             Add New Branch
@@ -149,7 +149,7 @@ export const BranchesPage: React.FC = () => {
         <div
           className={`p-3.5 rounded-lg text-xs flex items-center justify-between ${
             message.type === 'success'
-              ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+              ? 'bg-pharmagreen-50 text-pharmagreen-800 border border-pharmagreen-200'
               : 'bg-rose-50 text-rose-800 border border-rose-200'
           }`}
         >
@@ -160,81 +160,104 @@ export const BranchesPage: React.FC = () => {
         </div>
       )}
 
-      {/* Branch Cards Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        {branches.map((b) => (
-          <div
-            key={b.id}
-            className="bg-white rounded-xl border border-slate-200 p-5 shadow-xs flex flex-col justify-between hover:shadow-md transition-shadow"
-          >
-            <div>
-              <div className="flex items-center justify-between mb-3">
-                <Badge variant="brand" size="sm">
-                  {b.code}
-                </Badge>
-                <div className="flex items-center gap-2">
-                  <span className="flex items-center gap-1.5 text-xs text-emerald-600 font-bold">
-                    <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
-                    Active
-                  </span>
-                  {isSuperAdmin && (
-                    <div className="flex items-center gap-1 ml-2 border-l border-slate-200 pl-2">
-                      <button
-                        type="button"
-                        onClick={() => openEdit(b)}
-                        title="Edit Branch Details"
-                        className="p-1 text-blue-600 hover:bg-blue-50 rounded transition-colors"
-                      >
-                        <Edit2 className="w-3.5 h-3.5" />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setDeleteTarget(b);
-                          setShowDeleteModal(true);
-                        }}
-                        title="Archive / Remove Branch"
-                        className="p-1 text-rose-600 hover:bg-rose-50 rounded transition-colors"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
+      {/* Branch Cards Grid or Empty State */}
+      {branches.length === 0 ? (
+        <div className="bg-white rounded-xl border border-slate-200 p-12 text-center max-w-lg mx-auto shadow-xs space-y-4">
+          <div className="w-12 h-12 rounded-xl bg-slate-100 text-slate-500 flex items-center justify-center mx-auto">
+            <Building2 className="w-6 h-6 text-slate-400" />
+          </div>
+          <div>
+            <h3 className="text-sm font-bold text-slate-800">No pharmacy branches registered yet</h3>
+            <p className="text-xs text-slate-500 mt-1">
+              Add your first branch location to begin configuring segregated inventory and billing counters.
+            </p>
+          </div>
+          {isSuperAdmin && (
+            <button
+              onClick={() => setShowModal(true)}
+              className="inline-flex items-center gap-2 px-4 py-2 bg-brand-500 hover:bg-brand-600 active:bg-brand-700 text-white rounded-lg text-xs font-bold transition-colors shadow-xs"
+            >
+              <Plus className="w-4 h-4" />
+              Add Your First Branch
+            </button>
+          )}
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          {branches.map((b) => (
+            <div
+              key={b.id}
+              className="bg-white rounded-xl border border-slate-200 p-5 shadow-xs flex flex-col justify-between hover:shadow-md transition-shadow"
+            >
+              <div>
+                <div className="flex items-center justify-between mb-3">
+                  <Badge variant="brand" size="sm">
+                    {b.code}
+                  </Badge>
+                  <div className="flex items-center gap-2">
+                    <span className="flex items-center gap-1.5 text-xs text-pharmagreen-700 font-bold">
+                      <span className="w-2 h-2 rounded-full bg-pharmagreen-500"></span>
+                      Active
+                    </span>
+                    {isSuperAdmin && (
+                      <div className="flex items-center gap-1 ml-2 border-l border-slate-200 pl-2">
+                        <button
+                          type="button"
+                          onClick={() => openEdit(b)}
+                          title="Edit Branch Details"
+                          className="p-1 text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                        >
+                          <Edit2 className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setDeleteTarget(b);
+                            setShowDeleteModal(true);
+                          }}
+                          title="Archive / Remove Branch"
+                          className="p-1 text-rose-600 hover:bg-rose-50 rounded transition-colors"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <h2 className="text-base font-bold text-slate-900 mb-2">{b.name}</h2>
+
+                <div className="space-y-2 text-xs text-slate-600">
+                  <div className="flex items-start gap-2">
+                    <MapPin className="w-4 h-4 text-slate-400 flex-shrink-0 mt-0.5" />
+                    <span className="leading-tight">{b.address}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Phone className="w-4 h-4 text-slate-400 flex-shrink-0" />
+                    <span>{b.phone}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <FileText className="w-4 h-4 text-slate-400 flex-shrink-0" />
+                    <span className="font-mono"><strong>GSTIN:</strong> {b.gstin}</span>
+                  </div>
+                  {b.drugLicenseNo && (
+                    <div className="flex items-center gap-2">
+                      <FileText className="w-4 h-4 text-slate-400 flex-shrink-0" />
+                      <span className="font-mono"><strong>DL No:</strong> {b.drugLicenseNo}</span>
                     </div>
                   )}
                 </div>
               </div>
 
-              <h2 className="text-base font-bold text-slate-900 mb-2">{b.name}</h2>
-
-              <div className="space-y-2 text-xs text-slate-600">
-                <div className="flex items-start gap-2">
-                  <MapPin className="w-4 h-4 text-slate-400 flex-shrink-0 mt-0.5" />
-                  <span className="leading-tight">{b.address}</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Phone className="w-4 h-4 text-slate-400 flex-shrink-0" />
-                  <span>{b.phone}</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <FileText className="w-4 h-4 text-slate-400 flex-shrink-0" />
-                  <span className="font-mono"><strong>GSTIN:</strong> {b.gstin}</span>
-                </div>
-                {b.drugLicenseNo && (
-                  <div className="flex items-center gap-2">
-                    <FileText className="w-4 h-4 text-slate-400 flex-shrink-0" />
-                    <span className="font-mono"><strong>DL No:</strong> {b.drugLicenseNo}</span>
-                  </div>
-                )}
+              <div className="mt-5 pt-3 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500 font-medium">
+                <span>Staff: <strong className="text-slate-800">{b._count?.users || 0}</strong></span>
+                <span>Batches: <strong className="text-slate-800">{b._count?.batches || 0}</strong></span>
+                <span>Bills: <strong className="text-slate-800">{b._count?.salesInvoices || 0}</strong></span>
               </div>
             </div>
-
-            <div className="mt-5 pt-3 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500 font-medium">
-              <span>Staff: <strong className="text-slate-800">{b._count?.users || 0}</strong></span>
-              <span>Batches: <strong className="text-slate-800">{b._count?.batches || 0}</strong></span>
-              <span>Bills: <strong className="text-slate-800">{b._count?.salesInvoices || 0}</strong></span>
-            </div>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
 
       {/* Modal: Add New Branch */}
       <Modal isOpen={showModal} onClose={() => setShowModal(false)} title="Register New Pharmacy Branch" maxWidth="lg">
@@ -334,7 +357,7 @@ export const BranchesPage: React.FC = () => {
             </button>
             <button
               type="submit"
-              className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold"
+              className="px-5 py-2 bg-brand-500 hover:bg-brand-600 active:bg-brand-700 text-white rounded-lg text-xs font-bold shadow-xs transition-colors"
             >
               Register Branch
             </button>
@@ -421,7 +444,7 @@ export const BranchesPage: React.FC = () => {
             </button>
             <button
               type="submit"
-              className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold"
+              className="px-5 py-2 bg-brand-500 hover:bg-brand-600 active:bg-brand-700 text-white rounded-lg text-xs font-bold shadow-xs transition-colors"
             >
               Save Changes
             </button>

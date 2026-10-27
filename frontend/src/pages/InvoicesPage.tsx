@@ -105,7 +105,7 @@ export const InvoicesPage: React.FC = () => {
         <div
           className={`p-3.5 rounded-lg text-xs flex items-center justify-between ${
             message.type === 'success'
-              ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+              ? 'bg-pharmagreen-50 text-pharmagreen-800 border border-pharmagreen-200'
               : 'bg-rose-50 text-rose-800 border border-rose-200'
           }`}
         >
@@ -142,8 +142,9 @@ export const InvoicesPage: React.FC = () => {
                 </tr>
               ) : invoices.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="py-8 text-center text-slate-400">
-                    No sales invoices found.
+                  <td colSpan={9} className="py-12 text-center text-slate-500">
+                    <p className="text-sm font-bold text-slate-800">No sales recorded yet.</p>
+                    <p className="text-xs text-slate-500 mt-1">Invoices generated from the POS counter will appear here in real-time.</p>
                   </td>
                 </tr>
               ) : (
@@ -170,11 +171,11 @@ export const InvoicesPage: React.FC = () => {
                     </td>
                     <td className="py-3 px-3 text-right font-mono text-slate-600">₹{inv.subtotal.toFixed(2)}</td>
                     <td className="py-3 px-3 text-right font-mono text-slate-600">₹{inv.taxTotal.toFixed(2)}</td>
-                    <td className="py-3 px-4 text-right font-mono font-bold text-slate-900">
+                    <td className="py-3 px-4 text-right font-mono font-bold text-brand-900">
                       ₹{inv.grandTotal.toFixed(2)}
                     </td>
                     <td className="py-3 px-3 text-center">
-                      <Badge variant={inv.status === 'COMPLETED' ? 'success' : 'danger'} size="sm">
+                      <Badge variant={inv.status === 'COMPLETED' ? 'brandGreen' : 'danger'} size="sm">
                         {inv.status}
                       </Badge>
                     </td>

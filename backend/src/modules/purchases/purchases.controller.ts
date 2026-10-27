@@ -18,9 +18,9 @@ export const getPurchases = async (req: Request, res: Response) => {
     if (search) {
       const q = (search as string).trim();
       whereClause.OR = [
-        { invoiceNumber: { contains: q } },
-        { supplierInvoiceNumber: { contains: q } },
-        { supplier: { name: { contains: q } } },
+        { invoiceNumber: { contains: q, mode: 'insensitive' } },
+        { supplierInvoiceNumber: { contains: q, mode: 'insensitive' } },
+        { supplier: { name: { contains: q, mode: 'insensitive' } } },
       ];
     }
 

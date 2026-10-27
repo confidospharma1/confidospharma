@@ -38,8 +38,8 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
     <Modal isOpen={isOpen} onClose={onClose} title="Tax Invoice & Receipt" maxWidth="2xl">
       <div className="space-y-6">
         {/* Success header */}
-        <div className="flex items-center gap-3 p-3 bg-emerald-50 border border-emerald-200 rounded-lg text-emerald-800 text-sm print:hidden">
-          <CheckCircle2 className="w-5 h-5 text-emerald-600 flex-shrink-0" />
+        <div className="flex items-center gap-3 p-3 bg-pharmagreen-50 border border-pharmagreen-200 rounded-lg text-pharmagreen-800 text-sm print:hidden">
+          <CheckCircle2 className="w-5 h-5 text-pharmagreen-600 flex-shrink-0" />
           <div>
             <span className="font-semibold">Invoice Generated Successfully!</span> Stock has been deducted from the branch inventory.
           </div>
@@ -52,7 +52,7 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
           </div>
           <button
             onClick={handlePrint}
-            className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-medium shadow-sm transition-colors focus:ring-2 focus:ring-emerald-500"
+            className="flex items-center gap-2 px-4 py-2 bg-brand-500 hover:bg-brand-600 active:bg-brand-700 text-white rounded-lg font-medium shadow-xs transition-colors focus:ring-2 focus:ring-brand-500"
           >
             <Printer className="w-4 h-4" />
             Print Receipt
@@ -85,7 +85,7 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
             <div>
               <p><strong>Invoice No:</strong> {invoice.invoiceNumber}</p>
               <p><strong>Date & Time:</strong> {formattedDate} {formattedTime}</p>
-              <p><strong>Payment Mode:</strong> <span className="font-semibold text-emerald-800">{invoice.paymentMethod}</span></p>
+              <p><strong>Payment Mode:</strong> <span className="font-semibold text-brand-700">{invoice.paymentMethod}</span></p>
             </div>
             <div className="text-right">
               <p><strong>Patient/Customer:</strong> {invoice.customerName || 'Retail Customer'}</p>
@@ -115,7 +115,7 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
                   <td className="py-1.5 align-top font-sans font-medium text-slate-900">
                     {line.medicineName}
                     {line.discountPercent > 0 && (
-                      <span className="block text-[10px] text-emerald-700 font-mono">
+                      <span className="block text-[10px] text-pharmagreen-700 font-mono">
                         (Disc: {line.discountPercent}%)
                       </span>
                     )}
@@ -140,7 +140,7 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
               <span>₹{invoice.subtotal.toFixed(2)}</span>
             </div>
             {invoice.discountTotal > 0 && (
-              <div className="flex justify-between text-emerald-700">
+              <div className="flex justify-between text-pharmagreen-700">
                 <span>Discount ({((invoice.discountTotal / (invoice.subtotal + invoice.discountTotal)) * 100).toFixed(1)}%):</span>
                 <span>-₹{invoice.discountTotal.toFixed(2)}</span>
               </div>
@@ -165,7 +165,7 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
             )}
             <div className="flex justify-between text-sm font-bold text-slate-900 border-t border-slate-400 pt-1.5 mt-1">
               <span>NET PAYABLE:</span>
-              <span className="text-base text-emerald-800">₹{invoice.grandTotal.toFixed(2)}</span>
+              <span className="text-base text-brand-900 font-black">₹{invoice.grandTotal.toFixed(2)}</span>
             </div>
           </div>
 

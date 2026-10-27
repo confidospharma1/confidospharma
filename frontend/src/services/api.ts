@@ -74,6 +74,8 @@ export async function apiRequest<T = any>(
 
 export const api = {
   // Auth
+  getSetupStatus: () => apiRequest<{ needsSetup: boolean; totalUsers: number }>('/auth/setup-status'),
+  setupAdmin: (data: any) => apiRequest('/auth/setup-admin', { method: 'POST', body: JSON.stringify(data) }),
   login: (credentials: { usernameOrEmail: string; password: string }) =>
     apiRequest('/auth/login', { method: 'POST', body: JSON.stringify(credentials) }),
   getMe: () => apiRequest('/auth/me'),

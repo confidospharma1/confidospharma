@@ -17,11 +17,11 @@ export const getSuppliers = async (req: Request, res: Response) => {
     if (search) {
       const q = (search as string).trim();
       whereClause.OR = [
-        { name: { contains: q } },
-        { contactPerson: { contains: q } },
-        { phone: { contains: q } },
-        { email: { contains: q } },
-        { gstin: { contains: q } },
+        { name: { contains: q, mode: 'insensitive' } },
+        { contactPerson: { contains: q, mode: 'insensitive' } },
+        { phone: { contains: q, mode: 'insensitive' } },
+        { email: { contains: q, mode: 'insensitive' } },
+        { gstin: { contains: q, mode: 'insensitive' } },
       ];
     }
 

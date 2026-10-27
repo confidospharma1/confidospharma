@@ -91,10 +91,19 @@ export const createBranch = async (req: Request, res: Response) => {
       return res.status(409).json({ message: `Branch code '${code}' already exists` });
     }
 
-    // Get primary company
-    const company = await prisma.company.findFirst();
+    // Get or create primary company
+    let company = await prisma.company.findFirst();
     if (!company) {
-      return res.status(500).json({ message: 'Default company record not found' });
+      company = await prisma.company.create({
+        data: {
+          name: 'Confidos Pharma Ltd.',
+          legalName: 'Confidos Healthcare & Pharmaceuticals Private Limited',
+          gstin: gstin.toUpperCase().trim(),
+          address: address.trim(),
+          phone: phone.trim(),
+          email: email ? email.trim() : null,
+        },
+      });
     }
 
     const newBranch = await prisma.branch.create({

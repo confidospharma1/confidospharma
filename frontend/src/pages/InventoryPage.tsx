@@ -198,7 +198,7 @@ export const InventoryPage: React.FC = () => {
             </button>
             <button
               onClick={handleOpenReceive}
-              className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold shadow-xs transition-colors"
+              className="flex items-center gap-2 px-4 py-2 bg-brand-500 hover:bg-brand-600 active:bg-brand-700 text-white rounded-lg text-xs font-bold shadow-xs transition-colors"
             >
               <Plus className="w-4 h-4" />
               Receive Stock Batch
@@ -211,7 +211,7 @@ export const InventoryPage: React.FC = () => {
         <div
           className={`p-3.5 rounded-lg text-xs flex items-center justify-between ${
             message.type === 'success'
-              ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+              ? 'bg-pharmagreen-50 text-pharmagreen-800 border border-pharmagreen-200'
               : 'bg-rose-50 text-rose-800 border border-rose-200'
           }`}
         >
@@ -228,7 +228,7 @@ export const InventoryPage: React.FC = () => {
           <button
             onClick={() => setFilterTab('ACTIVE')}
             className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all ${
-              filterTab === 'ACTIVE' ? 'bg-white text-emerald-800 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+              filterTab === 'ACTIVE' ? 'bg-white text-brand-700 shadow-xs' : 'text-slate-600 hover:text-slate-900'
             }`}
           >
             Active Saleable
@@ -296,8 +296,18 @@ export const InventoryPage: React.FC = () => {
                 </tr>
               ) : filteredBatches.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="py-8 text-center text-slate-400">
-                    No batches match the selected criteria.
+                  <td colSpan={8} className="py-12 text-center text-slate-500">
+                    <p className="text-sm font-bold text-slate-800">No inventory available.</p>
+                    <p className="text-xs text-slate-500 mt-1">Receive stock through the authorized purchase invoice or stock-receipt workflow.</p>
+                    {!isBillingUser && (
+                      <button
+                        onClick={handleOpenReceive}
+                        className="mt-3 inline-flex items-center gap-1.5 px-3 py-1.5 bg-brand-500 hover:bg-brand-600 text-white rounded-lg text-xs font-bold transition-colors"
+                      >
+                        <Plus className="w-3.5 h-3.5" />
+                        Receive Stock Batch
+                      </button>
+                    )}
                   </td>
                 </tr>
               ) : (
@@ -495,7 +505,7 @@ export const InventoryPage: React.FC = () => {
             </button>
             <button
               type="submit"
-              className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold"
+              className="px-5 py-2 bg-brand-500 hover:bg-brand-600 active:bg-brand-700 text-white rounded-lg text-xs font-bold shadow-xs transition-colors"
             >
               Confirm Stock Receipt
             </button>

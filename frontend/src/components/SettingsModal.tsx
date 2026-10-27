@@ -91,7 +91,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, o
     <Modal isOpen={isOpen} onClose={onClose} title="Pharmacy System Configuration & Defaults" maxWidth="2xl">
       {loading ? (
         <div className="py-12 text-center text-slate-400 text-xs">
-          <div className="w-6 h-6 border-2 border-emerald-600 border-t-transparent rounded-full animate-spin mx-auto mb-2"></div>
+          <div className="w-6 h-6 border-2 border-brand-500 border-t-transparent rounded-full animate-spin mx-auto mb-2"></div>
           Loading system settings...
         </div>
       ) : (
@@ -100,7 +100,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, o
             <div
               className={`p-3 rounded-lg flex items-center justify-between ${
                 message.type === 'success'
-                  ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+                  ? 'bg-pharmagreen-50 text-pharmagreen-800 border border-pharmagreen-200'
                   : 'bg-rose-50 text-rose-800 border border-rose-200'
               }`}
             >
@@ -114,7 +114,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, o
           {/* Section: Discount Configuration */}
           <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-3">
             <div className="flex items-center gap-2">
-              <Percent className="w-4 h-4 text-emerald-600" />
+              <Percent className="w-4 h-4 text-brand-500" />
               <h3 className="font-bold text-slate-900 text-xs uppercase tracking-wider">
                 Purchase Discount Configuration (Default 15% – 20%)
               </h3>
@@ -139,7 +139,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, o
                     onChange={(e) =>
                       setSettings({ ...settings, DEFAULT_PURCHASE_DISCOUNT_PERCENT: e.target.value })
                     }
-                    className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-lg font-mono font-bold text-emerald-800 focus:ring-2 focus:ring-emerald-500"
+                    className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-lg font-mono font-bold text-brand-900 focus:ring-2 focus:ring-brand-500"
                   />
                   <div className="flex gap-1">
                     <button
@@ -190,7 +190,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, o
           {/* Section: Indian GST Configuration */}
           <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-3">
             <div className="flex items-center gap-2">
-              <DollarSign className="w-4 h-4 text-emerald-600" />
+              <DollarSign className="w-4 h-4 text-brand-500" />
               <h3 className="font-bold text-slate-900 text-xs uppercase tracking-wider">
                 Default GST Tax Configuration (CGST 2.5% + SGST 2.5% = 5%)
               </h3>
@@ -214,7 +214,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, o
                   onChange={(e) =>
                     setSettings({ ...settings, DEFAULT_CGST_RATE: e.target.value })
                   }
-                  className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-lg font-mono font-bold text-slate-800"
+                  className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-lg font-mono font-bold text-slate-800 focus:ring-2 focus:ring-brand-500"
                 />
               </div>
 
@@ -232,7 +232,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, o
                   onChange={(e) =>
                     setSettings({ ...settings, DEFAULT_SGST_RATE: e.target.value })
                   }
-                  className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-lg font-mono font-bold text-slate-800"
+                  className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-lg font-mono font-bold text-slate-800 focus:ring-2 focus:ring-brand-500"
                 />
               </div>
 
@@ -240,7 +240,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, o
                 <label className="text-[11px] font-bold text-slate-700 block mb-1">
                   Calculated Total GST (%)
                 </label>
-                <div className="w-full px-3 py-2 text-xs bg-emerald-50 border border-emerald-300 rounded-lg font-mono font-black text-emerald-800">
+                <div className="w-full px-3 py-2 text-xs bg-brand-50 border border-brand-200 rounded-lg font-mono font-black text-brand-900">
                   {computedCombinedGST}% (CGST + SGST)
                 </div>
               </div>
@@ -248,8 +248,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, o
           </div>
 
           {/* Illustrative Dual Percentage & Amount Preview */}
-          <div className="p-3 bg-white rounded-xl border border-emerald-200 shadow-xs space-y-2">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-700 block">
+          <div className="p-3 bg-white rounded-xl border border-brand-200 shadow-xs space-y-2">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-brand-700 block">
               Live Invoice Calculation Preview (For ₹1,000.00 Base Gross)
             </span>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-slate-700 font-mono">
@@ -265,9 +265,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, o
                 <span className="text-[10px] text-slate-500 font-sans block">Taxable Base</span>
                 <span className="font-bold">₹{previewTaxable.toFixed(2)}</span>
               </div>
-              <div className="p-2 bg-emerald-50 rounded border border-emerald-200">
-                <span className="text-[10px] text-emerald-800 font-sans block">Final Payable</span>
-                <span className="text-emerald-800 font-black">₹{previewGrandTotal.toFixed(2)}</span>
+              <div className="p-2 bg-pharmagreen-50 rounded border border-pharmagreen-200">
+                <span className="text-[10px] text-pharmagreen-800 font-sans block">Final Payable</span>
+                <span className="text-pharmagreen-900 font-black">₹{previewGrandTotal.toFixed(2)}</span>
               </div>
             </div>
             <div className="flex items-center justify-between text-[11px] text-slate-500 pt-1 border-t border-slate-100 font-mono">
@@ -320,7 +320,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, o
             <button
               type="submit"
               disabled={saving}
-              className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold shadow-xs transition-colors flex items-center gap-1.5"
+              className="px-5 py-2 bg-brand-500 hover:bg-brand-600 active:bg-brand-700 text-white rounded-lg text-xs font-bold shadow-xs transition-colors flex items-center gap-1.5 focus:ring-2 focus:ring-brand-500"
             >
               {saving ? 'Saving Settings...' : 'Save & Apply Configuration'}
             </button>

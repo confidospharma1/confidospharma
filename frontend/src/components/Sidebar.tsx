@@ -27,12 +27,17 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => 
   const { isSuperAdmin, isBranchAdmin, isBillingUser } = useAuth();
 
   const navItemClass = (tab: string) => `
-    w-full flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-semibold transition-all
+    group w-full flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-semibold transition-all
     ${
       activeTab === tab
-        ? 'bg-emerald-50 text-emerald-800 border-l-4 border-emerald-600 shadow-xs'
-        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/80'
+        ? 'bg-brand-50 text-brand-700 border-l-4 border-brand-500 shadow-xs font-bold'
+        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
     }
+  `;
+
+  const iconClass = (tab: string) => `
+    w-4 h-4 transition-colors
+    ${activeTab === tab ? 'text-brand-500' : 'text-slate-400 group-hover:text-slate-600'}
   `;
 
   return (
@@ -48,14 +53,14 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => 
               onClick={() => setActiveTab('pos')}
               className={navItemClass('pos')}
             >
-              <ShoppingCart className="w-4 h-4 text-emerald-600" />
+              <ShoppingCart className={iconClass('pos')} />
               <span>POS Billing Counter</span>
             </button>
             <button
               onClick={() => setActiveTab('invoices')}
               className={navItemClass('invoices')}
             >
-              <Receipt className="w-4 h-4 text-slate-500" />
+              <Receipt className={iconClass('invoices')} />
               <span>Sales Invoices</span>
             </button>
           </nav>
@@ -72,56 +77,56 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => 
                 onClick={() => setActiveTab('dashboard')}
                 className={navItemClass('dashboard')}
               >
-                <LayoutDashboard className="w-4 h-4 text-slate-500" />
+                <LayoutDashboard className={iconClass('dashboard')} />
                 <span>Branch Dashboard</span>
               </button>
               <button
                 onClick={() => setActiveTab('inventory')}
                 className={navItemClass('inventory')}
               >
-                <Boxes className="w-4 h-4 text-slate-500" />
+                <Boxes className={iconClass('inventory')} />
                 <span>Stock Batches & FEFO</span>
               </button>
               <button
                 onClick={() => setActiveTab('catalogue')}
                 className={navItemClass('catalogue')}
               >
-                <Pill className="w-4 h-4 text-slate-500" />
+                <Pill className={iconClass('catalogue')} />
                 <span>Medicine Catalogue</span>
               </button>
               <button
                 onClick={() => setActiveTab('purchases')}
                 className={navItemClass('purchases')}
               >
-                <Truck className="w-4 h-4 text-slate-500" />
+                <Truck className={iconClass('purchases')} />
                 <span>Purchases & Suppliers</span>
               </button>
               <button
                 onClick={() => setActiveTab('transfers')}
                 className={navItemClass('transfers')}
               >
-                <ArrowLeftRight className="w-4 h-4 text-slate-500" />
+                <ArrowLeftRight className={iconClass('transfers')} />
                 <span>Branch Transfers</span>
               </button>
               <button
                 onClick={() => setActiveTab('imports')}
                 className={navItemClass('imports')}
               >
-                <FileSpreadsheet className="w-4 h-4 text-slate-500" />
+                <FileSpreadsheet className={iconClass('imports')} />
                 <span>Bulk Import (Excel/CSV)</span>
               </button>
               <button
                 onClick={() => setActiveTab('reports')}
                 className={navItemClass('reports')}
               >
-                <BarChart3 className="w-4 h-4 text-slate-500" />
+                <BarChart3 className={iconClass('reports')} />
                 <span>Reports & GST Summary</span>
               </button>
               <button
                 onClick={() => setActiveTab('profit-loss')}
                 className={navItemClass('profit-loss')}
               >
-                <TrendingUp className="w-4 h-4 text-emerald-600" />
+                <TrendingUp className={iconClass('profit-loss')} />
                 <span>Profit & Loss Statement</span>
               </button>
             </nav>
@@ -139,7 +144,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => 
                 onClick={() => setActiveTab('users')}
                 className={navItemClass('users')}
               >
-                <Users className="w-4 h-4 text-slate-500" />
+                <Users className={iconClass('users')} />
                 <span>Staff & Cashiers</span>
               </button>
               {isSuperAdmin && (
@@ -148,14 +153,14 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => 
                     onClick={() => setActiveTab('branches')}
                     className={navItemClass('branches')}
                   >
-                    <Building className="w-4 h-4 text-slate-500" />
+                    <Building className={iconClass('branches')} />
                     <span>Branches Setup</span>
                   </button>
                   <button
                     onClick={() => setActiveTab('audit')}
                     className={navItemClass('audit')}
                   >
-                    <History className="w-4 h-4 text-slate-500" />
+                    <History className={iconClass('audit')} />
                     <span>Audit Trail Log</span>
                   </button>
                 </>
@@ -174,7 +179,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => 
               onClick={() => setActiveTab('legal')}
               className={navItemClass('legal')}
             >
-              <Scale className="w-4 h-4 text-slate-500" />
+              <Scale className={iconClass('legal')} />
               <span>Policies & Privacy Portal</span>
             </button>
           </nav>
@@ -185,8 +190,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => 
       <div className="p-4 border-t border-slate-200 bg-slate-50/60 text-[11px] text-slate-500 space-y-1">
         <div className="flex items-center justify-between font-mono">
           <span>v1.0.0-PROD</span>
-          <span className="flex items-center gap-1 text-emerald-600 font-bold">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+          <span className="flex items-center gap-1 text-pharmagreen-600 font-bold">
+            <span className="w-1.5 h-1.5 rounded-full bg-pharmagreen-500 animate-pulse"></span>
             Online
           </span>
         </div>

@@ -37,7 +37,7 @@ const MainLayout: React.FC = () => {
   if (loading) {
     return (
       <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center text-slate-500 text-xs">
-        <div className="w-8 h-8 rounded-full border-2 border-emerald-600 border-t-transparent animate-spin mb-3"></div>
+        <div className="w-8 h-8 rounded-full border-2 border-brand-500 border-t-transparent animate-spin mb-3"></div>
         <p className="font-semibold text-slate-700">Initializing Confidos Pharma Platform...</p>
       </div>
     );

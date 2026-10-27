@@ -61,7 +61,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
     return (
       <div className="p-8 flex items-center justify-center text-slate-500 text-sm">
         <div className="flex items-center gap-2">
-          <div className="w-5 h-5 border-2 border-emerald-600 border-t-transparent rounded-full animate-spin"></div>
+          <div className="w-5 h-5 border-2 border-brand-500 border-t-transparent rounded-full animate-spin"></div>
           <span>Loading branch operational metrics...</span>
         </div>
       </div>
@@ -71,14 +71,14 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
   return (
     <div className="p-6 md:p-8 space-y-6 max-w-7xl mx-auto overflow-y-auto">
       {/* Top Banner */}
-      <div className="bg-gradient-to-r from-emerald-900 via-slate-900 to-slate-850 rounded-2xl p-6 text-white shadow-md relative overflow-hidden">
+      <div className="bg-gradient-to-r from-brand-950 via-slate-900 to-slate-900 rounded-2xl p-6 text-white shadow-md relative overflow-hidden border border-slate-800">
         <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
             <div className="flex items-center gap-2 mb-2">
               <Badge variant="brand" size="sm">
                 CONFIDOS PHARMA OS
               </Badge>
-              <span className="text-xs text-emerald-300 font-mono font-medium">
+              <span className="text-xs text-brand-300 font-mono font-medium">
                 {currentBranch?.name} ({currentBranch?.code})
               </span>
             </div>
@@ -91,14 +91,14 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
           <div className="flex items-center gap-3">
             <button
               onClick={() => onNavigate('pos')}
-              className="flex items-center gap-2 px-4 py-2.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold rounded-xl text-xs transition-colors shadow-sm"
+              className="flex items-center gap-2 px-4 py-2.5 bg-brand-500 hover:bg-brand-600 active:bg-brand-700 text-white font-bold rounded-xl text-xs transition-colors shadow-xs"
             >
               <ShoppingCart className="w-4 h-4" />
               Launch POS Counter
             </button>
             <button
               onClick={() => onNavigate('imports')}
-              className="flex items-center gap-2 px-4 py-2.5 bg-white/10 hover:bg-white/20 text-white font-semibold rounded-xl text-xs transition-colors backdrop-blur-sm"
+              className="flex items-center gap-2 px-4 py-2.5 bg-white/10 hover:bg-white/20 text-white font-semibold rounded-xl text-xs transition-colors backdrop-blur-sm border border-white/10"
             >
               <FileSpreadsheet className="w-4 h-4" />
               Bulk Import
@@ -113,7 +113,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
         <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-xs">
           <div className="flex items-center justify-between text-slate-500 mb-2">
             <span className="text-xs font-semibold">Today&apos;s Branch Sales</span>
-            <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center">
+            <div className="w-8 h-8 rounded-lg bg-brand-50 text-brand-600 flex items-center justify-center">
               <TrendingUp className="w-4 h-4" />
             </div>
           </div>
@@ -122,7 +122,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
           </div>
           <div className="mt-2 flex items-center justify-between text-[11px] text-slate-500">
             <span>Invoices today: <strong className="text-slate-800">{dailySales?.totalInvoices || 0}</strong></span>
-            <span className="text-emerald-600 font-semibold">Live Real-time</span>
+            <span className="text-pharmagreen-700 font-semibold">Live Real-time</span>
           </div>
         </div>
 
@@ -130,7 +130,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
         <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-xs">
           <div className="flex items-center justify-between text-slate-500 mb-2">
             <span className="text-xs font-semibold">Stock on Hand (Units)</span>
-            <div className="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center">
+            <div className="w-8 h-8 rounded-lg bg-brand-50 text-brand-600 flex items-center justify-center">
               <Boxes className="w-4 h-4" />
             </div>
           </div>
@@ -139,7 +139,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
           </div>
           <div className="mt-2 flex items-center justify-between text-[11px] text-slate-500">
             <span>Active Batches: <strong className="text-slate-800">{stockVal?.batchesCount || 0}</strong></span>
-            <button onClick={() => onNavigate('inventory')} className="text-blue-600 hover:underline font-semibold">
+            <button onClick={() => onNavigate('inventory')} className="text-brand-600 hover:text-brand-800 hover:underline font-semibold">
               Inspect &rarr;
             </button>
           </div>
@@ -149,7 +149,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
         <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-xs">
           <div className="flex items-center justify-between text-slate-500 mb-2">
             <span className="text-xs font-semibold">Stock Valuation (MRP)</span>
-            <div className="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center">
+            <div className="w-8 h-8 rounded-lg bg-slate-100 text-slate-700 flex items-center justify-center">
               <Receipt className="w-4 h-4" />
             </div>
           </div>
@@ -158,7 +158,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
           </div>
           <div className="mt-2 flex items-center justify-between text-[11px] text-slate-500">
             <span>Cost: ₹{(stockVal?.totalPurchaseValue || 0).toFixed(2)}</span>
-            <span className="text-indigo-600 font-semibold">Margin: ₹{(stockVal?.potentialMargin || 0).toFixed(2)}</span>
+            <span className="text-pharmagreen-700 font-semibold">Margin: ₹{(stockVal?.potentialMargin || 0).toFixed(2)}</span>
           </div>
         </div>
 
@@ -191,41 +191,47 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
                 Company Consolidated Multi-Branch Totals
               </h2>
               <p className="text-xs text-slate-500">
-                Consolidated reporting across 3 branches without mixing physical branch inventory.
+                Consolidated reporting across all registered branches without mixing physical branch inventory.
               </p>
             </div>
             <div className="text-right">
               <span className="text-xs text-slate-400 font-medium">Company Lifetime Sales:</span>
-              <p className="text-lg font-black font-mono text-emerald-700">
+              <p className="text-lg font-black font-mono text-brand-800">
                 ₹{companyOverview.companyTotalSales.toFixed(2)}
               </p>
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {companyOverview.branches.map((b: any) => (
-              <div
-                key={b.id}
-                className="p-4 rounded-xl border border-slate-200 bg-slate-50/50 hover:bg-slate-50 transition-colors"
-              >
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-xs font-bold text-slate-800">{b.name}</span>
-                  <Badge variant="neutral" size="sm">
-                    {b.code}
-                  </Badge>
+          {companyOverview.branches.length === 0 ? (
+            <div className="text-center py-6 border border-dashed border-slate-200 rounded-xl">
+              <p className="text-xs text-slate-500">No branches registered yet. Register your first branch to view multi-branch performance metrics.</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {companyOverview.branches.map((b: any) => (
+                <div
+                  key={b.id}
+                  className="p-4 rounded-xl border border-slate-200 bg-slate-50/50 hover:bg-slate-50 transition-colors"
+                >
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs font-bold text-slate-800">{b.name}</span>
+                    <Badge variant="brand" size="sm">
+                      {b.code}
+                    </Badge>
+                  </div>
+                  <div className="text-xl font-black font-mono text-slate-900 mb-2">
+                    ₹{b.totalSales.toFixed(2)}
+                  </div>
+                  <div className="grid grid-cols-2 gap-1 text-[11px] text-slate-600">
+                    <span>Batches: <strong>{b.totalBatches}</strong></span>
+                    <span>Invoices: <strong>{b.totalInvoices}</strong></span>
+                    <span>Staff: <strong>{b.usersCount}</strong></span>
+                    <span>Near-Exp: <strong className="text-amber-600">{b.nearExpiryCount}</strong></span>
+                  </div>
                 </div>
-                <div className="text-xl font-black font-mono text-slate-900 mb-2">
-                  ₹{b.totalSales.toFixed(2)}
-                </div>
-                <div className="grid grid-cols-2 gap-1 text-[11px] text-slate-600">
-                  <span>Batches: <strong>{b.totalBatches}</strong></span>
-                  <span>Invoices: <strong>{b.totalInvoices}</strong></span>
-                  <span>Staff: <strong>{b.usersCount}</strong></span>
-                  <span>Near-Exp: <strong className="text-amber-600">{b.nearExpiryCount}</strong></span>
-                </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
@@ -239,7 +245,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
             </h3>
             <button
               onClick={() => onNavigate('invoices')}
-              className="text-xs text-emerald-600 hover:text-emerald-800 font-semibold"
+              className="text-xs text-brand-600 hover:text-brand-800 font-semibold"
             >
               View All &rarr;
             </button>
@@ -267,7 +273,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
                           {inv.paymentMethod}
                         </Badge>
                       </td>
-                      <td className="py-2.5 text-right font-mono font-bold text-emerald-700">
+                      <td className="py-2.5 text-right font-mono font-bold text-brand-900">
                         ₹{inv.grandTotal.toFixed(2)}
                       </td>
                     </tr>
@@ -291,14 +297,14 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
             </div>
             <button
               onClick={() => onNavigate('inventory')}
-              className="text-xs text-emerald-600 hover:text-emerald-800 font-semibold"
+              className="text-xs text-brand-600 hover:text-brand-800 font-semibold"
             >
               Manage &rarr;
             </button>
           </div>
           <div className="p-4 flex-1 overflow-x-auto">
             {expiryAlerts?.nearExpiry?.length === 0 ? (
-              <p className="text-xs text-emerald-600 text-center py-6 font-medium">
+              <p className="text-xs text-pharmagreen-700 text-center py-6 font-medium">
                 No batches expiring within the next 60 days. Stock is healthy!
               </p>
             ) : (

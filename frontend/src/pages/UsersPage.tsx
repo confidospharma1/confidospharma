@@ -150,7 +150,7 @@ export const UsersPage: React.FC = () => {
         {(isSuperAdmin || isBranchAdmin) && (
           <button
             onClick={() => setShowModal(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold shadow-xs transition-colors"
+            className="flex items-center gap-2 px-4 py-2 bg-brand-500 hover:bg-brand-600 active:bg-brand-700 text-white rounded-lg text-xs font-bold shadow-xs transition-colors"
           >
             <Plus className="w-4 h-4" />
             Add Staff Account
@@ -162,7 +162,7 @@ export const UsersPage: React.FC = () => {
         <div
           className={`p-3.5 rounded-lg text-xs flex items-center justify-between ${
             message.type === 'success'
-              ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+              ? 'bg-pharmagreen-50 text-pharmagreen-800 border border-pharmagreen-200'
               : 'bg-rose-50 text-rose-800 border border-rose-200'
           }`}
         >
@@ -196,6 +196,13 @@ export const UsersPage: React.FC = () => {
                     Loading staff accounts...
                   </td>
                 </tr>
+              ) : users.length === 0 ? (
+                <tr>
+                  <td colSpan={(isSuperAdmin || isBranchAdmin) ? 8 : 7} className="py-12 text-center text-slate-400">
+                    <p className="text-xs font-semibold text-slate-600">No staff accounts found.</p>
+                    <p className="text-[11px] text-slate-400 mt-1">Register additional branch administrators or billing cashiers as needed.</p>
+                  </td>
+                </tr>
               ) : (
                 users.map((u) => (
                   <tr key={u.id} className="hover:bg-slate-50/80 transition-colors">
@@ -211,8 +218,8 @@ export const UsersPage: React.FC = () => {
                       {u.branch?.name || (u.role === 'SUPER_ADMIN' ? 'Head Office (All Branches)' : 'Unassigned')}
                     </td>
                     <td className="py-3 px-3 text-center">
-                      <span className={`inline-block w-2 h-2 rounded-full mr-1.5 ${u.isActive !== false ? 'bg-emerald-500' : 'bg-rose-400'}`}></span>
-                      <span className={u.isActive !== false ? 'text-emerald-700 font-bold' : 'text-rose-700 font-bold'}>
+                      <span className={`inline-block w-2 h-2 rounded-full mr-1.5 ${u.isActive !== false ? 'bg-pharmagreen-500' : 'bg-rose-400'}`}></span>
+                      <span className={u.isActive !== false ? 'text-pharmagreen-700 font-bold' : 'text-rose-700 font-bold'}>
                         {u.isActive !== false ? 'Active' : 'Inactive'}
                       </span>
                     </td>
@@ -352,7 +359,7 @@ export const UsersPage: React.FC = () => {
             </button>
             <button
               type="submit"
-              className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold"
+              className="px-5 py-2 bg-brand-500 hover:bg-brand-600 active:bg-brand-700 text-white rounded-lg text-xs font-bold shadow-xs transition-colors"
             >
               Create Account
             </button>
@@ -459,7 +466,7 @@ export const UsersPage: React.FC = () => {
             </button>
             <button
               type="submit"
-              className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold shadow-xs"
+              className="px-5 py-2 bg-brand-500 hover:bg-brand-600 active:bg-brand-700 text-white rounded-lg text-xs font-bold shadow-xs transition-colors"
             >
               Save Changes
             </button>

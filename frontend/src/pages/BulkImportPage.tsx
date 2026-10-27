@@ -124,13 +124,13 @@ export const BulkImportPage: React.FC = () => {
         <div
           className={`p-4 rounded-xl text-xs flex items-center justify-between ${
             commitMessage.type === 'success'
-              ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+              ? 'bg-pharmagreen-50 text-pharmagreen-800 border border-pharmagreen-200'
               : 'bg-rose-50 text-rose-800 border border-rose-200'
           }`}
         >
           <div className="flex items-center gap-2 font-medium">
             {commitMessage.type === 'success' ? (
-              <CheckCircle2 className="w-5 h-5 text-emerald-600 flex-shrink-0" />
+              <CheckCircle2 className="w-5 h-5 text-pharmagreen-600 flex-shrink-0" />
             ) : (
               <AlertOctagon className="w-5 h-5 text-rose-600 flex-shrink-0" />
             )}
@@ -154,7 +154,7 @@ export const BulkImportPage: React.FC = () => {
               <label
                 className={`flex items-start gap-3 p-3.5 rounded-xl border cursor-pointer transition-all ${
                   importType === 'CATALOGUE'
-                    ? 'bg-emerald-50/80 border-emerald-600 text-emerald-950 shadow-xs ring-1 ring-emerald-600'
+                    ? 'bg-brand-50/80 border-brand-500 text-brand-950 shadow-xs ring-1 ring-brand-500'
                     : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100'
                 }`}
               >
@@ -164,7 +164,7 @@ export const BulkImportPage: React.FC = () => {
                   value="CATALOGUE"
                   checked={importType === 'CATALOGUE'}
                   onChange={() => setImportType('CATALOGUE')}
-                  className="mt-0.5 text-emerald-600 focus:ring-emerald-500"
+                  className="mt-0.5 text-brand-600 focus:ring-brand-500"
                 />
                 <div>
                   <span className="font-bold text-xs block">Type A: Medicine Catalogue Import</span>
@@ -177,7 +177,7 @@ export const BulkImportPage: React.FC = () => {
               <label
                 className={`flex items-start gap-3 p-3.5 rounded-xl border cursor-pointer transition-all ${
                   importType === 'STOCK_RECEIPT'
-                    ? 'bg-emerald-50/80 border-emerald-600 text-emerald-950 shadow-xs ring-1 ring-emerald-600'
+                    ? 'bg-brand-50/80 border-brand-500 text-brand-950 shadow-xs ring-1 ring-brand-500'
                     : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100'
                 }`}
               >
@@ -187,7 +187,7 @@ export const BulkImportPage: React.FC = () => {
                   value="STOCK_RECEIPT"
                   checked={importType === 'STOCK_RECEIPT'}
                   onChange={() => setImportType('STOCK_RECEIPT')}
-                  className="mt-0.5 text-emerald-600 focus:ring-emerald-500"
+                  className="mt-0.5 text-brand-600 focus:ring-brand-500"
                 />
                 <div>
                   <span className="font-bold text-xs block">Type B: Stock Receipt Import</span>
@@ -204,7 +204,7 @@ export const BulkImportPage: React.FC = () => {
             <label className="text-xs font-bold text-slate-700 block mb-2">
               2. Upload File (.xlsx, .csv, .xls)
             </label>
-            <div className="border-2 border-dashed border-slate-300 hover:border-emerald-500 rounded-xl p-6 text-center bg-slate-50/50 hover:bg-emerald-50/20 transition-all max-w-xl">
+            <div className="border-2 border-dashed border-slate-300 hover:border-brand-500 rounded-xl p-6 text-center bg-slate-50/50 hover:bg-brand-50/20 transition-all max-w-xl">
               <UploadCloud className="w-10 h-10 text-slate-400 mx-auto mb-2" />
               <input
                 type="file"
@@ -221,7 +221,7 @@ export const BulkImportPage: React.FC = () => {
               </label>
               <p className="text-xs text-slate-500 mt-2">
                 {selectedFile ? (
-                  <span className="font-bold text-emerald-700 font-mono">{selectedFile.name} ({(selectedFile.size / 1024).toFixed(1)} KB)</span>
+                  <span className="font-bold text-brand-700 font-mono">{selectedFile.name} ({(selectedFile.size / 1024).toFixed(1)} KB)</span>
                 ) : (
                   'Drag and drop Excel or CSV file here, or click to browse'
                 )}
@@ -237,7 +237,7 @@ export const BulkImportPage: React.FC = () => {
               className={`px-5 py-2.5 rounded-lg text-xs font-bold flex items-center gap-2 transition-all shadow-xs ${
                 !selectedFile || isUploading
                   ? 'bg-slate-200 text-slate-400 cursor-not-allowed'
-                  : 'bg-emerald-600 hover:bg-emerald-700 text-white'
+                  : 'bg-brand-500 hover:bg-brand-600 active:bg-brand-700 text-white'
               }`}
             >
               <FileSpreadsheet className="w-4 h-4" />
@@ -256,9 +256,9 @@ export const BulkImportPage: React.FC = () => {
               <span className="text-[11px] font-bold text-slate-500 uppercase">Total Rows</span>
               <p className="text-xl font-black font-mono text-slate-900 mt-1">{importResult.summary.totalRows}</p>
             </div>
-            <div className="bg-white p-4 rounded-xl border border-emerald-200 text-center shadow-xs bg-emerald-50/20">
-              <span className="text-[11px] font-bold text-emerald-700 uppercase">Valid Rows</span>
-              <p className="text-xl font-black font-mono text-emerald-700 mt-1">{importResult.summary.validRows}</p>
+            <div className="bg-white p-4 rounded-xl border border-pharmagreen-200 text-center shadow-xs bg-pharmagreen-50/20">
+              <span className="text-[11px] font-bold text-pharmagreen-700 uppercase">Valid Rows</span>
+              <p className="text-xl font-black font-mono text-pharmagreen-700 mt-1">{importResult.summary.validRows}</p>
             </div>
             <div className="bg-white p-4 rounded-xl border border-rose-200 text-center shadow-xs bg-rose-50/20">
               <span className="text-[11px] font-bold text-rose-700 uppercase">Error Rows</span>
@@ -303,10 +303,10 @@ export const BulkImportPage: React.FC = () => {
               <button
                 onClick={handleCommit}
                 disabled={isCommitting || importResult.summary.validRows === 0}
-                className={`flex items-center gap-2 px-5 py-2 rounded-lg text-xs font-bold transition-all ${
+                className={`flex items-center gap-2 px-5 py-2 rounded-lg text-xs font-bold transition-all shadow-xs ${
                   importResult.summary.validRows === 0 || isCommitting
                     ? 'bg-slate-700 text-slate-400 cursor-not-allowed'
-                    : 'bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black shadow-sm'
+                    : 'bg-brand-500 hover:bg-brand-600 active:bg-brand-700 text-white'
                 }`}
               >
                 <CheckCircle2 className="w-4 h-4" />

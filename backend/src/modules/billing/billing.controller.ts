@@ -261,7 +261,7 @@ export const getInvoices = async (req: Request, res: Response) => {
 
     const whereClause: any = {};
     if (targetBranchId) whereClause.branchId = targetBranchId;
-    if (invoiceNumber) whereClause.invoiceNumber = { contains: (invoiceNumber as string).trim() };
+    if (invoiceNumber) whereClause.invoiceNumber = { contains: (invoiceNumber as string).trim(), mode: 'insensitive' };
     if (status) whereClause.status = status as string;
 
     if (startDate || endDate) {
