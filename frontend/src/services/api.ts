@@ -14,7 +14,7 @@ const getBaseUrl = (): string => {
   return '/api';
 };
 
-const BASE_URL = getBaseUrl();
+export const BASE_URL = getBaseUrl();
 
 export const getAuthToken = (): string | null => {
   return localStorage.getItem('confidos_token');
@@ -138,10 +138,22 @@ export const api = {
 
   // Billing & Invoices
   createInvoice: (data: any) => apiRequest('/billing/invoices', { method: 'POST', body: JSON.stringify(data) }),
-  getInvoices: (params?: { branchId?: string; invoiceNumber?: string; page?: number }) => {
+  getInvoices: (params?: {
+    branchId?: string;
+    invoiceNumber?: string;
+    status?: string;
+    paymentMethod?: string;
+    startDate?: string;
+    endDate?: string;
+    page?: number;
+  }) => {
     const q = new URLSearchParams();
     if (params?.branchId) q.append('branchId', params.branchId);
     if (params?.invoiceNumber) q.append('invoiceNumber', params.invoiceNumber);
+    if (params?.status) q.append('status', params.status);
+    if (params?.paymentMethod) q.append('paymentMethod', params.paymentMethod);
+    if (params?.startDate) q.append('startDate', params.startDate);
+    if (params?.endDate) q.append('endDate', params.endDate);
     if (params?.page) q.append('page', params.page.toString());
     return apiRequest(`/billing/invoices?${q.toString()}`);
   },
@@ -204,6 +216,11 @@ export const api = {
   uploadImportFile: (formData: FormData) => apiRequest('/imports/upload', { method: 'POST', body: formData }),
   getImportJob: (id: string) => apiRequest(`/imports/${id}`),
   commitImport: (id: string) => apiRequest(`/imports/${id}/commit`, { method: 'POST' }),
+  downloadTemplateUrl: (type: string) => `${BASE_URL}/imports/template/${type}`,
+  downloadErrorsUrl: (importId: string) => {
+    const token = getAuthToken();
+    return `${BASE_URL}/imports/${importId}/download-errors${token ? `?token=${encodeURIComponent(token)}` : ''}`;
+  },
 
   // Reports
   getDailySales: (branchId?: string, date?: string) => {
@@ -239,10 +256,11 @@ export const api = {
   },
 
   // Audit Logs
-  getAuditLogs: (params?: { branchId?: string; action?: string; page?: number }) => {
+  getAuditLogs: (params?: { branchId?: string; action?: string; targetEntity?: string; page?: number }) => {
     const q = new URLSearchParams();
     if (params?.branchId) q.append('branchId', params.branchId);
     if (params?.action) q.append('action', params.action);
+    if (params?.targetEntity) q.append('targetEntity', params.targetEntity);
     if (params?.page) q.append('page', params.page.toString());
     return apiRequest(`/audit?${q.toString()}`);
   },

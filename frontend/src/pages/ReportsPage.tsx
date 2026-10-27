@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { api } from '../services/api';
-import { BarChart3, Download, Calendar, Filter, Receipt, Boxes, AlertTriangle } from 'lucide-react';
+import { BarChart3, Download, Calendar, Filter, Receipt, Boxes, AlertTriangle, Search, X } from 'lucide-react';
 import { Badge } from '../components/Badge';
+import { FilterButton } from '../components/FilterButton';
+import { FilterField, FilterSelect, FilterInput } from '../components/FilterControls';
 
 export const ReportsPage: React.FC = () => {
   const { currentBranch, selectedBranchId } = useAuth();
@@ -12,6 +14,50 @@ export const ReportsPage: React.FC = () => {
   const [reportData, setReportData] = useState<any>(null);
 
   const [dateFilter, setDateFilter] = useState(new Date().toISOString().split('T')[0]);
+
+  // Daily Sales Filters
+  const [salesSearch, setSalesSearch] = useState('');
+  const [salesPaymentFilter, setSalesPaymentFilter] = useState('');
+  const [salesMinAmount, setSalesMinAmount] = useState('');
+  const [salesMaxAmount, setSalesMaxAmount] = useState('');
+
+  const activeSalesFilterCount = [salesPaymentFilter, salesMinAmount, salesMaxAmount].filter(Boolean).length;
+  const resetSalesFilters = () => {
+    setSalesPaymentFilter('');
+    setSalesMinAmount('');
+    setSalesMaxAmount('');
+  };
+
+  // Stock Valuation Filters
+  const [valuationSearch, setValuationSearch] = useState('');
+  const [valuationStockFilter, setValuationStockFilter] = useState('');
+  const [valuationMinMrp, setValuationMinMrp] = useState('');
+  const [valuationMaxMrp, setValuationMaxMrp] = useState('');
+
+  const activeValuationFilterCount = [valuationStockFilter, valuationMinMrp, valuationMaxMrp].filter(Boolean).length;
+  const resetValuationFilters = () => {
+    setValuationStockFilter('');
+    setValuationMinMrp('');
+    setValuationMaxMrp('');
+  };
+
+  // GST Summary Filters
+  const [gstSearch, setGstSearch] = useState('');
+  const [gstRateFilter, setGstRateFilter] = useState('');
+
+  const activeGstFilterCount = [gstRateFilter].filter(Boolean).length;
+  const resetGstFilters = () => {
+    setGstRateFilter('');
+  };
+
+  // Expiry Risk Filters
+  const [expirySearch, setExpirySearch] = useState('');
+  const [expiryStatusFilter, setExpiryStatusFilter] = useState('');
+
+  const activeExpiryFilterCount = [expiryStatusFilter].filter(Boolean).length;
+  const resetExpiryFilters = () => {
+    setExpiryStatusFilter('');
+  };
 
   const loadReport = async () => {
     setLoading(true);
@@ -126,6 +172,67 @@ export const ReportsPage: React.FC = () => {
     document.body.removeChild(link);
   };
 
+  // Filtered rows for each report tab
+  const filteredSalesInvoices = (reportData?.invoices || []).filter((inv: any) => {
+    if (salesSearch.trim()) {
+      const q = salesSearch.toLowerCase();
+      const matchNum = inv.invoiceNumber?.toLowerCase().includes(q);
+      const matchCust = inv.customerName?.toLowerCase().includes(q);
+      if (!matchNum && !matchCust) return false;
+    }
+    if (salesPaymentFilter && inv.paymentMethod !== salesPaymentFilter) {
+      return false;
+    }
+    if (salesMinAmount && inv.grandTotal < parseFloat(salesMinAmount)) {
+      return false;
+    }
+    if (salesMaxAmount && inv.grandTotal > parseFloat(salesMaxAmount)) {
+      return false;
+    }
+    return true;
+  });
+
+  const filteredValuationItems = (reportData?.items || []).filter((item: any) => {
+    if (valuationSearch.trim()) {
+      const q = valuationSearch.toLowerCase();
+      const matchMed = item.medicineName?.toLowerCase().includes(q);
+      const matchGen = item.genericName?.toLowerCase().includes(q);
+      const matchBatch = item.batchNumber?.toLowerCase().includes(q);
+      if (!matchMed && !matchGen && !matchBatch) return false;
+    }
+    if (valuationStockFilter === 'LOW_STOCK' && item.quantity > 10) return false;
+    if (valuationStockFilter === 'IN_STOCK' && item.quantity <= 0) return false;
+    if (valuationStockFilter === 'OUT_OF_STOCK' && item.quantity > 0) return false;
+    if (valuationMinMrp && item.mrp < parseFloat(valuationMinMrp)) return false;
+    if (valuationMaxMrp && item.mrp > parseFloat(valuationMaxMrp)) return false;
+    return true;
+  });
+
+  const filteredHsnRecords = (reportData?.hsnRecords || []).filter((h: any) => {
+    if (gstSearch.trim()) {
+      const q = gstSearch.toLowerCase();
+      if (!h.hsnCode?.toLowerCase().includes(q)) return false;
+    }
+    if (gstRateFilter && String(h.gstRate) !== String(gstRateFilter)) {
+      return false;
+    }
+    return true;
+  });
+
+  const allExpiryRecords = [...(reportData?.nearExpiry || []), ...(reportData?.expired || [])];
+  const filteredExpiryRecords = allExpiryRecords.filter((e: any) => {
+    if (expirySearch.trim()) {
+      const q = expirySearch.toLowerCase();
+      const matchMed = e.medicineName?.toLowerCase().includes(q);
+      const matchBatch = e.batchNumber?.toLowerCase().includes(q);
+      if (!matchMed && !matchBatch) return false;
+    }
+    if (expiryStatusFilter && e.status !== expiryStatusFilter) {
+      return false;
+    }
+    return true;
+  });
+
   return (
     <div className="p-6 md:p-8 space-y-6 max-w-7xl mx-auto overflow-y-auto">
       {/* Header */}
@@ -233,6 +340,114 @@ export const ReportsPage: React.FC = () => {
 
               {/* Invoices List */}
               <div className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
+                <div className="p-4 border-b border-slate-200 flex flex-col md:flex-row md:items-center justify-between gap-3">
+                  <div>
+                    <h2 className="text-sm font-bold text-slate-900">Daily Sales Invoices Register</h2>
+                    <p className="text-[10px] text-slate-500">
+                      Showing {filteredSalesInvoices.length} of {reportData.invoices?.length || 0} registered sales
+                    </p>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <div className="relative">
+                      <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                      <input
+                        type="text"
+                        placeholder="Search invoice #, customer..."
+                        value={salesSearch}
+                        onChange={(e) => setSalesSearch(e.target.value)}
+                        className="pl-8 pr-3 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-lg w-52 focus:outline-none focus:ring-1 focus:ring-brand-500 focus:bg-white transition-colors"
+                      />
+                    </div>
+
+                    <FilterButton
+                      activeFilterCount={activeSalesFilterCount}
+                      onReset={resetSalesFilters}
+                      buttonLabel="Filter Invoices"
+                      popoverWidth="w-72"
+                      align="right"
+                    >
+                      <div className="space-y-3">
+                        <FilterField label="Payment Method">
+                          <FilterSelect
+                            value={salesPaymentFilter}
+                            onChange={(e) => setSalesPaymentFilter(e.target.value)}
+                            options={[
+                              { label: 'All Payment Methods', value: '' },
+                              { label: 'Cash Counter', value: 'CASH' },
+                              { label: 'UPI / Digital', value: 'UPI' },
+                              { label: 'Card Payment', value: 'CARD' },
+                            ]}
+                          />
+                        </FilterField>
+
+                        <FilterField label="Grand Total (₹)">
+                          <div className="grid grid-cols-2 gap-2">
+                            <FilterInput
+                              type="number"
+                              placeholder="Min ₹"
+                              value={salesMinAmount}
+                              onChange={(e) => setSalesMinAmount(e.target.value)}
+                            />
+                            <FilterInput
+                              type="number"
+                              placeholder="Max ₹"
+                              value={salesMaxAmount}
+                              onChange={(e) => setSalesMaxAmount(e.target.value)}
+                            />
+                          </div>
+                        </FilterField>
+                      </div>
+                    </FilterButton>
+                  </div>
+                </div>
+
+                {/* Active Sales Filter Badges */}
+                {(activeSalesFilterCount > 0 || salesSearch) && (
+                  <div className="px-4 py-2 bg-slate-50 border-b border-slate-100 flex items-center flex-wrap gap-2 text-xs">
+                    <span className="text-slate-500 font-medium text-[11px]">Filtered by:</span>
+                    {salesSearch && (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-white border border-slate-200 text-slate-700 text-[11px]">
+                        Search: "{salesSearch}"
+                        <button onClick={() => setSalesSearch('')} className="hover:text-rose-500">
+                          <X className="w-3 h-3" />
+                        </button>
+                      </span>
+                    )}
+                    {salesPaymentFilter && (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-brand-50 border border-brand-200 text-brand-800 text-[11px]">
+                        Payment: {salesPaymentFilter}
+                        <button onClick={() => setSalesPaymentFilter('')} className="hover:text-rose-500">
+                          <X className="w-3 h-3" />
+                        </button>
+                      </span>
+                    )}
+                    {(salesMinAmount || salesMaxAmount) && (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-brand-50 border border-brand-200 text-brand-800 text-[11px]">
+                        Amount: ₹{salesMinAmount || '0'} - ₹{salesMaxAmount || '∞'}
+                        <button
+                          onClick={() => {
+                            setSalesMinAmount('');
+                            setSalesMaxAmount('');
+                          }}
+                          className="hover:text-rose-500"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      </span>
+                    )}
+                    <button
+                      onClick={() => {
+                        setSalesSearch('');
+                        resetSalesFilters();
+                      }}
+                      className="text-[11px] text-brand-600 hover:text-brand-800 font-semibold underline ml-1"
+                    >
+                      Clear All
+                    </button>
+                  </div>
+                )}
+
                 <div className="overflow-x-auto">
                   <table className="w-full text-left text-xs">
                     <thead className="bg-slate-50 text-slate-700 font-bold border-b border-slate-200">
@@ -246,20 +461,28 @@ export const ReportsPage: React.FC = () => {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 font-medium">
-                      {reportData.invoices?.map((inv: any) => (
-                        <tr key={inv.id} className="hover:bg-slate-50/50">
-                          <td className="py-2.5 px-4 font-mono font-bold text-slate-900">{inv.invoiceNumber}</td>
-                          <td className="py-2.5 px-3 text-slate-700">{inv.customerName || 'Retail Customer'}</td>
-                          <td className="py-2.5 px-3 text-center">
-                            <Badge variant="neutral" size="sm">
-                              {inv.paymentMethod}
-                            </Badge>
+                      {filteredSalesInvoices.length === 0 ? (
+                        <tr>
+                          <td colSpan={6} className="py-8 text-center text-slate-400">
+                            No sales invoices match the selected criteria.
                           </td>
-                          <td className="py-2.5 px-3 text-right font-mono text-slate-600">₹{inv.subtotal.toFixed(2)}</td>
-                          <td className="py-2.5 px-3 text-right font-mono text-slate-600">₹{inv.taxTotal.toFixed(2)}</td>
-                          <td className="py-2.5 px-4 text-right font-mono font-bold text-brand-900">₹{inv.grandTotal.toFixed(2)}</td>
                         </tr>
-                      ))}
+                      ) : (
+                        filteredSalesInvoices.map((inv: any) => (
+                          <tr key={inv.id} className="hover:bg-slate-50/50">
+                            <td className="py-2.5 px-4 font-mono font-bold text-slate-900">{inv.invoiceNumber}</td>
+                            <td className="py-2.5 px-3 text-slate-700">{inv.customerName || 'Retail Customer'}</td>
+                            <td className="py-2.5 px-3 text-center">
+                              <Badge variant="neutral" size="sm">
+                                {inv.paymentMethod}
+                              </Badge>
+                            </td>
+                            <td className="py-2.5 px-3 text-right font-mono text-slate-600">₹{inv.subtotal.toFixed(2)}</td>
+                            <td className="py-2.5 px-3 text-right font-mono text-slate-600">₹{inv.taxTotal.toFixed(2)}</td>
+                            <td className="py-2.5 px-4 text-right font-mono font-bold text-brand-900">₹{inv.grandTotal.toFixed(2)}</td>
+                          </tr>
+                        ))
+                      )}
                     </tbody>
                   </table>
                 </div>
@@ -291,6 +514,114 @@ export const ReportsPage: React.FC = () => {
 
               {/* Items Breakdown Table */}
               <div className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
+                <div className="p-4 border-b border-slate-200 flex flex-col md:flex-row md:items-center justify-between gap-3">
+                  <div>
+                    <h2 className="text-sm font-bold text-slate-900">Stock Valuation Ledger</h2>
+                    <p className="text-[10px] text-slate-500">
+                      Showing {filteredValuationItems.length} of {reportData.items?.length || 0} inventory batches
+                    </p>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <div className="relative">
+                      <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                      <input
+                        type="text"
+                        placeholder="Search medicine, batch..."
+                        value={valuationSearch}
+                        onChange={(e) => setValuationSearch(e.target.value)}
+                        className="pl-8 pr-3 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-lg w-52 focus:outline-none focus:ring-1 focus:ring-brand-500 focus:bg-white transition-colors"
+                      />
+                    </div>
+
+                    <FilterButton
+                      activeFilterCount={activeValuationFilterCount}
+                      onReset={resetValuationFilters}
+                      buttonLabel="Filter Valuation"
+                      popoverWidth="w-72"
+                      align="right"
+                    >
+                      <div className="space-y-3">
+                        <FilterField label="Stock Status">
+                          <FilterSelect
+                            value={valuationStockFilter}
+                            onChange={(e) => setValuationStockFilter(e.target.value)}
+                            options={[
+                              { label: 'All Stock Levels', value: '' },
+                              { label: 'In Stock (> 0 units)', value: 'IN_STOCK' },
+                              { label: 'Low Stock (≤ 10 units)', value: 'LOW_STOCK' },
+                              { label: 'Out of Stock (0 units)', value: 'OUT_OF_STOCK' },
+                            ]}
+                          />
+                        </FilterField>
+
+                        <FilterField label="MRP Range (₹)">
+                          <div className="grid grid-cols-2 gap-2">
+                            <FilterInput
+                              type="number"
+                              placeholder="Min ₹"
+                              value={valuationMinMrp}
+                              onChange={(e) => setValuationMinMrp(e.target.value)}
+                            />
+                            <FilterInput
+                              type="number"
+                              placeholder="Max ₹"
+                              value={valuationMaxMrp}
+                              onChange={(e) => setValuationMaxMrp(e.target.value)}
+                            />
+                          </div>
+                        </FilterField>
+                      </div>
+                    </FilterButton>
+                  </div>
+                </div>
+
+                {/* Active Valuation Filter Badges */}
+                {(activeValuationFilterCount > 0 || valuationSearch) && (
+                  <div className="px-4 py-2 bg-slate-50 border-b border-slate-100 flex items-center flex-wrap gap-2 text-xs">
+                    <span className="text-slate-500 font-medium text-[11px]">Filtered by:</span>
+                    {valuationSearch && (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-white border border-slate-200 text-slate-700 text-[11px]">
+                        Search: "{valuationSearch}"
+                        <button onClick={() => setValuationSearch('')} className="hover:text-rose-500">
+                          <X className="w-3 h-3" />
+                        </button>
+                      </span>
+                    )}
+                    {valuationStockFilter && (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-brand-50 border border-brand-200 text-brand-800 text-[11px]">
+                        Status: {valuationStockFilter}
+                        <button onClick={() => setValuationStockFilter('')} className="hover:text-rose-500">
+                          <X className="w-3 h-3" />
+                        </button>
+                      </span>
+                    )}
+                    {(valuationMinMrp || valuationMaxMrp) && (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-brand-50 border border-brand-200 text-brand-800 text-[11px]">
+                        MRP: ₹{valuationMinMrp || '0'} - ₹{valuationMaxMrp || '∞'}
+                        <button
+                          onClick={() => {
+                            setValuationMinMrp('');
+                            setValuationMaxMrp('');
+                          }}
+                          className="hover:text-rose-500"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      </span>
+                    )}
+                    <button
+                      onClick={() => {
+                        setValuationSearch('');
+                        resetValuationFilters();
+                      }}
+                      className="text-[11px] text-brand-600 hover:text-brand-800 font-semibold underline ml-1"
+                    >
+                      Clear All
+                    </button>
+                  </div>
+                )}
+
                 <div className="overflow-x-auto">
                   <table className="w-full text-left text-xs">
                     <thead className="bg-slate-50 text-slate-700 font-bold border-b border-slate-200">
@@ -305,17 +636,25 @@ export const ReportsPage: React.FC = () => {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 font-medium">
-                      {reportData.items?.map((item: any) => (
-                        <tr key={item.batchId} className="hover:bg-slate-50/50">
-                          <td className="py-2.5 px-4 font-bold text-slate-900">{item.medicineName}</td>
-                          <td className="py-2.5 px-3 font-mono text-slate-700">{item.batchNumber}</td>
-                          <td className="py-2.5 px-3 text-right font-mono font-bold text-slate-900">{item.quantity}</td>
-                          <td className="py-2.5 px-3 text-right font-mono text-slate-600">₹{item.purchaseRate.toFixed(2)}</td>
-                          <td className="py-2.5 px-3 text-right font-mono text-slate-800">₹{item.mrp.toFixed(2)}</td>
-                          <td className="py-2.5 px-3 text-right font-mono text-slate-600">₹{item.purchaseValue.toFixed(2)}</td>
-                          <td className="py-2.5 px-4 text-right font-mono font-bold text-brand-900">₹{item.mrpValue.toFixed(2)}</td>
+                      {filteredValuationItems.length === 0 ? (
+                        <tr>
+                          <td colSpan={7} className="py-8 text-center text-slate-400">
+                            No inventory items match the selected criteria.
+                          </td>
                         </tr>
-                      ))}
+                      ) : (
+                        filteredValuationItems.map((item: any) => (
+                          <tr key={item.batchId} className="hover:bg-slate-50/50">
+                            <td className="py-2.5 px-4 font-bold text-slate-900">{item.medicineName}</td>
+                            <td className="py-2.5 px-3 font-mono text-slate-700">{item.batchNumber}</td>
+                            <td className="py-2.5 px-3 text-right font-mono font-bold text-slate-900">{item.quantity}</td>
+                            <td className="py-2.5 px-3 text-right font-mono text-slate-600">₹{item.purchaseRate.toFixed(2)}</td>
+                            <td className="py-2.5 px-3 text-right font-mono text-slate-800">₹{item.mrp.toFixed(2)}</td>
+                            <td className="py-2.5 px-3 text-right font-mono text-slate-600">₹{item.purchaseValue.toFixed(2)}</td>
+                            <td className="py-2.5 px-4 text-right font-mono font-bold text-brand-900">₹{item.mrpValue.toFixed(2)}</td>
+                          </tr>
+                        ))
+                      )}
                     </tbody>
                   </table>
                 </div>
@@ -347,6 +686,85 @@ export const ReportsPage: React.FC = () => {
 
               {/* HSN Summary Table */}
               <div className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
+                <div className="p-4 border-b border-slate-200 flex flex-col md:flex-row md:items-center justify-between gap-3">
+                  <div>
+                    <h2 className="text-sm font-bold text-slate-900">HSN Tax Breakdown</h2>
+                    <p className="text-[10px] text-slate-500">
+                      Showing {filteredHsnRecords.length} of {reportData.hsnRecords?.length || 0} HSN categories
+                    </p>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <div className="relative">
+                      <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                      <input
+                        type="text"
+                        placeholder="Search HSN code..."
+                        value={gstSearch}
+                        onChange={(e) => setGstSearch(e.target.value)}
+                        className="pl-8 pr-3 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-lg w-44 focus:outline-none focus:ring-1 focus:ring-brand-500 focus:bg-white transition-colors"
+                      />
+                    </div>
+
+                    <FilterButton
+                      activeFilterCount={activeGstFilterCount}
+                      onReset={resetGstFilters}
+                      buttonLabel="Filter HSN"
+                      popoverWidth="w-64"
+                      align="right"
+                    >
+                      <div className="space-y-3">
+                        <FilterField label="GST Tax Slab">
+                          <FilterSelect
+                            value={gstRateFilter}
+                            onChange={(e) => setGstRateFilter(e.target.value)}
+                            options={[
+                              { label: 'All Tax Rates', value: '' },
+                              { label: '0% Exemption', value: '0' },
+                              { label: '5% Standard Pharma', value: '5' },
+                              { label: '12% Healthcare', value: '12' },
+                              { label: '18% Standard GST', value: '18' },
+                              { label: '28% Luxury / High', value: '28' },
+                            ]}
+                          />
+                        </FilterField>
+                      </div>
+                    </FilterButton>
+                  </div>
+                </div>
+
+                {/* Active GST Filter Badges */}
+                {(activeGstFilterCount > 0 || gstSearch) && (
+                  <div className="px-4 py-2 bg-slate-50 border-b border-slate-100 flex items-center flex-wrap gap-2 text-xs">
+                    <span className="text-slate-500 font-medium text-[11px]">Filtered by:</span>
+                    {gstSearch && (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-white border border-slate-200 text-slate-700 text-[11px]">
+                        HSN: "{gstSearch}"
+                        <button onClick={() => setGstSearch('')} className="hover:text-rose-500">
+                          <X className="w-3 h-3" />
+                        </button>
+                      </span>
+                    )}
+                    {gstRateFilter && (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-brand-50 border border-brand-200 text-brand-800 text-[11px]">
+                        Rate: {gstRateFilter}%
+                        <button onClick={() => setGstRateFilter('')} className="hover:text-rose-500">
+                          <X className="w-3 h-3" />
+                        </button>
+                      </span>
+                    )}
+                    <button
+                      onClick={() => {
+                        setGstSearch('');
+                        resetGstFilters();
+                      }}
+                      className="text-[11px] text-brand-600 hover:text-brand-800 font-semibold underline ml-1"
+                    >
+                      Clear All
+                    </button>
+                  </div>
+                )}
+
                 <div className="overflow-x-auto">
                   <table className="w-full text-left text-xs">
                     <thead className="bg-slate-50 text-slate-700 font-bold border-b border-slate-200">
@@ -361,17 +779,25 @@ export const ReportsPage: React.FC = () => {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 font-medium">
-                      {reportData.hsnRecords?.map((h: any, idx: number) => (
-                        <tr key={idx} className="hover:bg-slate-50/50">
-                          <td className="py-3 px-4 font-mono font-bold text-slate-900">{h.hsnCode}</td>
-                          <td className="py-3 px-3 text-center font-bold">{h.gstRate}%</td>
-                          <td className="py-3 px-3 text-right font-mono text-slate-700">₹{h.taxableAmount.toFixed(2)}</td>
-                          <td className="py-3 px-3 text-right font-mono text-slate-600">₹{h.cgstAmount.toFixed(2)}</td>
-                          <td className="py-3 px-3 text-right font-mono text-slate-600">₹{h.sgstAmount.toFixed(2)}</td>
-                          <td className="py-3 px-3 text-right font-mono font-bold text-brand-900">₹{h.totalTax.toFixed(2)}</td>
-                          <td className="py-3 px-4 text-right font-mono font-black text-slate-900">₹{h.totalAmount.toFixed(2)}</td>
+                      {filteredHsnRecords.length === 0 ? (
+                        <tr>
+                          <td colSpan={7} className="py-8 text-center text-slate-400">
+                            No HSN tax records match the selected criteria.
+                          </td>
                         </tr>
-                      ))}
+                      ) : (
+                        filteredHsnRecords.map((h: any, idx: number) => (
+                          <tr key={idx} className="hover:bg-slate-50/50">
+                            <td className="py-3 px-4 font-mono font-bold text-slate-900">{h.hsnCode}</td>
+                            <td className="py-3 px-3 text-center font-bold">{h.gstRate}%</td>
+                            <td className="py-3 px-3 text-right font-mono text-slate-700">₹{h.taxableAmount.toFixed(2)}</td>
+                            <td className="py-3 px-3 text-right font-mono text-slate-600">₹{h.cgstAmount.toFixed(2)}</td>
+                            <td className="py-3 px-3 text-right font-mono text-slate-600">₹{h.sgstAmount.toFixed(2)}</td>
+                            <td className="py-3 px-3 text-right font-mono font-bold text-brand-900">₹{h.totalTax.toFixed(2)}</td>
+                            <td className="py-3 px-4 text-right font-mono font-black text-slate-900">₹{h.totalAmount.toFixed(2)}</td>
+                          </tr>
+                        ))
+                      )}
                     </tbody>
                   </table>
                 </div>
@@ -395,6 +821,82 @@ export const ReportsPage: React.FC = () => {
 
               {/* Table */}
               <div className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
+                <div className="p-4 border-b border-slate-200 flex flex-col md:flex-row md:items-center justify-between gap-3">
+                  <div>
+                    <h2 className="text-sm font-bold text-slate-900">FEFO Expiry Risk Ledger</h2>
+                    <p className="text-[10px] text-slate-500">
+                      Showing {filteredExpiryRecords.length} of {allExpiryRecords.length} high-risk batches
+                    </p>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <div className="relative">
+                      <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                      <input
+                        type="text"
+                        placeholder="Search medicine, batch..."
+                        value={expirySearch}
+                        onChange={(e) => setExpirySearch(e.target.value)}
+                        className="pl-8 pr-3 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-lg w-52 focus:outline-none focus:ring-1 focus:ring-brand-500 focus:bg-white transition-colors"
+                      />
+                    </div>
+
+                    <FilterButton
+                      activeFilterCount={activeExpiryFilterCount}
+                      onReset={resetExpiryFilters}
+                      buttonLabel="Filter Expiry"
+                      popoverWidth="w-64"
+                      align="right"
+                    >
+                      <div className="space-y-3">
+                        <FilterField label="Expiry Status">
+                          <FilterSelect
+                            value={expiryStatusFilter}
+                            onChange={(e) => setExpiryStatusFilter(e.target.value)}
+                            options={[
+                              { label: 'All Risk Categories', value: '' },
+                              { label: 'Near Expiry (< 90 Days)', value: 'NEAR_EXPIRY' },
+                              { label: 'Expired (Blocked from Sale)', value: 'EXPIRED' },
+                            ]}
+                          />
+                        </FilterField>
+                      </div>
+                    </FilterButton>
+                  </div>
+                </div>
+
+                {/* Active Expiry Filter Badges */}
+                {(activeExpiryFilterCount > 0 || expirySearch) && (
+                  <div className="px-4 py-2 bg-slate-50 border-b border-slate-100 flex items-center flex-wrap gap-2 text-xs">
+                    <span className="text-slate-500 font-medium text-[11px]">Filtered by:</span>
+                    {expirySearch && (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-white border border-slate-200 text-slate-700 text-[11px]">
+                        Search: "{expirySearch}"
+                        <button onClick={() => setExpirySearch('')} className="hover:text-rose-500">
+                          <X className="w-3 h-3" />
+                        </button>
+                      </span>
+                    )}
+                    {expiryStatusFilter && (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-brand-50 border border-brand-200 text-brand-800 text-[11px]">
+                        Status: {expiryStatusFilter}
+                        <button onClick={() => setExpiryStatusFilter('')} className="hover:text-rose-500">
+                          <X className="w-3 h-3" />
+                        </button>
+                      </span>
+                    )}
+                    <button
+                      onClick={() => {
+                        setExpirySearch('');
+                        resetExpiryFilters();
+                      }}
+                      className="text-[11px] text-brand-600 hover:text-brand-800 font-semibold underline ml-1"
+                    >
+                      Clear All
+                    </button>
+                  </div>
+                )}
+
                 <div className="overflow-x-auto">
                   <table className="w-full text-left text-xs">
                     <thead className="bg-slate-50 text-slate-700 font-bold border-b border-slate-200">
@@ -408,30 +910,38 @@ export const ReportsPage: React.FC = () => {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 font-medium">
-                      {[...(reportData.nearExpiry || []), ...(reportData.expired || [])].map((e: any) => (
-                        <tr key={e.id} className="hover:bg-slate-50/50">
-                          <td className="py-3 px-4 font-bold text-slate-900">{e.medicineName}</td>
-                          <td className="py-3 px-3 font-mono text-slate-700">{e.batchNumber}</td>
-                          <td className="py-3 px-3 text-center font-mono">
-                            {new Date(e.expiryDate).toLocaleDateString('en-IN', {
-                              day: '2-digit',
-                              month: 'short',
-                              year: 'numeric',
-                            })}
-                          </td>
-                          <td className="py-3 px-3 text-center font-bold font-mono">
-                            <span className={e.daysRemaining <= 0 ? 'text-rose-600' : 'text-amber-700'}>
-                              {e.daysRemaining <= 0 ? 'EXPIRED' : `${e.daysRemaining} days`}
-                            </span>
-                          </td>
-                          <td className="py-3 px-3 text-right font-mono font-bold text-slate-900">{e.quantity}</td>
-                          <td className="py-3 px-4 text-center">
-                            <Badge variant={e.status === 'EXPIRED' ? 'danger' : 'warning'} size="sm">
-                              {e.status}
-                            </Badge>
+                      {filteredExpiryRecords.length === 0 ? (
+                        <tr>
+                          <td colSpan={6} className="py-8 text-center text-slate-400">
+                            No batches match the selected criteria.
                           </td>
                         </tr>
-                      ))}
+                      ) : (
+                        filteredExpiryRecords.map((e: any) => (
+                          <tr key={e.id} className="hover:bg-slate-50/50">
+                            <td className="py-3 px-4 font-bold text-slate-900">{e.medicineName}</td>
+                            <td className="py-3 px-3 font-mono text-slate-700">{e.batchNumber}</td>
+                            <td className="py-3 px-3 text-center font-mono">
+                              {new Date(e.expiryDate).toLocaleDateString('en-IN', {
+                                day: '2-digit',
+                                month: 'short',
+                                year: 'numeric',
+                              })}
+                            </td>
+                            <td className="py-3 px-3 text-center font-bold font-mono">
+                              <span className={e.daysRemaining <= 0 ? 'text-rose-600' : 'text-amber-700'}>
+                                {e.daysRemaining <= 0 ? 'EXPIRED' : `${e.daysRemaining} days`}
+                              </span>
+                            </td>
+                            <td className="py-3 px-3 text-right font-mono font-bold text-slate-900">{e.quantity}</td>
+                            <td className="py-3 px-4 text-center">
+                              <Badge variant={e.status === 'EXPIRED' ? 'danger' : 'warning'} size="sm">
+                                {e.status}
+                              </Badge>
+                            </td>
+                          </tr>
+                        ))
+                      )}
                     </tbody>
                   </table>
                 </div>

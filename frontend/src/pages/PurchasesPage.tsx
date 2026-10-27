@@ -25,9 +25,13 @@ import {
   ExternalLink,
   ChevronDown,
   UserCheck,
+  Filter,
+  X,
 } from 'lucide-react';
 import { Badge } from '../components/Badge';
 import { Modal } from '../components/Modal';
+import { FilterButton } from '../components/FilterButton';
+import { FilterField, FilterSelect, FilterInput } from '../components/FilterControls';
 
 interface PurchaseLineForm {
   medicineId: string;
@@ -54,9 +58,65 @@ export const PurchasesPage: React.FC = () => {
   const [systemSettings, setSystemSettings] = useState<SystemSettings | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // Search & Filter
+  // Search & Filter: Sub-tab 1 Invoices
   const [invoiceSearch, setInvoiceSearch] = useState('');
+  const [invStatusFilter, setInvStatusFilter] = useState('');
+  const [invPaymentFilter, setInvPaymentFilter] = useState('');
+  const [invSupplierFilter, setInvSupplierFilter] = useState('');
+  const [invStartDate, setInvStartDate] = useState('');
+  const [invEndDate, setInvEndDate] = useState('');
+  const [invMinAmount, setInvMinAmount] = useState('');
+  const [invMaxAmount, setInvMaxAmount] = useState('');
+
+  const activeInvoiceFilterCount = [
+    invStatusFilter,
+    invPaymentFilter,
+    invSupplierFilter,
+    invStartDate,
+    invEndDate,
+    invMinAmount,
+    invMaxAmount,
+  ].filter(Boolean).length;
+
+  const resetInvoiceFilters = () => {
+    setInvStatusFilter('');
+    setInvPaymentFilter('');
+    setInvSupplierFilter('');
+    setInvStartDate('');
+    setInvEndDate('');
+    setInvMinAmount('');
+    setInvMaxAmount('');
+  };
+
+  // Search & Filter: Sub-tab 2 Suppliers
   const [supplierSearch, setSupplierSearch] = useState('');
+  const [supStatusFilter, setSupStatusFilter] = useState('');
+  const [supComplianceFilter, setSupComplianceFilter] = useState('');
+
+  const activeSupplierFilterCount = [
+    supStatusFilter,
+    supComplianceFilter,
+  ].filter(Boolean).length;
+
+  const resetSupplierFilters = () => {
+    setSupStatusFilter('');
+    setSupComplianceFilter('');
+  };
+
+  // Search & Filter: Sub-tab 3 Returns
+  const [returnSearch, setReturnSearch] = useState('');
+  const [returnSupplierFilter, setReturnSupplierFilter] = useState('');
+  const [returnStatusFilter, setReturnStatusFilter] = useState('');
+
+  const activeReturnFilterCount = [
+    returnSupplierFilter,
+    returnStatusFilter,
+  ].filter(Boolean).length;
+
+  const resetReturnFilters = () => {
+    setReturnSupplierFilter('');
+    setReturnStatusFilter('');
+  };
 
   // Modal: New/Edit Purchase Invoice
   const [showModal, setShowModal] = useState(false);
@@ -702,21 +762,178 @@ export const PurchasesPage: React.FC = () => {
       {/* Sub-Tab 1: Purchase Invoices Register */}
       {activeSubTab === 'invoices' && (
         <div className="space-y-4">
-          <div className="flex items-center justify-between gap-4">
-            <div className="relative w-full max-w-sm">
-              <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-              <input
-                type="text"
-                value={invoiceSearch}
-                onChange={(e) => setInvoiceSearch(e.target.value)}
-                placeholder="Search by Invoice #, Supplier Invoice #, Supplier..."
-                className="w-full pl-9 pr-3 py-1.5 text-xs bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
-              />
+          <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs space-y-3">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="relative flex-1 max-w-sm">
+                <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  value={invoiceSearch}
+                  onChange={(e) => setInvoiceSearch(e.target.value)}
+                  placeholder="Search by Invoice #, Supplier Invoice #, Supplier..."
+                  className="w-full pl-9 pr-3 py-1.5 text-xs bg-slate-50 border border-slate-300 rounded-lg focus:bg-white focus:ring-2 focus:ring-brand-500 focus:border-brand-500 font-medium"
+                />
+              </div>
+
+              <div className="flex items-center gap-2 self-end sm:self-auto">
+                <FilterButton
+                  activeCount={activeInvoiceFilterCount}
+                  onReset={resetInvoiceFilters}
+                  title="Filter Purchase Invoices"
+                  buttonLabel="Filter Invoices"
+                >
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <FilterField label="Invoice Status">
+                      <FilterSelect
+                        value={invStatusFilter}
+                        onChange={(e) => setInvStatusFilter(e.target.value)}
+                        options={[
+                          { label: 'All Statuses', value: '' },
+                          { label: 'Received (Stock Inwarded)', value: 'RECEIVED' },
+                          { label: 'Draft Pending', value: 'DRAFT' },
+                          { label: 'Cancelled / Voided', value: 'CANCELLED' },
+                        ]}
+                      />
+                    </FilterField>
+
+                    <FilterField label="Payment Mode">
+                      <FilterSelect
+                        value={invPaymentFilter}
+                        onChange={(e) => setInvPaymentFilter(e.target.value)}
+                        options={[
+                          { label: 'All Payment Modes', value: '' },
+                          { label: 'Cash', value: 'CASH' },
+                          { label: 'Credit (Vendor Payable)', value: 'CREDIT' },
+                          { label: 'UPI / Digital Transfer', value: 'UPI' },
+                          { label: 'Cheque', value: 'CHEQUE' },
+                          { label: 'Bank Transfer', value: 'BANK_TRANSFER' },
+                        ]}
+                      />
+                    </FilterField>
+
+                    <FilterField label="Vendor / Supplier" className="sm:col-span-2">
+                      <FilterSelect
+                        value={invSupplierFilter}
+                        onChange={(e) => setInvSupplierFilter(e.target.value)}
+                        options={[
+                          { label: 'All Suppliers', value: '' },
+                          ...suppliers.map((s) => ({ label: s.name, value: s.id })),
+                        ]}
+                      />
+                    </FilterField>
+
+                    <FilterField label="From Date">
+                      <FilterInput
+                        type="date"
+                        value={invStartDate}
+                        onChange={(e) => setInvStartDate(e.target.value)}
+                      />
+                    </FilterField>
+
+                    <FilterField label="To Date">
+                      <FilterInput
+                        type="date"
+                        value={invEndDate}
+                        onChange={(e) => setInvEndDate(e.target.value)}
+                      />
+                    </FilterField>
+
+                    <FilterField label="Min Amount (₹)">
+                      <FilterInput
+                        type="number"
+                        min="0"
+                        placeholder="0.00"
+                        value={invMinAmount}
+                        onChange={(e) => setInvMinAmount(e.target.value)}
+                      />
+                    </FilterField>
+
+                    <FilterField label="Max Amount (₹)">
+                      <FilterInput
+                        type="number"
+                        min="0"
+                        placeholder="100000.00"
+                        value={invMaxAmount}
+                        onChange={(e) => setInvMaxAmount(e.target.value)}
+                      />
+                    </FilterField>
+                  </div>
+                </FilterButton>
+
+                <div className="hidden lg:flex items-center gap-2 text-[11px] text-slate-500 pl-2 border-l border-slate-200">
+                  <span>Def Disc: <strong className="text-pharmagreen-700 font-mono">{configuredDiscount}%</strong></span>
+                  <span>Def GST: <strong className="text-slate-800 font-mono">{configuredCombinedGST}%</strong></span>
+                </div>
+              </div>
             </div>
-            <div className="text-xs text-slate-500 flex items-center gap-3">
-              <span>Default Inward Discount: <strong className="text-pharmagreen-700 font-mono">{configuredDiscount}%</strong></span>
-              <span>Default GST: <strong className="text-slate-800 font-mono">{configuredCombinedGST}%</strong> (CGST {configuredCGST}% + SGST {configuredSGST}%)</span>
-            </div>
+
+            {/* Active Filter Badges */}
+            {activeInvoiceFilterCount > 0 && (
+              <div className="flex flex-wrap items-center gap-1.5 pt-2 border-t border-slate-100 text-xs">
+                <span className="text-[11px] font-semibold text-slate-500 mr-1">Active Filters:</span>
+                {invStatusFilter && (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-brand-50 text-brand-700 text-[11px] font-medium border border-brand-200">
+                    Status: {invStatusFilter}
+                    <button type="button" onClick={() => setInvStatusFilter('')} className="hover:text-brand-900">
+                      <X className="w-3 h-3" />
+                    </button>
+                  </span>
+                )}
+                {invPaymentFilter && (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-brand-50 text-brand-700 text-[11px] font-medium border border-brand-200">
+                    Payment: {invPaymentFilter}
+                    <button type="button" onClick={() => setInvPaymentFilter('')} className="hover:text-brand-900">
+                      <X className="w-3 h-3" />
+                    </button>
+                  </span>
+                )}
+                {invSupplierFilter && (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-brand-50 text-brand-700 text-[11px] font-medium border border-brand-200">
+                    Supplier: {suppliers.find((s) => s.id === invSupplierFilter)?.name || invSupplierFilter}
+                    <button type="button" onClick={() => setInvSupplierFilter('')} className="hover:text-brand-900">
+                      <X className="w-3 h-3" />
+                    </button>
+                  </span>
+                )}
+                {(invStartDate || invEndDate) && (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-brand-50 text-brand-700 text-[11px] font-medium border border-brand-200">
+                    Date: {invStartDate || 'Start'} to {invEndDate || 'Now'}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setInvStartDate('');
+                        setInvEndDate('');
+                      }}
+                      className="hover:text-brand-900"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </span>
+                )}
+                {(invMinAmount || invMaxAmount) && (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-brand-50 text-brand-700 text-[11px] font-medium border border-brand-200">
+                    Total: ₹{invMinAmount || '0'} - {invMaxAmount ? `₹${invMaxAmount}` : 'Any'}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setInvMinAmount('');
+                        setInvMaxAmount('');
+                      }}
+                      className="hover:text-brand-900"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </span>
+                )}
+                <button
+                  type="button"
+                  onClick={resetInvoiceFilters}
+                  className="text-[11px] text-slate-500 hover:text-rose-600 font-semibold underline ml-1"
+                >
+                  Clear All
+                </button>
+              </div>
+            )}
           </div>
 
           <div className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
@@ -760,13 +977,28 @@ export const PurchasesPage: React.FC = () => {
                   ) : (
                     purchases
                       .filter((p) => {
-                        if (!invoiceSearch) return true;
-                        const q = invoiceSearch.toLowerCase();
-                        return (
-                          p.invoiceNumber.toLowerCase().includes(q) ||
-                          p.supplierInvoiceNumber.toLowerCase().includes(q) ||
-                          (p.supplier?.name && p.supplier.name.toLowerCase().includes(q))
-                        );
+                        if (invoiceSearch.trim()) {
+                          const q = invoiceSearch.toLowerCase().trim();
+                          const match =
+                            p.invoiceNumber.toLowerCase().includes(q) ||
+                            p.supplierInvoiceNumber.toLowerCase().includes(q) ||
+                            (p.supplier?.name && p.supplier.name.toLowerCase().includes(q));
+                          if (!match) return false;
+                        }
+                        if (invStatusFilter && p.status !== invStatusFilter) return false;
+                        if (invPaymentFilter && p.paymentMode !== invPaymentFilter) return false;
+                        if (invSupplierFilter && p.supplierId !== invSupplierFilter) return false;
+                        if (invStartDate) {
+                          const invD = new Date(p.invoiceDate).toISOString().split('T')[0];
+                          if (invD < invStartDate) return false;
+                        }
+                        if (invEndDate) {
+                          const invD = new Date(p.invoiceDate).toISOString().split('T')[0];
+                          if (invD > invEndDate) return false;
+                        }
+                        if (invMinAmount && p.grandTotal < parseFloat(invMinAmount)) return false;
+                        if (invMaxAmount && p.grandTotal > parseFloat(invMaxAmount)) return false;
+                        return true;
                       })
                       .map((pur) => (
                         <tr key={pur.id} className="hover:bg-slate-50/80 transition-colors">
@@ -845,25 +1077,94 @@ export const PurchasesPage: React.FC = () => {
       {/* Sub-Tab 2: Supplier Directory with Full CRUD */}
       {activeSubTab === 'suppliers' && (
         <div className="space-y-4">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <div className="relative w-full max-w-sm">
-              <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-              <input
-                type="text"
-                value={supplierSearch}
-                onChange={(e) => setSupplierSearch(e.target.value)}
-                placeholder="Search suppliers by name, phone, email, GSTIN..."
-                className="w-full pl-9 pr-3 py-1.5 text-xs bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500"
-              />
+          <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs space-y-3">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="relative flex-1 max-w-sm">
+                <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  value={supplierSearch}
+                  onChange={(e) => setSupplierSearch(e.target.value)}
+                  placeholder="Search suppliers by name, phone, email, GSTIN..."
+                  className="w-full pl-9 pr-3 py-1.5 text-xs bg-slate-50 border border-slate-300 rounded-lg focus:bg-white focus:ring-2 focus:ring-brand-500 focus:border-brand-500 font-medium"
+                />
+              </div>
+
+              <div className="flex items-center gap-2 self-end sm:self-auto">
+                <FilterButton
+                  activeCount={activeSupplierFilterCount}
+                  onReset={resetSupplierFilters}
+                  title="Filter Suppliers Directory"
+                  buttonLabel="Filter Suppliers"
+                >
+                  <div className="space-y-3">
+                    <FilterField label="Operating Status">
+                      <FilterSelect
+                        value={supStatusFilter}
+                        onChange={(e) => setSupStatusFilter(e.target.value)}
+                        options={[
+                          { label: 'All Suppliers (Active & Archived)', value: '' },
+                          { label: 'Active Suppliers Only', value: 'ACTIVE' },
+                          { label: 'Archived / Suspended Only', value: 'INACTIVE' },
+                        ]}
+                      />
+                    </FilterField>
+
+                    <FilterField label="Tax & License Compliance">
+                      <FilterSelect
+                        value={supComplianceFilter}
+                        onChange={(e) => setSupComplianceFilter(e.target.value)}
+                        options={[
+                          { label: 'All Compliance Records', value: '' },
+                          { label: 'Registered with GSTIN', value: 'WITH_GSTIN' },
+                          { label: 'Missing GSTIN', value: 'WITHOUT_GSTIN' },
+                          { label: 'With Drug License Registered', value: 'WITH_DL' },
+                        ]}
+                      />
+                    </FilterField>
+                  </div>
+                </FilterButton>
+
+                {!isBillingUser && (
+                  <button
+                    onClick={openNewSupplierModal}
+                    className="flex items-center gap-1.5 px-3.5 py-1.5 bg-brand-500 hover:bg-brand-600 active:bg-brand-700 text-white rounded-lg text-xs font-bold transition-colors shadow-xs"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    Add New Supplier
+                  </button>
+                )}
+              </div>
             </div>
-            {!isBillingUser && (
-              <button
-                onClick={openNewSupplierModal}
-                className="flex items-center gap-1.5 px-3.5 py-1.5 bg-brand-500 hover:bg-brand-600 text-white rounded-lg text-xs font-bold transition-colors shadow-xs"
-              >
-                <Plus className="w-3.5 h-3.5" />
-                Add New Supplier
-              </button>
+
+            {/* Active Filter Badges */}
+            {activeSupplierFilterCount > 0 && (
+              <div className="flex flex-wrap items-center gap-1.5 pt-2 border-t border-slate-100 text-xs">
+                <span className="text-[11px] font-semibold text-slate-500 mr-1">Active Filters:</span>
+                {supStatusFilter && (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-brand-50 text-brand-700 text-[11px] font-medium border border-brand-200">
+                    Status: {supStatusFilter === 'ACTIVE' ? 'Active' : 'Archived'}
+                    <button type="button" onClick={() => setSupStatusFilter('')} className="hover:text-brand-900">
+                      <X className="w-3 h-3" />
+                    </button>
+                  </span>
+                )}
+                {supComplianceFilter && (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-brand-50 text-brand-700 text-[11px] font-medium border border-brand-200">
+                    Compliance: {supComplianceFilter === 'WITH_GSTIN' ? 'Has GSTIN' : supComplianceFilter === 'WITHOUT_GSTIN' ? 'No GSTIN' : 'Has DL'}
+                    <button type="button" onClick={() => setSupComplianceFilter('')} className="hover:text-brand-900">
+                      <X className="w-3 h-3" />
+                    </button>
+                  </span>
+                )}
+                <button
+                  type="button"
+                  onClick={resetSupplierFilters}
+                  className="text-[11px] text-slate-500 hover:text-rose-600 font-semibold underline ml-1"
+                >
+                  Clear All
+                </button>
+              </div>
             )}
           </div>
 
@@ -900,14 +1201,22 @@ export const PurchasesPage: React.FC = () => {
                   ) : (
                     suppliers
                       .filter((s) => {
-                        if (!supplierSearch) return true;
-                        const q = supplierSearch.toLowerCase();
-                        return (
-                          s.name.toLowerCase().includes(q) ||
-                          s.phone.includes(q) ||
-                          (s.email && s.email.toLowerCase().includes(q)) ||
-                          (s.gstin && s.gstin.toLowerCase().includes(q))
-                        );
+                        if (supplierSearch.trim()) {
+                          const q = supplierSearch.toLowerCase().trim();
+                          const match =
+                            s.name.toLowerCase().includes(q) ||
+                            s.phone.includes(q) ||
+                            (s.email && s.email.toLowerCase().includes(q)) ||
+                            (s.gstin && s.gstin.toLowerCase().includes(q)) ||
+                            (s.contactPerson && s.contactPerson.toLowerCase().includes(q));
+                          if (!match) return false;
+                        }
+                        if (supStatusFilter === 'ACTIVE' && s.isActive === false) return false;
+                        if (supStatusFilter === 'INACTIVE' && s.isActive !== false) return false;
+                        if (supComplianceFilter === 'WITH_GSTIN' && !s.gstin) return false;
+                        if (supComplianceFilter === 'WITHOUT_GSTIN' && s.gstin) return false;
+                        if (supComplianceFilter === 'WITH_DL' && !s.dlNumber) return false;
+                        return true;
                       })
                       .map((sup) => (
                         <tr key={sup.id} className="hover:bg-slate-50/80 transition-colors">
@@ -967,30 +1276,124 @@ export const PurchasesPage: React.FC = () => {
 
       {/* Sub-Tab 3: Supplier Debit / Returns */}
       {activeSubTab === 'returns' && (
-        <div className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
-              <thead className="bg-slate-50 text-slate-700 font-bold border-b border-slate-200">
-                <tr>
-                  <th className="py-3 px-4">Debit Note / Return #</th>
-                  <th className="py-3 px-3">Supplier Name</th>
-                  <th className="py-3 px-3">Return Date</th>
-                  <th className="py-3 px-3">Reason</th>
-                  <th className="py-3 px-3 text-right">Taxable</th>
-                  <th className="py-3 px-3 text-right">Tax</th>
-                  <th className="py-3 px-4 text-right">Debit Total</th>
-                  <th className="py-3 px-3 text-center">Status</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 font-medium">
-                {purchaseReturns.length === 0 ? (
+        <div className="space-y-4">
+          <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs space-y-3">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="relative flex-1 max-w-sm">
+                <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  value={returnSearch}
+                  onChange={(e) => setReturnSearch(e.target.value)}
+                  placeholder="Search debit notes by Return #, Supplier, Reason..."
+                  className="w-full pl-9 pr-3 py-1.5 text-xs bg-slate-50 border border-slate-300 rounded-lg focus:bg-white focus:ring-2 focus:ring-brand-500 focus:border-brand-500 font-medium"
+                />
+              </div>
+
+              <div className="flex items-center gap-2 self-end sm:self-auto">
+                <FilterButton
+                  activeCount={activeReturnFilterCount}
+                  onReset={resetReturnFilters}
+                  title="Filter Supplier Debit Returns"
+                  buttonLabel="Filter Returns"
+                >
+                  <div className="space-y-3">
+                    <FilterField label="Vendor / Supplier">
+                      <FilterSelect
+                        value={returnSupplierFilter}
+                        onChange={(e) => setReturnSupplierFilter(e.target.value)}
+                        options={[
+                          { label: 'All Suppliers', value: '' },
+                          ...suppliers.map((s) => ({ label: s.name, value: s.id })),
+                        ]}
+                      />
+                    </FilterField>
+
+                    <FilterField label="Return Status">
+                      <FilterSelect
+                        value={returnStatusFilter}
+                        onChange={(e) => setReturnStatusFilter(e.target.value)}
+                        options={[
+                          { label: 'All Return Statuses', value: '' },
+                          { label: 'Completed (Stock Adjusted)', value: 'COMPLETED' },
+                          { label: 'Pending Processing', value: 'PENDING' },
+                        ]}
+                      />
+                    </FilterField>
+                  </div>
+                </FilterButton>
+              </div>
+            </div>
+
+            {/* Active Filter Badges */}
+            {activeReturnFilterCount > 0 && (
+              <div className="flex flex-wrap items-center gap-1.5 pt-2 border-t border-slate-100 text-xs">
+                <span className="text-[11px] font-semibold text-slate-500 mr-1">Active Filters:</span>
+                {returnSupplierFilter && (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-brand-50 text-brand-700 text-[11px] font-medium border border-brand-200">
+                    Supplier: {suppliers.find((s) => s.id === returnSupplierFilter)?.name || returnSupplierFilter}
+                    <button type="button" onClick={() => setReturnSupplierFilter('')} className="hover:text-brand-900">
+                      <X className="w-3 h-3" />
+                    </button>
+                  </span>
+                )}
+                {returnStatusFilter && (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-brand-50 text-brand-700 text-[11px] font-medium border border-brand-200">
+                    Status: {returnStatusFilter}
+                    <button type="button" onClick={() => setReturnStatusFilter('')} className="hover:text-brand-900">
+                      <X className="w-3 h-3" />
+                    </button>
+                  </span>
+                )}
+                <button
+                  type="button"
+                  onClick={resetReturnFilters}
+                  className="text-[11px] text-slate-500 hover:text-rose-600 font-semibold underline ml-1"
+                >
+                  Clear All
+                </button>
+              </div>
+            )}
+          </div>
+
+          <div className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-slate-50 text-slate-700 font-bold border-b border-slate-200">
                   <tr>
-                    <td colSpan={8} className="py-8 text-center text-slate-400">
-                      No supplier returns processed yet.
-                    </td>
+                    <th className="py-3 px-4">Debit Note / Return #</th>
+                    <th className="py-3 px-3">Supplier Name</th>
+                    <th className="py-3 px-3">Return Date</th>
+                    <th className="py-3 px-3">Reason</th>
+                    <th className="py-3 px-3 text-right">Taxable</th>
+                    <th className="py-3 px-3 text-right">Tax</th>
+                    <th className="py-3 px-4 text-right">Debit Total</th>
+                    <th className="py-3 px-3 text-center">Status</th>
                   </tr>
-                ) : (
-                  purchaseReturns.map((ret: any) => (
+                </thead>
+                <tbody className="divide-y divide-slate-100 font-medium">
+                  {purchaseReturns.length === 0 ? (
+                    <tr>
+                      <td colSpan={8} className="py-8 text-center text-slate-400">
+                        No supplier returns processed yet.
+                      </td>
+                    </tr>
+                  ) : (
+                    purchaseReturns
+                      .filter((ret: any) => {
+                        if (returnSearch.trim()) {
+                          const q = returnSearch.toLowerCase().trim();
+                          const match =
+                            (ret.returnNumber && ret.returnNumber.toLowerCase().includes(q)) ||
+                            (ret.supplier?.name && ret.supplier.name.toLowerCase().includes(q)) ||
+                            (ret.reason && ret.reason.toLowerCase().includes(q));
+                          if (!match) return false;
+                        }
+                        if (returnSupplierFilter && ret.supplierId !== returnSupplierFilter) return false;
+                        if (returnStatusFilter && ret.status !== returnStatusFilter) return false;
+                        return true;
+                      })
+                      .map((ret: any) => (
                     <tr key={ret.id} className="hover:bg-slate-50/80 transition-colors">
                       <td className="py-3 px-4 font-mono font-bold text-amber-900">{ret.returnNumber}</td>
                       <td className="py-3 px-3 font-semibold text-slate-800">{ret.supplier?.name}</td>
@@ -1017,7 +1420,8 @@ export const PurchasesPage: React.FC = () => {
             </table>
           </div>
         </div>
-      )}
+      </div>
+    )}
 
       {/* Record / Edit Purchase Invoice Modal */}
       <Modal

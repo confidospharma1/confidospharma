@@ -2,10 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { api } from '../services/api';
 import { SalesInvoice } from '../types';
-import { Receipt, Search, Printer, Ban, AlertCircle } from 'lucide-react';
+import { Receipt, Search, Printer, Ban, AlertCircle, Filter, X } from 'lucide-react';
 import { Badge } from '../components/Badge';
 import { Modal } from '../components/Modal';
 import { ReceiptModal } from '../components/ReceiptModal';
+import { FilterButton } from '../components/FilterButton';
+import { FilterField, FilterSelect, FilterInput } from '../components/FilterControls';
 
 export const InvoicesPage: React.FC = () => {
   const { currentBranch, selectedBranchId, isBillingUser } = useAuth();
@@ -13,6 +15,26 @@ export const InvoicesPage: React.FC = () => {
   const [invoices, setInvoices] = useState<SalesInvoice[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+
+  // Filter State
+  const [statusFilter, setStatusFilter] = useState('');
+  const [paymentMethodFilter, setPaymentMethodFilter] = useState('');
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
+
+  const activeFilterCount = [
+    statusFilter,
+    paymentMethodFilter,
+    startDate,
+    endDate,
+  ].filter(Boolean).length;
+
+  const resetFilters = () => {
+    setStatusFilter('');
+    setPaymentMethodFilter('');
+    setStartDate('');
+    setEndDate('');
+  };
 
   // View Receipt Modal
   const [activeInvoice, setActiveInvoice] = useState<SalesInvoice | null>(null);
@@ -30,7 +52,11 @@ export const InvoicesPage: React.FC = () => {
     try {
       const data = await api.getInvoices({
         branchId: selectedBranchId,
-        invoiceNumber: search,
+        invoiceNumber: search.trim() || undefined,
+        status: statusFilter || undefined,
+        paymentMethod: paymentMethodFilter || undefined,
+        startDate: startDate || undefined,
+        endDate: endDate || undefined,
       });
       setInvoices(data.invoices || []);
     } catch (e) {
@@ -41,8 +67,11 @@ export const InvoicesPage: React.FC = () => {
   };
 
   useEffect(() => {
-    loadInvoices();
-  }, [selectedBranchId, search]);
+    const timer = setTimeout(() => {
+      loadInvoices();
+    }, 200);
+    return () => clearTimeout(timer);
+  }, [selectedBranchId, search, statusFilter, paymentMethodFilter, startDate, endDate]);
 
   const handleOpenReceipt = async (id: string) => {
     try {
@@ -88,17 +117,6 @@ export const InvoicesPage: React.FC = () => {
             Immutable transaction record, reprint receipts, and audited cancellation management.
           </p>
         </div>
-
-        <div className="relative w-full sm:w-72">
-          <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-          <input
-            type="text"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search by Invoice # (e.g. INV-VJA-)"
-            className="w-full pl-10 pr-3 py-2 text-xs bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500"
-          />
-        </div>
       </div>
 
       {message && (
@@ -115,6 +133,119 @@ export const InvoicesPage: React.FC = () => {
           </button>
         </div>
       )}
+
+      {/* Toolbar: Search & Filter Button */}
+      <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs space-y-3">
+        <div className="flex flex-col sm:flex-row gap-3 justify-between items-center">
+          <div className="relative flex-1 w-full max-w-md">
+            <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search by Invoice # (e.g. INV-VJA-), customer name, or phone..."
+              className="w-full pl-10 pr-3 py-2 text-xs bg-slate-50 border border-slate-300 rounded-lg focus:bg-white focus:ring-2 focus:ring-brand-500 focus:border-brand-500 font-medium"
+            />
+          </div>
+
+          <div className="flex items-center gap-2 self-end sm:self-auto">
+            <FilterButton
+              activeCount={activeFilterCount}
+              onReset={resetFilters}
+              title="Filter Sales Invoices"
+              buttonLabel="Filter Invoices"
+            >
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <FilterField label="Invoice Status">
+                  <FilterSelect
+                    value={statusFilter}
+                    onChange={(e) => setStatusFilter(e.target.value)}
+                    options={[
+                      { label: 'All Invoices (Completed & Cancelled)', value: '' },
+                      { label: 'Completed Invoices Only', value: 'COMPLETED' },
+                      { label: 'Cancelled / Voided Only', value: 'CANCELLED' },
+                    ]}
+                  />
+                </FilterField>
+
+                <FilterField label="Payment Method">
+                  <FilterSelect
+                    value={paymentMethodFilter}
+                    onChange={(e) => setPaymentMethodFilter(e.target.value)}
+                    options={[
+                      { label: 'All Payment Modes', value: '' },
+                      { label: 'Cash Payment', value: 'CASH' },
+                      { label: 'UPI / QR Code', value: 'UPI' },
+                      { label: 'Card (Credit/Debit)', value: 'CARD' },
+                    ]}
+                  />
+                </FilterField>
+
+                <FilterField label="From Date">
+                  <FilterInput
+                    type="date"
+                    value={startDate}
+                    onChange={(e) => setStartDate(e.target.value)}
+                  />
+                </FilterField>
+
+                <FilterField label="To Date">
+                  <FilterInput
+                    type="date"
+                    value={endDate}
+                    onChange={(e) => setEndDate(e.target.value)}
+                  />
+                </FilterField>
+              </div>
+            </FilterButton>
+          </div>
+        </div>
+
+        {/* Active Filter Badges */}
+        {activeFilterCount > 0 && (
+          <div className="flex flex-wrap items-center gap-1.5 pt-2 border-t border-slate-100 text-xs">
+            <span className="text-[11px] font-semibold text-slate-500 mr-1">Active Filters:</span>
+            {statusFilter && (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-brand-50 text-brand-700 text-[11px] font-medium border border-brand-200">
+                Status: {statusFilter}
+                <button type="button" onClick={() => setStatusFilter('')} className="hover:text-brand-900">
+                  <X className="w-3 h-3" />
+                </button>
+              </span>
+            )}
+            {paymentMethodFilter && (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-brand-50 text-brand-700 text-[11px] font-medium border border-brand-200">
+                Payment: {paymentMethodFilter}
+                <button type="button" onClick={() => setPaymentMethodFilter('')} className="hover:text-brand-900">
+                  <X className="w-3 h-3" />
+                </button>
+              </span>
+            )}
+            {(startDate || endDate) && (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-brand-50 text-brand-700 text-[11px] font-medium border border-brand-200">
+                Date: {startDate || 'Start'} to {endDate || 'Now'}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setStartDate('');
+                    setEndDate('');
+                  }}
+                  className="hover:text-brand-900"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </span>
+            )}
+            <button
+              type="button"
+              onClick={resetFilters}
+              className="text-[11px] text-slate-500 hover:text-rose-600 font-semibold underline ml-1"
+            >
+              Clear All
+            </button>
+          </div>
+        )}
+      </div>
 
       {/* Invoices Table */}
       <div className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
@@ -143,8 +274,28 @@ export const InvoicesPage: React.FC = () => {
               ) : invoices.length === 0 ? (
                 <tr>
                   <td colSpan={9} className="py-12 text-center text-slate-500">
-                    <p className="text-sm font-bold text-slate-800">No sales recorded yet.</p>
-                    <p className="text-xs text-slate-500 mt-1">Invoices generated from the POS counter will appear here in real-time.</p>
+                    <p className="text-sm font-bold text-slate-800">
+                      {activeFilterCount > 0 || search
+                        ? 'No sales invoices match your filter criteria.'
+                        : 'No sales recorded yet.'}
+                    </p>
+                    <p className="text-xs text-slate-500 mt-1">
+                      {activeFilterCount > 0 || search
+                        ? 'Try clearing the applied filters or adjusting the invoice number search.'
+                        : 'Invoices generated from the POS counter will appear here in real-time.'}
+                    </p>
+                    {(activeFilterCount > 0 || search) && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSearch('');
+                          resetFilters();
+                        }}
+                        className="mt-3 inline-flex items-center gap-1.5 px-3 py-1.5 bg-brand-500 hover:bg-brand-600 text-white rounded-lg text-xs font-bold transition-colors"
+                      >
+                        Clear Filters
+                      </button>
+                    )}
                   </td>
                 </tr>
               ) : (

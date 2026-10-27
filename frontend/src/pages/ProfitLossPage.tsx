@@ -19,9 +19,14 @@ import {
   PieChart,
   ArrowUpRight,
   ArrowDownRight,
+  Search,
+  Filter,
+  X,
 } from 'lucide-react';
 import { Badge } from '../components/Badge';
 import { Modal } from '../components/Modal';
+import { FilterButton } from '../components/FilterButton';
+import { FilterField, FilterSelect, FilterInput } from '../components/FilterControls';
 
 export const ProfitLossPage: React.FC = () => {
   const { currentBranch, selectedBranchId, isBillingUser, isSuperAdmin } = useAuth();
@@ -34,6 +39,51 @@ export const ProfitLossPage: React.FC = () => {
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState('');
+
+  // Operating Expenses Filter State
+  const [expenseSearch, setExpenseSearch] = useState('');
+  const [expenseCategoryFilter, setExpenseCategoryFilter] = useState('');
+  const [expensePaymentFilter, setExpensePaymentFilter] = useState('');
+  const [expenseMinAmount, setExpenseMinAmount] = useState('');
+  const [expenseMaxAmount, setExpenseMaxAmount] = useState('');
+
+  const activeExpenseFilterCount = [
+    expenseCategoryFilter,
+    expensePaymentFilter,
+    expenseMinAmount,
+    expenseMaxAmount,
+  ].filter(Boolean).length;
+
+  const resetExpenseFilters = () => {
+    setExpenseCategoryFilter('');
+    setExpensePaymentFilter('');
+    setExpenseMinAmount('');
+    setExpenseMaxAmount('');
+  };
+
+  // Filtered Expenses
+  const filteredExpenses = expenses.filter((exp) => {
+    if (expenseSearch.trim()) {
+      const q = expenseSearch.toLowerCase();
+      const matchDesc = exp.description?.toLowerCase().includes(q);
+      const matchRef = exp.referenceNo?.toLowerCase().includes(q);
+      const matchCat = exp.category?.toLowerCase().includes(q);
+      if (!matchDesc && !matchRef && !matchCat) return false;
+    }
+    if (expenseCategoryFilter && exp.category !== expenseCategoryFilter) {
+      return false;
+    }
+    if (expensePaymentFilter && exp.paymentMode !== expensePaymentFilter) {
+      return false;
+    }
+    if (expenseMinAmount && exp.amount < parseFloat(expenseMinAmount)) {
+      return false;
+    }
+    if (expenseMaxAmount && exp.amount > parseFloat(expenseMaxAmount)) {
+      return false;
+    }
+    return true;
+  });
 
   // Record Expense Modal
   const [showExpenseModal, setShowExpenseModal] = useState(false);
@@ -462,19 +512,147 @@ export const ProfitLossPage: React.FC = () => {
 
       {/* Operating Expenses Table & Ledger */}
       <div className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
-        <div className="p-4 border-b border-slate-200 flex items-center justify-between">
+        <div className="p-4 border-b border-slate-200 flex flex-col md:flex-row md:items-center justify-between gap-3">
           <div>
             <h2 className="text-sm font-bold text-slate-900">Operating Expenses Ledger</h2>
             <p className="text-[10px] text-slate-500">Audited operational vouchers for rent, salaries, utilities, transport, etc.</p>
           </div>
-          <button
-            onClick={() => setShowExpenseModal(true)}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold transition-colors"
-          >
-            <Plus className="w-3.5 h-3.5" />
-            Add Expense
-          </button>
+          <div className="flex items-center gap-2">
+            <div className="relative">
+              <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+              <input
+                type="text"
+                placeholder="Search description, voucher..."
+                value={expenseSearch}
+                onChange={(e) => setExpenseSearch(e.target.value)}
+                className="pl-8 pr-3 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-lg w-52 focus:outline-none focus:ring-1 focus:ring-brand-500 focus:bg-white transition-colors"
+              />
+            </div>
+
+            <FilterButton
+              activeFilterCount={activeExpenseFilterCount}
+              onReset={resetExpenseFilters}
+              buttonLabel="Filter Expenses"
+              popoverWidth="w-80"
+              align="right"
+            >
+              <div className="space-y-3">
+                <FilterField label="Expense Category">
+                  <FilterSelect
+                    value={expenseCategoryFilter}
+                    onChange={(e) => setExpenseCategoryFilter(e.target.value)}
+                    options={[
+                      { label: 'All Categories', value: '' },
+                      { label: 'Store / Shop Rent', value: 'RENT' },
+                      { label: 'Staff & Pharmacist Salaries', value: 'SALARIES' },
+                      { label: 'Electricity & AC', value: 'ELECTRICITY' },
+                      { label: 'Internet & Telephony', value: 'INTERNET' },
+                      { label: 'Delivery & Transport', value: 'TRANSPORT' },
+                      { label: 'Bags & Packaging', value: 'PACKAGING' },
+                      { label: 'Maintenance & Repairs', value: 'MAINTENANCE' },
+                      { label: 'Marketing & Advertising', value: 'MARKETING' },
+                      { label: 'Other Operating Expenses', value: 'OTHER' },
+                    ]}
+                  />
+                </FilterField>
+
+                <FilterField label="Payment Mode">
+                  <FilterSelect
+                    value={expensePaymentFilter}
+                    onChange={(e) => setExpensePaymentFilter(e.target.value)}
+                    options={[
+                      { label: 'All Payment Modes', value: '' },
+                      { label: 'Cash Counter', value: 'CASH' },
+                      { label: 'UPI / QR Code', value: 'UPI' },
+                      { label: 'Bank Transfer / NEFT', value: 'BANK_TRANSFER' },
+                      { label: 'Debit/Credit Card', value: 'CARD' },
+                      { label: 'Cheque', value: 'CHEQUE' },
+                    ]}
+                  />
+                </FilterField>
+
+                <FilterField label="Amount Range (₹)">
+                  <div className="grid grid-cols-2 gap-2">
+                    <FilterInput
+                      type="number"
+                      placeholder="Min ₹"
+                      value={expenseMinAmount}
+                      onChange={(e) => setExpenseMinAmount(e.target.value)}
+                    />
+                    <FilterInput
+                      type="number"
+                      placeholder="Max ₹"
+                      value={expenseMaxAmount}
+                      onChange={(e) => setExpenseMaxAmount(e.target.value)}
+                    />
+                  </div>
+                </FilterField>
+              </div>
+            </FilterButton>
+
+            <button
+              onClick={() => setShowExpenseModal(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold transition-colors"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              Add Expense
+            </button>
+          </div>
         </div>
+
+        {/* Active Expense Filter Badges */}
+        {(activeExpenseFilterCount > 0 || expenseSearch) && (
+          <div className="px-4 py-2 bg-slate-50 border-b border-slate-100 flex items-center flex-wrap gap-2 text-xs">
+            <span className="text-slate-500 font-medium text-[11px]">Filtered by:</span>
+            {expenseSearch && (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-white border border-slate-200 text-slate-700 text-[11px]">
+                Search: "{expenseSearch}"
+                <button onClick={() => setExpenseSearch('')} className="hover:text-rose-500">
+                  <X className="w-3 h-3" />
+                </button>
+              </span>
+            )}
+            {expenseCategoryFilter && (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-brand-50 border border-brand-200 text-brand-800 text-[11px]">
+                Category: {expenseCategoryFilter}
+                <button onClick={() => setExpenseCategoryFilter('')} className="hover:text-rose-500">
+                  <X className="w-3 h-3" />
+                </button>
+              </span>
+            )}
+            {expensePaymentFilter && (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-brand-50 border border-brand-200 text-brand-800 text-[11px]">
+                Mode: {expensePaymentFilter}
+                <button onClick={() => setExpensePaymentFilter('')} className="hover:text-rose-500">
+                  <X className="w-3 h-3" />
+                </button>
+              </span>
+            )}
+            {(expenseMinAmount || expenseMaxAmount) && (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-brand-50 border border-brand-200 text-brand-800 text-[11px]">
+                Amount: ₹{expenseMinAmount || '0'} - ₹{expenseMaxAmount || '∞'}
+                <button
+                  onClick={() => {
+                    setExpenseMinAmount('');
+                    setExpenseMaxAmount('');
+                  }}
+                  className="hover:text-rose-500"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </span>
+            )}
+            <button
+              onClick={() => {
+                setExpenseSearch('');
+                resetExpenseFilters();
+              }}
+              className="text-[11px] text-brand-600 hover:text-brand-800 font-semibold underline ml-1"
+            >
+              Clear All
+            </button>
+          </div>
+        )}
 
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs">
@@ -490,14 +668,16 @@ export const ProfitLossPage: React.FC = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 font-medium">
-              {expenses.length === 0 ? (
+              {filteredExpenses.length === 0 ? (
                 <tr>
                   <td colSpan={7} className="py-8 text-center text-slate-400">
-                    No operating expenses recorded in this period.
+                    {expenses.length === 0
+                      ? 'No operating expenses recorded in this period.'
+                      : 'No expenses match the selected filters.'}
                   </td>
                 </tr>
               ) : (
-                expenses.map((exp) => (
+                filteredExpenses.map((exp) => (
                   <tr key={exp.id} className="hover:bg-slate-50/80 transition-colors">
                     <td className="py-2.5 px-4 font-mono text-slate-600">
                       {new Date(exp.expenseDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}

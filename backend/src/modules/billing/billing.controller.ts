@@ -255,7 +255,7 @@ export const getInvoices = async (req: Request, res: Response) => {
   try {
     if (!req.user) return res.status(401).json({ message: 'Unauthorized' });
 
-    const { branchId, invoiceNumber, status, startDate, endDate, page = '1', limit = '50' } = req.query;
+    const { branchId, invoiceNumber, status, paymentMethod, startDate, endDate, page = '1', limit = '50' } = req.query;
 
     const targetBranchId = req.user.role === 'SUPER_ADMIN' ? (branchId as string) : req.user.branchId;
 
@@ -263,6 +263,7 @@ export const getInvoices = async (req: Request, res: Response) => {
     if (targetBranchId) whereClause.branchId = targetBranchId;
     if (invoiceNumber) whereClause.invoiceNumber = { contains: (invoiceNumber as string).trim(), mode: 'insensitive' };
     if (status) whereClause.status = status as string;
+    if (paymentMethod) whereClause.paymentMethod = paymentMethod as string;
 
     if (startDate || endDate) {
       whereClause.createdAt = {};

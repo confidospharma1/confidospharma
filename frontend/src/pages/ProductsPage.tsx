@@ -2,9 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { api } from '../services/api';
 import { MedicineProduct } from '../types';
-import { Pill, Plus, Search, Filter, AlertCircle, CheckCircle, Barcode, DollarSign, Edit2, Trash2 } from 'lucide-react';
+import { Pill, Plus, Search, Filter, AlertCircle, CheckCircle, Barcode, DollarSign, Edit2, Trash2, X } from 'lucide-react';
 import { Badge } from '../components/Badge';
 import { Modal } from '../components/Modal';
+import { FilterButton } from '../components/FilterButton';
+import { FilterField, FilterSelect, FilterInput } from '../components/FilterControls';
 
 export const ProductsPage: React.FC = () => {
   const { isBillingUser } = useAuth();
@@ -13,6 +15,29 @@ export const ProductsPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [formFilter, setFormFilter] = useState('');
+  const [rxFilter, setRxFilter] = useState('');
+  const [mfgFilter, setMfgFilter] = useState('');
+  const [minMrp, setMinMrp] = useState('');
+  const [maxMrp, setMaxMrp] = useState('');
+  const [hsnStatus, setHsnStatus] = useState('');
+
+  const activeFilterCount = [
+    formFilter,
+    rxFilter,
+    mfgFilter,
+    minMrp,
+    maxMrp,
+    hsnStatus,
+  ].filter(Boolean).length;
+
+  const resetFilters = () => {
+    setFormFilter('');
+    setRxFilter('');
+    setMfgFilter('');
+    setMinMrp('');
+    setMaxMrp('');
+    setHsnStatus('');
+  };
 
   // Add Product Modal
   const [showAddModal, setShowAddModal] = useState(false);
@@ -183,8 +208,14 @@ export const ProductsPage: React.FC = () => {
   };
 
   const filteredProducts = products.filter((p) => {
-    if (!formFilter) return true;
-    return p.dosageForm.toLowerCase() === formFilter.toLowerCase();
+    if (formFilter && p.dosageForm.toLowerCase() !== formFilter.toLowerCase()) return false;
+    if (rxFilter && p.prescriptionType !== rxFilter) return false;
+    if (mfgFilter && !p.manufacturer?.toLowerCase().includes(mfgFilter.toLowerCase())) return false;
+    if (minMrp && p.mrp < parseFloat(minMrp)) return false;
+    if (maxMrp && p.mrp > parseFloat(maxMrp)) return false;
+    if (hsnStatus === 'WITH_HSN' && !p.hsnCode) return false;
+    if (hsnStatus === 'WITHOUT_HSN' && p.hsnCode) return false;
+    return true;
   });
 
   return (
@@ -225,33 +256,163 @@ export const ProductsPage: React.FC = () => {
       )}
 
       {/* Search and Filters */}
-      <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs flex flex-col sm:flex-row gap-4 justify-between">
-        <div className="relative flex-1 max-w-md">
-          <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-          <input
-            type="text"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search by Brand Name, Generic, Manufacturer, Barcode..."
-            className="w-full pl-10 pr-3 py-2 text-xs bg-slate-50 border border-slate-300 rounded-lg focus:bg-white focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
-          />
+      <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs space-y-3">
+        <div className="flex flex-col sm:flex-row gap-3 justify-between items-center">
+          <div className="relative flex-1 w-full max-w-md">
+            <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search by Brand Name, Generic, Manufacturer, Barcode..."
+              className="w-full pl-10 pr-3 py-2 text-xs bg-slate-50 border border-slate-300 rounded-lg focus:bg-white focus:ring-2 focus:ring-brand-500 focus:border-brand-500 font-medium"
+            />
+          </div>
+
+          <div className="flex items-center gap-2 self-end sm:self-auto">
+            <FilterButton
+              activeCount={activeFilterCount}
+              onReset={resetFilters}
+              title="Filter Medicine Catalogue"
+              buttonLabel="Filter Medicines"
+            >
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <FilterField label="Dosage Form">
+                  <FilterSelect
+                    value={formFilter}
+                    onChange={(e) => setFormFilter(e.target.value)}
+                    options={[
+                      { label: 'All Dosage Forms', value: '' },
+                      { label: 'Tablets', value: 'Tablet' },
+                      { label: 'Capsules', value: 'Capsule' },
+                      { label: 'Syrups & Liquids', value: 'Syrup' },
+                      { label: 'Injections', value: 'Injection' },
+                      { label: 'Ointments & Creams', value: 'Ointment' },
+                      { label: 'Drops', value: 'Drops' },
+                      { label: 'Inhalers', value: 'Inhaler' },
+                    ]}
+                  />
+                </FilterField>
+
+                <FilterField label="Prescription Schedule">
+                  <FilterSelect
+                    value={rxFilter}
+                    onChange={(e) => setRxFilter(e.target.value)}
+                    options={[
+                      { label: 'All Schedules', value: '' },
+                      { label: 'OTC (Over-The-Counter)', value: 'OTC' },
+                      { label: 'Schedule H', value: 'Schedule H' },
+                      { label: 'Schedule H1', value: 'Schedule H1' },
+                      { label: 'Schedule X', value: 'Schedule X' },
+                    ]}
+                  />
+                </FilterField>
+
+                <FilterField label="Manufacturer / Lab" className="sm:col-span-2">
+                  <FilterInput
+                    type="text"
+                    placeholder="e.g. Cipla, Sun Pharma, Dr. Reddy's..."
+                    value={mfgFilter}
+                    onChange={(e) => setMfgFilter(e.target.value)}
+                  />
+                </FilterField>
+
+                <FilterField label="Min MRP (₹)">
+                  <FilterInput
+                    type="number"
+                    min="0"
+                    placeholder="0.00"
+                    value={minMrp}
+                    onChange={(e) => setMinMrp(e.target.value)}
+                  />
+                </FilterField>
+
+                <FilterField label="Max MRP (₹)">
+                  <FilterInput
+                    type="number"
+                    min="0"
+                    placeholder="5000.00"
+                    value={maxMrp}
+                    onChange={(e) => setMaxMrp(e.target.value)}
+                  />
+                </FilterField>
+
+                <FilterField label="HSN Tax Code Status" className="sm:col-span-2">
+                  <FilterSelect
+                    value={hsnStatus}
+                    onChange={(e) => setHsnStatus(e.target.value)}
+                    options={[
+                      { label: 'All Products (HSN & Non-HSN)', value: '' },
+                      { label: 'Configured with HSN Code', value: 'WITH_HSN' },
+                      { label: 'Missing HSN Code', value: 'WITHOUT_HSN' },
+                    ]}
+                  />
+                </FilterField>
+              </div>
+            </FilterButton>
+          </div>
         </div>
 
-        <div className="flex items-center gap-2">
-          <Filter className="w-4 h-4 text-slate-400" />
-          <select
-            value={formFilter}
-            onChange={(e) => setFormFilter(e.target.value)}
-            className="text-xs bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 focus:bg-white focus:ring-2 focus:ring-emerald-500"
-          >
-            <option value="">All Dosage Forms</option>
-            <option value="Tablet">Tablets</option>
-            <option value="Capsule">Capsules</option>
-            <option value="Syrup">Syrups & Liquids</option>
-            <option value="Injection">Injections</option>
-            <option value="Ointment">Ointments & Creams</option>
-          </select>
-        </div>
+        {/* Active Filter Badges */}
+        {activeFilterCount > 0 && (
+          <div className="flex flex-wrap items-center gap-1.5 pt-2 border-t border-slate-100 text-xs">
+            <span className="text-[11px] font-semibold text-slate-500 mr-1">Active Filters:</span>
+            {formFilter && (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-brand-50 text-brand-700 text-[11px] font-medium border border-brand-200">
+                Form: {formFilter}
+                <button type="button" onClick={() => setFormFilter('')} className="hover:text-brand-900">
+                  <X className="w-3 h-3" />
+                </button>
+              </span>
+            )}
+            {rxFilter && (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-brand-50 text-brand-700 text-[11px] font-medium border border-brand-200">
+                Schedule: {rxFilter}
+                <button type="button" onClick={() => setRxFilter('')} className="hover:text-brand-900">
+                  <X className="w-3 h-3" />
+                </button>
+              </span>
+            )}
+            {mfgFilter && (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-brand-50 text-brand-700 text-[11px] font-medium border border-brand-200">
+                Mfg: {mfgFilter}
+                <button type="button" onClick={() => setMfgFilter('')} className="hover:text-brand-900">
+                  <X className="w-3 h-3" />
+                </button>
+              </span>
+            )}
+            {(minMrp || maxMrp) && (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-brand-50 text-brand-700 text-[11px] font-medium border border-brand-200">
+                MRP: ₹{minMrp || '0'} - {maxMrp ? `₹${maxMrp}` : 'Any'}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMinMrp('');
+                    setMaxMrp('');
+                  }}
+                  className="hover:text-brand-900"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </span>
+            )}
+            {hsnStatus && (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-brand-50 text-brand-700 text-[11px] font-medium border border-brand-200">
+                HSN: {hsnStatus === 'WITH_HSN' ? 'Configured' : 'Missing'}
+                <button type="button" onClick={() => setHsnStatus('')} className="hover:text-brand-900">
+                  <X className="w-3 h-3" />
+                </button>
+              </span>
+            )}
+            <button
+              type="button"
+              onClick={resetFilters}
+              className="text-[11px] text-slate-500 hover:text-rose-600 font-semibold underline ml-1"
+            >
+              Clear All
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Products Table */}

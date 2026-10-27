@@ -13,9 +13,13 @@ import {
   CheckCircle2,
   Calendar,
   Layers,
+  Filter,
+  X,
 } from 'lucide-react';
 import { Badge } from '../components/Badge';
 import { Modal } from '../components/Modal';
+import { FilterButton } from '../components/FilterButton';
+import { FilterField, FilterSelect, FilterInput } from '../components/FilterControls';
 
 export const InventoryPage: React.FC = () => {
   const { currentBranch, selectedBranchId, isBillingUser } = useAuth();
@@ -24,6 +28,29 @@ export const InventoryPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [filterTab, setFilterTab] = useState<'ALL' | 'ACTIVE' | 'NEAR_EXPIRY' | 'EXPIRED'>('ACTIVE');
   const [searchQuery, setSearchQuery] = useState('');
+
+  // Detailed Filter State
+  const [dosageFilter, setDosageFilter] = useState('');
+  const [stockLevelFilter, setStockLevelFilter] = useState('');
+  const [supplierFilter, setSupplierFilter] = useState('');
+  const [minPrice, setMinPrice] = useState('');
+  const [maxPrice, setMaxPrice] = useState('');
+
+  const activeFilterCount = [
+    dosageFilter,
+    stockLevelFilter,
+    supplierFilter,
+    minPrice,
+    maxPrice,
+  ].filter(Boolean).length;
+
+  const resetFilters = () => {
+    setDosageFilter('');
+    setStockLevelFilter('');
+    setSupplierFilter('');
+    setMinPrice('');
+    setMaxPrice('');
+  };
 
   // Modals
   const [showReceiveModal, setShowReceiveModal] = useState(false);
@@ -79,6 +106,7 @@ export const InventoryPage: React.FC = () => {
 
   useEffect(() => {
     loadBatches();
+    loadReferenceData();
   }, [selectedBranchId, filterTab]);
 
   const loadReferenceData = async () => {
@@ -162,13 +190,30 @@ export const InventoryPage: React.FC = () => {
   };
 
   const filteredBatches = batches.filter((b) => {
-    if (!searchQuery.trim()) return true;
-    const q = searchQuery.toLowerCase();
-    return (
-      b.medicine?.brandName.toLowerCase().includes(q) ||
-      b.medicine?.genericName.toLowerCase().includes(q) ||
-      b.batchNumber.toLowerCase().includes(q)
-    );
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase().trim();
+      const matchesSearch =
+        b.medicine?.brandName.toLowerCase().includes(q) ||
+        b.medicine?.genericName.toLowerCase().includes(q) ||
+        b.batchNumber.toLowerCase().includes(q) ||
+        (b.supplier?.name && b.supplier.name.toLowerCase().includes(q));
+      if (!matchesSearch) return false;
+    }
+
+    if (dosageFilter && b.medicine?.dosageForm?.toLowerCase() !== dosageFilter.toLowerCase()) {
+      return false;
+    }
+
+    if (stockLevelFilter === 'IN_STOCK' && b.availableQuantity <= 0) return false;
+    if (stockLevelFilter === 'LOW_STOCK' && (b.availableQuantity <= 0 || b.availableQuantity > 10)) return false;
+    if (stockLevelFilter === 'OUT_OF_STOCK' && b.availableQuantity > 0) return false;
+
+    if (supplierFilter && b.supplierId !== supplierFilter) return false;
+
+    if (minPrice && (b.sellingPrice || b.mrp) < parseFloat(minPrice)) return false;
+    if (maxPrice && (b.sellingPrice || b.mrp) > parseFloat(maxPrice)) return false;
+
+    return true;
   });
 
   return (
@@ -223,52 +268,179 @@ export const InventoryPage: React.FC = () => {
       )}
 
       {/* Filter Tabs & Search Bar */}
-      <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div className="flex items-center gap-1.5 p-1 bg-slate-100 rounded-lg">
-          <button
-            onClick={() => setFilterTab('ACTIVE')}
-            className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all ${
-              filterTab === 'ACTIVE' ? 'bg-white text-brand-700 shadow-xs' : 'text-slate-600 hover:text-slate-900'
-            }`}
-          >
-            Active Saleable
-          </button>
-          <button
-            onClick={() => setFilterTab('NEAR_EXPIRY')}
-            className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all ${
-              filterTab === 'NEAR_EXPIRY' ? 'bg-white text-amber-700 shadow-xs' : 'text-slate-600 hover:text-slate-900'
-            }`}
-          >
-            Near Expiry (&lt;60d)
-          </button>
-          <button
-            onClick={() => setFilterTab('EXPIRED')}
-            className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all ${
-              filterTab === 'EXPIRED' ? 'bg-white text-rose-700 shadow-xs' : 'text-slate-600 hover:text-slate-900'
-            }`}
-          >
-            Expired / Quarantined
-          </button>
-          <button
-            onClick={() => setFilterTab('ALL')}
-            className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all ${
-              filterTab === 'ALL' ? 'bg-white text-slate-800 shadow-xs' : 'text-slate-600 hover:text-slate-900'
-            }`}
-          >
-            All Batches
-          </button>
+      <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs space-y-3">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+          <div className="flex items-center gap-1.5 p-1 bg-slate-100 rounded-lg self-start">
+            <button
+              onClick={() => setFilterTab('ACTIVE')}
+              className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all ${
+                filterTab === 'ACTIVE' ? 'bg-white text-brand-700 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              Active Saleable
+            </button>
+            <button
+              onClick={() => setFilterTab('NEAR_EXPIRY')}
+              className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all ${
+                filterTab === 'NEAR_EXPIRY' ? 'bg-white text-amber-700 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              Near Expiry (&lt;60d)
+            </button>
+            <button
+              onClick={() => setFilterTab('EXPIRED')}
+              className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all ${
+                filterTab === 'EXPIRED' ? 'bg-white text-rose-700 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              Expired / Quarantined
+            </button>
+            <button
+              onClick={() => setFilterTab('ALL')}
+              className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all ${
+                filterTab === 'ALL' ? 'bg-white text-slate-800 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              All Batches
+            </button>
+          </div>
+
+          <div className="flex items-center gap-2 w-full lg:w-auto">
+            <div className="relative flex-1 lg:w-72">
+              <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Filter by medicine, batch, or supplier..."
+                className="w-full pl-9 pr-3 py-1.5 text-xs bg-slate-50 border border-slate-300 rounded-lg focus:bg-white focus:ring-2 focus:ring-brand-500 focus:border-brand-500 font-medium"
+              />
+            </div>
+
+            <FilterButton
+              activeCount={activeFilterCount}
+              onReset={resetFilters}
+              title="Filter Inventory Batches"
+              buttonLabel="Filter Batches"
+            >
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <FilterField label="Dosage Form">
+                  <FilterSelect
+                    value={dosageFilter}
+                    onChange={(e) => setDosageFilter(e.target.value)}
+                    options={[
+                      { label: 'All Dosage Forms', value: '' },
+                      { label: 'Tablets', value: 'Tablet' },
+                      { label: 'Capsules', value: 'Capsule' },
+                      { label: 'Syrups & Liquids', value: 'Syrup' },
+                      { label: 'Injections', value: 'Injection' },
+                      { label: 'Ointments & Creams', value: 'Ointment' },
+                      { label: 'Drops', value: 'Drops' },
+                      { label: 'Inhalers', value: 'Inhaler' },
+                    ]}
+                  />
+                </FilterField>
+
+                <FilterField label="Stock Availability">
+                  <FilterSelect
+                    value={stockLevelFilter}
+                    onChange={(e) => setStockLevelFilter(e.target.value)}
+                    options={[
+                      { label: 'All Levels', value: '' },
+                      { label: 'In Stock (> 0 units)', value: 'IN_STOCK' },
+                      { label: 'Low Stock (≤ 10 units)', value: 'LOW_STOCK' },
+                      { label: 'Depleted (0 units)', value: 'OUT_OF_STOCK' },
+                    ]}
+                  />
+                </FilterField>
+
+                <FilterField label="Supplier / Vendor" className="sm:col-span-2">
+                  <FilterSelect
+                    value={supplierFilter}
+                    onChange={(e) => setSupplierFilter(e.target.value)}
+                    options={[
+                      { label: 'All Suppliers', value: '' },
+                      ...suppliers.map((s) => ({ label: s.name, value: s.id })),
+                    ]}
+                  />
+                </FilterField>
+
+                <FilterField label="Min Selling Rate (₹)">
+                  <FilterInput
+                    type="number"
+                    min="0"
+                    placeholder="0.00"
+                    value={minPrice}
+                    onChange={(e) => setMinPrice(e.target.value)}
+                  />
+                </FilterField>
+
+                <FilterField label="Max Selling Rate (₹)">
+                  <FilterInput
+                    type="number"
+                    min="0"
+                    placeholder="2000.00"
+                    value={maxPrice}
+                    onChange={(e) => setMaxPrice(e.target.value)}
+                  />
+                </FilterField>
+              </div>
+            </FilterButton>
+          </div>
         </div>
 
-        <div className="relative w-full sm:w-72">
-          <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Filter by medicine or batch..."
-            className="w-full pl-9 pr-3 py-1.5 text-xs bg-slate-50 border border-slate-300 rounded-lg focus:bg-white focus:ring-2 focus:ring-emerald-500"
-          />
-        </div>
+        {/* Active Filter Badges */}
+        {activeFilterCount > 0 && (
+          <div className="flex flex-wrap items-center gap-1.5 pt-2 border-t border-slate-100 text-xs">
+            <span className="text-[11px] font-semibold text-slate-500 mr-1">Active Filters:</span>
+            {dosageFilter && (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-brand-50 text-brand-700 text-[11px] font-medium border border-brand-200">
+                Form: {dosageFilter}
+                <button type="button" onClick={() => setDosageFilter('')} className="hover:text-brand-900">
+                  <X className="w-3 h-3" />
+                </button>
+              </span>
+            )}
+            {stockLevelFilter && (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-brand-50 text-brand-700 text-[11px] font-medium border border-brand-200">
+                Stock: {stockLevelFilter === 'IN_STOCK' ? 'In Stock' : stockLevelFilter === 'LOW_STOCK' ? 'Low Stock' : 'Depleted'}
+                <button type="button" onClick={() => setStockLevelFilter('')} className="hover:text-brand-900">
+                  <X className="w-3 h-3" />
+                </button>
+              </span>
+            )}
+            {supplierFilter && (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-brand-50 text-brand-700 text-[11px] font-medium border border-brand-200">
+                Supplier: {suppliers.find((s) => s.id === supplierFilter)?.name || supplierFilter}
+                <button type="button" onClick={() => setSupplierFilter('')} className="hover:text-brand-900">
+                  <X className="w-3 h-3" />
+                </button>
+              </span>
+            )}
+            {(minPrice || maxPrice) && (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-brand-50 text-brand-700 text-[11px] font-medium border border-brand-200">
+                Price: ₹{minPrice || '0'} - {maxPrice ? `₹${maxPrice}` : 'Any'}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMinPrice('');
+                    setMaxPrice('');
+                  }}
+                  className="hover:text-brand-900"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </span>
+            )}
+            <button
+              type="button"
+              onClick={resetFilters}
+              className="text-[11px] text-slate-500 hover:text-rose-600 font-semibold underline ml-1"
+            >
+              Clear All
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Batches Table Card */}
@@ -294,7 +466,7 @@ export const InventoryPage: React.FC = () => {
                     Loading stock batches...
                   </td>
                 </tr>
-              ) : filteredBatches.length === 0 ? (
+              ) : batches.length === 0 ? (
                 <tr>
                   <td colSpan={8} className="py-12 text-center text-slate-500">
                     <p className="text-sm font-bold text-slate-800">No inventory available.</p>
@@ -308,6 +480,23 @@ export const InventoryPage: React.FC = () => {
                         Receive Stock Batch
                       </button>
                     )}
+                  </td>
+                </tr>
+              ) : filteredBatches.length === 0 ? (
+                <tr>
+                  <td colSpan={8} className="py-12 text-center text-slate-500">
+                    <p className="text-sm font-bold text-slate-700">No stock batches match your filter criteria.</p>
+                    <p className="text-xs text-slate-400 mt-1">Try resetting the filter options or adjusting your search term.</p>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSearchQuery('');
+                        resetFilters();
+                      }}
+                      className="mt-3 inline-flex items-center gap-1.5 px-3 py-1.5 bg-brand-500 hover:bg-brand-600 text-white rounded-lg text-xs font-bold transition-colors"
+                    >
+                      Clear Filters & Search
+                    </button>
                   </td>
                 </tr>
               ) : (

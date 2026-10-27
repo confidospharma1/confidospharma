@@ -11,8 +11,12 @@ import {
   Copy,
   Layers,
   ArrowRight,
+  Search,
+  X,
 } from 'lucide-react';
 import { Badge } from '../components/Badge';
+import { FilterButton } from '../components/FilterButton';
+import { FilterField, FilterSelect } from '../components/FilterControls';
 
 export const BulkImportPage: React.FC = () => {
   const { currentBranch, selectedBranchId, isBillingUser } = useAuth();
@@ -24,6 +28,17 @@ export const BulkImportPage: React.FC = () => {
 
   const [importResult, setImportResult] = useState<any>(null);
   const [commitMessage, setCommitMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
+
+  // Staged Preview Filter State
+  const [previewSearch, setPreviewSearch] = useState('');
+  const [previewStatusFilter, setPreviewStatusFilter] = useState('');
+  const [previewIssueFilter, setPreviewIssueFilter] = useState('');
+
+  const activePreviewFilterCount = [previewStatusFilter, previewIssueFilter].filter(Boolean).length;
+  const resetPreviewFilters = () => {
+    setPreviewStatusFilter('');
+    setPreviewIssueFilter('');
+  };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
@@ -74,14 +89,37 @@ export const BulkImportPage: React.FC = () => {
   };
 
   const handleDownloadTemplate = (type: 'catalogue' | 'stock_receipt') => {
-    window.open(`/api/imports/template/${type}`, '_blank');
+    window.open(api.downloadTemplateUrl(type), '_blank');
   };
 
   const handleDownloadErrors = () => {
     if (importResult?.importId) {
-      window.open(`/api/imports/${importResult.importId}/download-errors`, '_blank');
+      window.open(api.downloadErrorsUrl(importResult.importId), '_blank');
     }
   };
+
+  const filteredPreviewRows = (importResult?.previewRows || []).filter((r: any) => {
+    if (previewSearch.trim()) {
+      const q = previewSearch.toLowerCase();
+      const matchBrand = (r.brandName || r.internalCode)?.toLowerCase().includes(q);
+      const matchGen = r.genericName?.toLowerCase().includes(q);
+      const matchBatch = r.batchNumber?.toLowerCase().includes(q);
+      if (!matchBrand && !matchGen && !matchBatch) return false;
+    }
+    if (previewStatusFilter && r.status !== previewStatusFilter) {
+      return false;
+    }
+    if (previewIssueFilter === 'ERRORS' && (!r.errors || r.errors.length === 0)) {
+      return false;
+    }
+    if (previewIssueFilter === 'WARNINGS' && (!r.warnings || r.warnings.length === 0)) {
+      return false;
+    }
+    if (previewIssueFilter === 'CLEAN' && ((r.errors && r.errors.length > 0) || (r.warnings && r.warnings.length > 0))) {
+      return false;
+    }
+    return true;
+  });
 
   if (isBillingUser) {
     return (
@@ -317,11 +355,103 @@ export const BulkImportPage: React.FC = () => {
 
           {/* Table Preview */}
           <div className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
-            <div className="p-4 border-b border-slate-200 bg-slate-50/50 flex items-center justify-between">
-              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700">
-                Staged Row Preview (Showing {importResult.previewRows.length} rows)
-              </h3>
+            <div className="p-4 border-b border-slate-200 bg-slate-50/50 flex flex-col md:flex-row md:items-center justify-between gap-3">
+              <div>
+                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700">
+                  Staged Row Preview
+                </h3>
+                <p className="text-[10px] text-slate-500">
+                  Showing {filteredPreviewRows.length} of {importResult.previewRows.length} parsed records
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <div className="relative">
+                  <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <input
+                    type="text"
+                    placeholder="Search medicine, batch..."
+                    value={previewSearch}
+                    onChange={(e) => setPreviewSearch(e.target.value)}
+                    className="pl-8 pr-3 py-1.5 text-xs bg-white border border-slate-200 rounded-lg w-52 focus:outline-none focus:ring-1 focus:ring-brand-500 transition-colors"
+                  />
+                </div>
+
+                <FilterButton
+                  activeFilterCount={activePreviewFilterCount}
+                  onReset={resetPreviewFilters}
+                  buttonLabel="Filter Rows"
+                  popoverWidth="w-72"
+                  align="right"
+                >
+                  <div className="space-y-3">
+                    <FilterField label="Row Status">
+                      <FilterSelect
+                        value={previewStatusFilter}
+                        onChange={(e) => setPreviewStatusFilter(e.target.value)}
+                        options={[
+                          { label: 'READY (Valid - Will Commit)', value: 'READY' },
+                          { label: 'ERROR (Excluded from Commit)', value: 'ERROR' },
+                        ]}
+                      />
+                    </FilterField>
+
+                    <FilterField label="Validation Issues">
+                      <FilterSelect
+                        value={previewIssueFilter}
+                        onChange={(e) => setPreviewIssueFilter(e.target.value)}
+                        options={[
+                          { label: 'Rows with Critical Errors', value: 'ERRORS' },
+                          { label: 'Rows with Warnings', value: 'WARNINGS' },
+                          { label: 'Clean Validated Rows', value: 'CLEAN' },
+                        ]}
+                      />
+                    </FilterField>
+                  </div>
+                </FilterButton>
+              </div>
             </div>
+
+            {/* Active Preview Filter Badges */}
+            {(activePreviewFilterCount > 0 || previewSearch) && (
+              <div className="px-4 py-2 bg-slate-50 border-b border-slate-100 flex items-center flex-wrap gap-2 text-xs">
+                <span className="text-slate-500 font-medium text-[11px]">Filtered by:</span>
+                {previewSearch && (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-white border border-slate-200 text-slate-700 text-[11px]">
+                    Search: "{previewSearch}"
+                    <button onClick={() => setPreviewSearch('')} className="hover:text-rose-500">
+                      <X className="w-3 h-3" />
+                    </button>
+                  </span>
+                )}
+                {previewStatusFilter && (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-brand-50 border border-brand-200 text-brand-800 text-[11px]">
+                    Status: {previewStatusFilter}
+                    <button onClick={() => setPreviewStatusFilter('')} className="hover:text-rose-500">
+                      <X className="w-3 h-3" />
+                    </button>
+                  </span>
+                )}
+                {previewIssueFilter && (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-brand-50 border border-brand-200 text-brand-800 text-[11px]">
+                    Issues: {previewIssueFilter}
+                    <button onClick={() => setPreviewIssueFilter('')} className="hover:text-rose-500">
+                      <X className="w-3 h-3" />
+                    </button>
+                  </span>
+                )}
+                <button
+                  onClick={() => {
+                    setPreviewSearch('');
+                    resetPreviewFilters();
+                  }}
+                  className="text-[11px] text-brand-600 hover:text-brand-800 font-semibold underline ml-1"
+                >
+                  Clear All
+                </button>
+              </div>
+            )}
+
             <div className="overflow-x-auto max-h-96">
               <table className="w-full text-left text-xs">
                 <thead className="bg-slate-50 text-slate-700 font-bold border-b border-slate-200 sticky top-0">
@@ -335,39 +465,47 @@ export const BulkImportPage: React.FC = () => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 font-medium">
-                  {importResult.previewRows.map((r: any, idx: number) => (
-                    <tr key={idx} className={r.status === 'ERROR' ? 'bg-rose-50/30' : 'hover:bg-slate-50/50'}>
-                      <td className="py-2.5 px-3 text-center font-mono font-bold text-slate-500">
-                        {r.rowIndex}
-                      </td>
-                      <td className="py-2.5 px-3">
-                        <Badge variant={r.status === 'READY' ? 'success' : 'danger'} size="sm">
-                          {r.status}
-                        </Badge>
-                      </td>
-                      <td className="py-2.5 px-3 font-bold text-slate-800">
-                        {r.brandName || r.internalCode}
-                        {r.genericName && <span className="block text-[11px] text-slate-500 font-normal">{r.genericName}</span>}
-                      </td>
-                      <td className="py-2.5 px-3 font-mono text-slate-700">
-                        {r.batchNumber || r.strength || '-'}
-                      </td>
-                      <td className="py-2.5 px-3 text-right font-mono font-bold text-slate-800">
-                        ₹{(r.mrp || 0).toFixed(2)}
-                      </td>
-                      <td className="py-2.5 px-4 text-[11px]">
-                        {r.errors && r.errors.length > 0 && (
-                          <span className="text-rose-600 font-semibold block">{r.errors.join('; ')}</span>
-                        )}
-                        {r.warnings && r.warnings.length > 0 && (
-                          <span className="text-amber-600 block">{r.warnings.join('; ')}</span>
-                        )}
-                        {r.errors?.length === 0 && r.warnings?.length === 0 && (
-                          <span className="text-emerald-700">Validated</span>
-                        )}
+                  {filteredPreviewRows.length === 0 ? (
+                    <tr>
+                      <td colSpan={6} className="py-8 text-center text-slate-400">
+                        No staging preview rows match the selected filters.
                       </td>
                     </tr>
-                  ))}
+                  ) : (
+                    filteredPreviewRows.map((r: any, idx: number) => (
+                      <tr key={idx} className={r.status === 'ERROR' ? 'bg-rose-50/30' : 'hover:bg-slate-50/50'}>
+                        <td className="py-2.5 px-3 text-center font-mono font-bold text-slate-500">
+                          {r.rowIndex}
+                        </td>
+                        <td className="py-2.5 px-3">
+                          <Badge variant={r.status === 'READY' ? 'success' : 'danger'} size="sm">
+                            {r.status}
+                          </Badge>
+                        </td>
+                        <td className="py-2.5 px-3 font-bold text-slate-800">
+                          {r.brandName || r.internalCode}
+                          {r.genericName && <span className="block text-[11px] text-slate-500 font-normal">{r.genericName}</span>}
+                        </td>
+                        <td className="py-2.5 px-3 font-mono text-slate-700">
+                          {r.batchNumber || r.strength || '-'}
+                        </td>
+                        <td className="py-2.5 px-3 text-right font-mono font-bold text-slate-800">
+                          ₹{(r.mrp || 0).toFixed(2)}
+                        </td>
+                        <td className="py-2.5 px-4 text-[11px]">
+                          {r.errors && r.errors.length > 0 && (
+                            <span className="text-rose-600 font-semibold block">{r.errors.join('; ')}</span>
+                          )}
+                          {r.warnings && r.warnings.length > 0 && (
+                            <span className="text-amber-600 block">{r.warnings.join('; ')}</span>
+                          )}
+                          {r.errors?.length === 0 && r.warnings?.length === 0 && (
+                            <span className="text-emerald-700">Validated</span>
+                          )}
+                        </td>
+                      </tr>
+                    ))
+                  )}
                 </tbody>
               </table>
             </div>

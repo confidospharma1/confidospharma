@@ -1,0 +1,6 @@
+Brand Name,Generic Name,Strength,Dosage Form,Manufacturer,Pack Size,HSN Code,GST Rate,MRP,Default Purchase Rate,Default Selling Rate,Reorder Level,Barcode,Prescription Type
+Amoxikem 500,Amoxicillin,500 mg,Capsule,Alkem Laboratories,10 Capsules,30041010,12,85.00,52.50,85.00,15,8901234567011,Schedule H
+Pantocid 40,Pantoprazole,40 mg,Tablet,Sun Pharma,15 Tablets,30049099,12,145.00,95.00,145.00,20,8901234567028,Schedule H
+Azithral 500,Azithromycin,500 mg,Tablet,Alembic Pharmaceuticals,5 Tablets,30042099,12,120.00,80.00,120.00,10,8901234567035,Schedule H
+Glycomet 500,Metformin Hydrochloride,500 mg,Tablet,USV Private Ltd,20 Tablets,30049099,12,48.00,30.00,48.00,25,8901234567042,Schedule H
+Benadryl Cough Syrup,Diphenhydramine Compound,100 ml,Syrup,Johnson & Johnson,1 Bottle,30049099,12,130.00,88.00,130.00,10,8901234567059,OTC

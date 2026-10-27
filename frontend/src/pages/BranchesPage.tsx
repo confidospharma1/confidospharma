@@ -2,14 +2,34 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { api } from '../services/api';
 import { Branch } from '../types';
-import { Building2, Plus, Phone, MapPin, FileText, CheckCircle2, Edit2, Trash2, AlertCircle } from 'lucide-react';
+import { Building2, Plus, Phone, MapPin, FileText, CheckCircle2, Edit2, Trash2, AlertCircle, Search, Filter, X } from 'lucide-react';
 import { Badge } from '../components/Badge';
 import { Modal } from '../components/Modal';
+import { FilterButton } from '../components/FilterButton';
+import { FilterField, FilterSelect, FilterInput } from '../components/FilterControls';
 
 export const BranchesPage: React.FC = () => {
   const { isSuperAdmin } = useAuth();
   const [branches, setBranches] = useState<Branch[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // Search and Filter State
+  const [searchQuery, setSearchQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState('');
+  const [cityFilter, setCityFilter] = useState('');
+  const [complianceFilter, setComplianceFilter] = useState('');
+
+  const activeFilterCount = [
+    statusFilter,
+    cityFilter,
+    complianceFilter,
+  ].filter(Boolean).length;
+
+  const resetFilters = () => {
+    setStatusFilter('');
+    setCityFilter('');
+    setComplianceFilter('');
+  };
 
   // New Branch Modal
   const [showModal, setShowModal] = useState(false);
@@ -124,6 +144,37 @@ export const BranchesPage: React.FC = () => {
     }
   };
 
+  const filteredBranches = branches.filter((b) => {
+    // Search query matching name, code, phone, address, gstin, dl
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase().trim();
+      const matchesSearch =
+        b.name.toLowerCase().includes(q) ||
+        b.code.toLowerCase().includes(q) ||
+        b.phone.toLowerCase().includes(q) ||
+        b.address.toLowerCase().includes(q) ||
+        b.gstin.toLowerCase().includes(q) ||
+        (b.drugLicenseNo && b.drugLicenseNo.toLowerCase().includes(q));
+      if (!matchesSearch) return false;
+    }
+
+    // Status filter
+    if (statusFilter === 'ACTIVE' && b.isActive === false) return false;
+    if (statusFilter === 'INACTIVE' && b.isActive !== false) return false;
+
+    // City / Region filter
+    if (cityFilter.trim() && !b.address.toLowerCase().includes(cityFilter.toLowerCase().trim())) {
+      return false;
+    }
+
+    // Compliance filter
+    if (complianceFilter === 'WITH_DL' && !b.drugLicenseNo) return false;
+    if (complianceFilter === 'WITHOUT_DL' && b.drugLicenseNo) return false;
+    if (complianceFilter === 'WITH_GSTIN' && !b.gstin) return false;
+
+    return true;
+  });
+
   return (
     <div className="p-6 md:p-8 space-y-6 max-w-7xl mx-auto overflow-y-auto">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -160,6 +211,107 @@ export const BranchesPage: React.FC = () => {
         </div>
       )}
 
+      {/* Toolbar: Search & Filter Button */}
+      {branches.length > 0 && (
+        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs space-y-3">
+          <div className="flex flex-col sm:flex-row gap-3 justify-between items-center">
+            <div className="relative flex-1 w-full max-w-md">
+              <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search branches by Name, Code, City, Phone, GSTIN..."
+                className="w-full pl-10 pr-3 py-2 text-xs bg-slate-50 border border-slate-300 rounded-lg focus:bg-white focus:ring-2 focus:ring-brand-500 focus:border-brand-500 font-medium"
+              />
+            </div>
+
+            <div className="flex items-center gap-2 self-end sm:self-auto">
+              <FilterButton
+                activeCount={activeFilterCount}
+                onReset={resetFilters}
+                title="Filter Pharmacy Branches"
+                buttonLabel="Filter Branches"
+              >
+                <div className="space-y-3">
+                  <FilterField label="Operating Status">
+                    <FilterSelect
+                      value={statusFilter}
+                      onChange={(e) => setStatusFilter(e.target.value)}
+                      options={[
+                        { label: 'All Statuses (Active & Suspended)', value: '' },
+                        { label: 'Active Branches Only', value: 'ACTIVE' },
+                        { label: 'Suspended / Archived Only', value: 'INACTIVE' },
+                      ]}
+                    />
+                  </FilterField>
+
+                  <FilterField label="City / Region in Address">
+                    <FilterInput
+                      type="text"
+                      placeholder="e.g. Vijayawada, Guntur, Tirupati..."
+                      value={cityFilter}
+                      onChange={(e) => setCityFilter(e.target.value)}
+                    />
+                  </FilterField>
+
+                  <FilterField label="Regulatory Compliance">
+                    <FilterSelect
+                      value={complianceFilter}
+                      onChange={(e) => setComplianceFilter(e.target.value)}
+                      options={[
+                        { label: 'All Compliance Statuses', value: '' },
+                        { label: 'With Drug License Registered', value: 'WITH_DL' },
+                        { label: 'Missing Drug License Number', value: 'WITHOUT_DL' },
+                        { label: 'With GSTIN Configured', value: 'WITH_GSTIN' },
+                      ]}
+                    />
+                  </FilterField>
+                </div>
+              </FilterButton>
+            </div>
+          </div>
+
+          {/* Active Filter Badges */}
+          {activeFilterCount > 0 && (
+            <div className="flex flex-wrap items-center gap-1.5 pt-2 border-t border-slate-100 text-xs">
+              <span className="text-[11px] font-semibold text-slate-500 mr-1">Active Filters:</span>
+              {statusFilter && (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-brand-50 text-brand-700 text-[11px] font-medium border border-brand-200">
+                  Status: {statusFilter === 'ACTIVE' ? 'Active Only' : 'Inactive Only'}
+                  <button type="button" onClick={() => setStatusFilter('')} className="hover:text-brand-900">
+                    <X className="w-3 h-3" />
+                  </button>
+                </span>
+              )}
+              {cityFilter && (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-brand-50 text-brand-700 text-[11px] font-medium border border-brand-200">
+                  City: {cityFilter}
+                  <button type="button" onClick={() => setCityFilter('')} className="hover:text-brand-900">
+                    <X className="w-3 h-3" />
+                  </button>
+                </span>
+              )}
+              {complianceFilter && (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-brand-50 text-brand-700 text-[11px] font-medium border border-brand-200">
+                  Compliance: {complianceFilter === 'WITH_DL' ? 'Has DL' : complianceFilter === 'WITHOUT_DL' ? 'No DL' : 'Has GSTIN'}
+                  <button type="button" onClick={() => setComplianceFilter('')} className="hover:text-brand-900">
+                    <X className="w-3 h-3" />
+                  </button>
+                </span>
+              )}
+              <button
+                type="button"
+                onClick={resetFilters}
+                className="text-[11px] text-slate-500 hover:text-rose-600 font-semibold underline ml-1"
+              >
+                Clear All
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Branch Cards Grid or Empty State */}
       {branches.length === 0 ? (
         <div className="bg-white rounded-xl border border-slate-200 p-12 text-center max-w-lg mx-auto shadow-xs space-y-4">
@@ -182,9 +334,27 @@ export const BranchesPage: React.FC = () => {
             </button>
           )}
         </div>
+      ) : filteredBranches.length === 0 ? (
+        <div className="bg-white rounded-xl border border-slate-200 p-12 text-center max-w-lg mx-auto shadow-xs space-y-3">
+          <Building2 className="w-8 h-8 text-slate-400 mx-auto" />
+          <h3 className="text-sm font-bold text-slate-800">No branches match your filters</h3>
+          <p className="text-xs text-slate-500">
+            Try adjusting your search query or filter parameters to find matching branches.
+          </p>
+          <button
+            type="button"
+            onClick={() => {
+              setSearchQuery('');
+              resetFilters();
+            }}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-brand-500 hover:bg-brand-600 text-white rounded-lg text-xs font-bold transition-colors"
+          >
+            Clear Filters & Search
+          </button>
+        </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {branches.map((b) => (
+          {filteredBranches.map((b) => (
             <div
               key={b.id}
               className="bg-white rounded-xl border border-slate-200 p-5 shadow-xs flex flex-col justify-between hover:shadow-md transition-shadow"

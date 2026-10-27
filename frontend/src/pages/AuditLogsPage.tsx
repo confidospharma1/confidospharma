@@ -2,23 +2,50 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { api } from '../services/api';
 import { AuditEvent } from '../types';
-import { History, Search, Shield, Filter, Eye } from 'lucide-react';
+import { History, Search, Shield, Filter, Eye, X } from 'lucide-react';
 import { Badge } from '../components/Badge';
 import { Modal } from '../components/Modal';
+import { FilterButton } from '../components/FilterButton';
+import { FilterField, FilterSelect, FilterInput } from '../components/FilterControls';
 
 export const AuditLogsPage: React.FC = () => {
-  const { isSuperAdmin, selectedBranchId } = useAuth();
+  const { isSuperAdmin, selectedBranchId, branches } = useAuth();
   const [logs, setLogs] = useState<AuditEvent[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // Search & Filter State
+  const [searchQuery, setSearchQuery] = useState('');
   const [actionFilter, setActionFilter] = useState('');
+  const [targetEntityFilter, setTargetEntityFilter] = useState('');
+  const [branchFilter, setBranchFilter] = useState('');
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
+
   const [selectedEvent, setSelectedEvent] = useState<AuditEvent | null>(null);
+
+  const activeFilterCount = [
+    actionFilter,
+    targetEntityFilter,
+    branchFilter,
+    startDate,
+    endDate,
+  ].filter(Boolean).length;
+
+  const resetFilters = () => {
+    setActionFilter('');
+    setTargetEntityFilter('');
+    setBranchFilter('');
+    setStartDate('');
+    setEndDate('');
+  };
 
   const loadLogs = async () => {
     setLoading(true);
     try {
       const data = await api.getAuditLogs({
-        branchId: isSuperAdmin ? undefined : selectedBranchId,
+        branchId: isSuperAdmin ? (branchFilter || undefined) : selectedBranchId,
         action: actionFilter || undefined,
+        targetEntity: targetEntityFilter || undefined,
       });
       setLogs(data.events || []);
     } catch (e) {
@@ -30,7 +57,7 @@ export const AuditLogsPage: React.FC = () => {
 
   useEffect(() => {
     loadLogs();
-  }, [actionFilter, selectedBranchId]);
+  }, [actionFilter, targetEntityFilter, branchFilter, selectedBranchId]);
 
   const getActionVariant = (action: string) => {
     if (action.includes('FAIL') || action.includes('CANCEL')) return 'danger';
@@ -38,6 +65,31 @@ export const AuditLogsPage: React.FC = () => {
     if (action.includes('CREATE') || action.includes('RECEIPT') || action.includes('COMMITTED')) return 'success';
     return 'neutral';
   };
+
+  const filteredLogs = logs.filter((log) => {
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase().trim();
+      const match =
+        log.action.toLowerCase().includes(q) ||
+        log.targetEntity.toLowerCase().includes(q) ||
+        (log.details && log.details.toLowerCase().includes(q)) ||
+        (log.ipAddress && log.ipAddress.toLowerCase().includes(q)) ||
+        (log.branch?.name && log.branch.name.toLowerCase().includes(q));
+      if (!match) return false;
+    }
+
+    if (startDate) {
+      const logDate = new Date(log.createdAt).toISOString().split('T')[0];
+      if (logDate < startDate) return false;
+    }
+
+    if (endDate) {
+      const logDate = new Date(log.createdAt).toISOString().split('T')[0];
+      if (logDate > endDate) return false;
+    }
+
+    return true;
+  });
 
   return (
     <div className="p-6 md:p-8 space-y-6 max-w-7xl mx-auto overflow-y-auto">
@@ -48,26 +100,151 @@ export const AuditLogsPage: React.FC = () => {
             Append-only security, authentication, and inventory transaction audit log (PRD Section 13.4).
           </p>
         </div>
+      </div>
 
-        <div className="flex items-center gap-2">
-          <Filter className="w-4 h-4 text-slate-400" />
-          <select
-            value={actionFilter}
-            onChange={(e) => setActionFilter(e.target.value)}
-            className="text-xs bg-white border border-slate-300 rounded-lg px-3 py-1.5 focus:ring-2 focus:ring-brand-500 focus:border-brand-500 font-medium"
-          >
-            <option value="">All Audit Actions</option>
-            <option value="LOGIN_SUCCESS">LOGIN_SUCCESS</option>
-            <option value="LOGIN_FAILED">LOGIN_FAILED</option>
-            <option value="SALE_CREATE">SALE_CREATE</option>
-            <option value="SALE_CANCEL">SALE_CANCEL</option>
-            <option value="STOCK_RECEIPT">STOCK_RECEIPT</option>
-            <option value="STOCK_ADJUST">STOCK_ADJUST</option>
-            <option value="BULK_IMPORT_COMMITTED">BULK_IMPORT_COMMITTED</option>
-            <option value="BRANCH_TRANSFER_DISPATCH">BRANCH_TRANSFER_DISPATCH</option>
-            <option value="BRANCH_TRANSFER_RECEIVE">BRANCH_TRANSFER_RECEIVE</option>
-          </select>
+      {/* Toolbar: Search & Filter Button */}
+      <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs space-y-3">
+        <div className="flex flex-col sm:flex-row gap-3 justify-between items-center">
+          <div className="relative flex-1 w-full max-w-md">
+            <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search audit trail by entity, details, IP address..."
+              className="w-full pl-10 pr-3 py-2 text-xs bg-slate-50 border border-slate-300 rounded-lg focus:bg-white focus:ring-2 focus:ring-brand-500 focus:border-brand-500 font-medium"
+            />
+          </div>
+
+          <div className="flex items-center gap-2 self-end sm:self-auto">
+            <FilterButton
+              activeCount={activeFilterCount}
+              onReset={resetFilters}
+              title="Filter Audit Records"
+              buttonLabel="Filter Audit Trail"
+            >
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <FilterField label="Audit Action" className="sm:col-span-2">
+                  <FilterSelect
+                    value={actionFilter}
+                    onChange={(e) => setActionFilter(e.target.value)}
+                    options={[
+                      { label: 'All Audit Actions', value: '' },
+                      { label: 'LOGIN_SUCCESS', value: 'LOGIN_SUCCESS' },
+                      { label: 'LOGIN_FAILED', value: 'LOGIN_FAILED' },
+                      { label: 'SALE_CREATE', value: 'SALE_CREATE' },
+                      { label: 'SALE_CANCEL', value: 'SALE_CANCEL' },
+                      { label: 'STOCK_RECEIPT', value: 'STOCK_RECEIPT' },
+                      { label: 'STOCK_ADJUST', value: 'STOCK_ADJUST' },
+                      { label: 'BULK_IMPORT_COMMITTED', value: 'BULK_IMPORT_COMMITTED' },
+                      { label: 'BRANCH_TRANSFER_DISPATCH', value: 'BRANCH_TRANSFER_DISPATCH' },
+                      { label: 'BRANCH_TRANSFER_RECEIVE', value: 'BRANCH_TRANSFER_RECEIVE' },
+                    ]}
+                  />
+                </FilterField>
+
+                <FilterField label="Target Entity">
+                  <FilterSelect
+                    value={targetEntityFilter}
+                    onChange={(e) => setTargetEntityFilter(e.target.value)}
+                    options={[
+                      { label: 'All Target Entities', value: '' },
+                      { label: 'Sales Invoices (SALES_INVOICE)', value: 'SALES_INVOICE' },
+                      { label: 'Stock Batches (STOCK_BATCH)', value: 'STOCK_BATCH' },
+                      { label: 'Purchase Invoices (PURCHASE_INVOICE)', value: 'PURCHASE_INVOICE' },
+                      { label: 'Branch Transfers (BRANCH_TRANSFER)', value: 'BRANCH_TRANSFER' },
+                      { label: 'Medicines (MEDICINE_PRODUCT)', value: 'MEDICINE_PRODUCT' },
+                      { label: 'Staff Accounts (USER)', value: 'USER' },
+                      { label: 'Branches (BRANCH)', value: 'BRANCH' },
+                    ]}
+                  />
+                </FilterField>
+
+                {isSuperAdmin && (
+                  <FilterField label="Pharmacy Branch">
+                    <FilterSelect
+                      value={branchFilter}
+                      onChange={(e) => setBranchFilter(e.target.value)}
+                      options={[
+                        { label: 'All Branches (Enterprise)', value: '' },
+                        ...branches.map((b) => ({ label: `${b.name} (${b.code})`, value: b.id })),
+                      ]}
+                    />
+                  </FilterField>
+                )}
+
+                <FilterField label="From Date">
+                  <FilterInput
+                    type="date"
+                    value={startDate}
+                    onChange={(e) => setStartDate(e.target.value)}
+                  />
+                </FilterField>
+
+                <FilterField label="To Date">
+                  <FilterInput
+                    type="date"
+                    value={endDate}
+                    onChange={(e) => setEndDate(e.target.value)}
+                  />
+                </FilterField>
+              </div>
+            </FilterButton>
+          </div>
         </div>
+
+        {/* Active Filter Badges */}
+        {activeFilterCount > 0 && (
+          <div className="flex flex-wrap items-center gap-1.5 pt-2 border-t border-slate-100 text-xs">
+            <span className="text-[11px] font-semibold text-slate-500 mr-1">Active Filters:</span>
+            {actionFilter && (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-brand-50 text-brand-700 text-[11px] font-medium border border-brand-200">
+                Action: {actionFilter}
+                <button type="button" onClick={() => setActionFilter('')} className="hover:text-brand-900">
+                  <X className="w-3 h-3" />
+                </button>
+              </span>
+            )}
+            {targetEntityFilter && (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-brand-50 text-brand-700 text-[11px] font-medium border border-brand-200">
+                Entity: {targetEntityFilter}
+                <button type="button" onClick={() => setTargetEntityFilter('')} className="hover:text-brand-900">
+                  <X className="w-3 h-3" />
+                </button>
+              </span>
+            )}
+            {branchFilter && (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-brand-50 text-brand-700 text-[11px] font-medium border border-brand-200">
+                Branch: {branches.find((b) => b.id === branchFilter)?.name || branchFilter}
+                <button type="button" onClick={() => setBranchFilter('')} className="hover:text-brand-900">
+                  <X className="w-3 h-3" />
+                </button>
+              </span>
+            )}
+            {(startDate || endDate) && (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-brand-50 text-brand-700 text-[11px] font-medium border border-brand-200">
+                Date: {startDate || 'Start'} to {endDate || 'Now'}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setStartDate('');
+                    setEndDate('');
+                  }}
+                  className="hover:text-brand-900"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </span>
+            )}
+            <button
+              type="button"
+              onClick={resetFilters}
+              className="text-[11px] text-slate-500 hover:text-rose-600 font-semibold underline ml-1"
+            >
+              Clear All
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Logs Table */}
@@ -95,11 +272,28 @@ export const AuditLogsPage: React.FC = () => {
               ) : logs.length === 0 ? (
                 <tr>
                   <td colSpan={7} className="py-8 text-center text-slate-400">
-                    No audit records found matching criteria.
+                    No audit records recorded yet.
+                  </td>
+                </tr>
+              ) : filteredLogs.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="py-12 text-center text-slate-500">
+                    <p className="text-sm font-bold text-slate-700">No audit records match your filter criteria.</p>
+                    <p className="text-xs text-slate-400 mt-1">Try resetting the filter options or adjusting your search term.</p>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSearchQuery('');
+                        resetFilters();
+                      }}
+                      className="mt-3 inline-flex items-center gap-1.5 px-3 py-1.5 bg-brand-500 hover:bg-brand-600 text-white rounded-lg text-xs font-bold transition-colors"
+                    >
+                      Clear Filters & Search
+                    </button>
                   </td>
                 </tr>
               ) : (
-                logs.map((log) => (
+                filteredLogs.map((log) => (
                   <tr key={log.id} className="hover:bg-slate-50/80 transition-colors">
                     <td className="py-3 px-4 text-slate-500 font-mono text-[11px] whitespace-nowrap">
                       {new Date(log.createdAt).toLocaleString('en-IN', {
