@@ -86,13 +86,16 @@ export function buildProductUnitConfig(
 
   if (form.includes('capsule')) {
     baseUnit = 'Capsule';
+    const isBox = pkgUnit.toLowerCase() === 'box' || pkgUnit.toLowerCase() === 'pack';
+    const boxMultiplier = isBox ? factor : factor * 10;
+    const stripMultiplier = isBox ? (factor >= 10 ? 10 : 1) : factor;
     return {
       baseUnit: 'Capsule',
       packageUnit: pkgUnit,
       conversionFactor: factor,
       supportedUnits: [
-        { unit: 'Box', multiplierToBase: factor * 10 },
-        { unit: 'Strip', multiplierToBase: factor },
+        { unit: 'Box', multiplierToBase: boxMultiplier },
+        { unit: 'Strip', multiplierToBase: stripMultiplier },
         { unit: 'Capsule', multiplierToBase: 1, isBaseUnit: true },
       ],
     };
@@ -100,16 +103,49 @@ export function buildProductUnitConfig(
 
   // Default: Tablet / Strip / Box
   baseUnit = baseUnitInput?.toLowerCase() === 'strip' ? 'Tablet' : (baseUnitInput || 'Tablet');
+  const isBox = pkgUnit.toLowerCase() === 'box' || pkgUnit.toLowerCase() === 'pack';
+  const boxMultiplier = isBox ? factor : factor * 10;
+  const stripMultiplier = isBox ? (factor >= 10 ? 10 : 1) : factor;
   return {
     baseUnit,
-    packageUnit: 'Box',
+    packageUnit: pkgUnit,
     conversionFactor: factor,
     supportedUnits: [
-      { unit: 'Box', multiplierToBase: factor * 10 },
-      { unit: 'Strip', multiplierToBase: factor },
+      { unit: 'Box', multiplierToBase: boxMultiplier },
+      { unit: 'Strip', multiplierToBase: stripMultiplier },
       { unit: baseUnit, multiplierToBase: 1, isBaseUnit: true },
     ],
   };
+}
+
+/**
+ * Calculate the selling price or MRP for a specific target unit given base unit price
+ */
+export function calculatePriceForUnit(
+  basePrice: number,
+  unitName: string,
+  config: ProductUnitConfig
+): number {
+  if (basePrice < 0) throw new Error('Base price cannot be negative');
+  const normUnit = unitName.trim().toLowerCase();
+  const matched = config.supportedUnits.find(
+    (u) => u.unit.toLowerCase() === normUnit
+  );
+  const factor = matched ? matched.multiplierToBase : 1;
+  return new Decimal(basePrice).times(factor).toDecimalPlaces(2).toNumber();
+}
+
+/**
+ * Calculate effective base purchase cost before tax
+ */
+export function calculateEffectiveBaseCost(
+  grossPaidAmount: number,
+  discountAmount: number,
+  totalBaseUnitsReceived: number
+): number {
+  if (totalBaseUnitsReceived <= 0) throw new Error('Total base units must be greater than zero');
+  const netPaid = new Decimal(grossPaidAmount).minus(discountAmount || 0);
+  return netPaid.dividedBy(totalBaseUnitsReceived).toDecimalPlaces(4).toNumber();
 }
 
 /**

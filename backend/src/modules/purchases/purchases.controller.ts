@@ -348,18 +348,22 @@ export const createPurchase = async (req: Request, res: Response) => {
           throw new Error('Selling rate cannot be negative.');
         }
 
+        if (sellingRateDec.greaterThan(mrpDec)) {
+          throw new Error(`Selling rate cannot exceed printed MRP (MRP: ${mrpDec.toNumber()}, Selling Rate: ${sellingRateDec.toNumber()}).`);
+        }
+
         const gstDec = new Decimal(gstRate !== undefined ? gstRate : 5.0);
 
         // Gross line value = Quantity * Purchase Rate
         const grossLine = rateDec.times(qty);
 
-        // Line discount calculation
+        // Line discount calculation (Max 20%, reject negative)
         let lineDisc = new Decimal(0);
         const discPct = new Decimal(discountPercent || 0);
+        if (discPct.isNegative() || discPct.greaterThan(20)) {
+          throw new Error('Purchase discount percentage cannot exceed 20% policy limit and cannot be negative.');
+        }
         if (discPct.greaterThan(0)) {
-          if (discPct.greaterThan(100)) {
-            throw new Error('Line discount percentage cannot exceed 100%.');
-          }
           lineDisc = grossLine.times(discPct).dividedBy(100);
         } else if (discountAmount && new Decimal(discountAmount).greaterThan(0)) {
           lineDisc = new Decimal(discountAmount);
@@ -382,11 +386,23 @@ export const createPurchase = async (req: Request, res: Response) => {
           throw new Error(`Invalid expiry date format for batch ${batchNumber}`);
         }
 
+        if (line.conversionFactor !== undefined && line.conversionFactor !== null && line.conversionFactor !== '') {
+          const parsedFactor = parseInt(line.conversionFactor);
+          if (isNaN(parsedFactor) || parsedFactor <= 0) {
+            throw new Error(`Conversion factor (Units/Pk) for batch ${batchNumber} must be an integer greater than zero.`);
+          }
+        }
+
         const factor = (line.conversionFactor && parseInt(line.conversionFactor) > 0)
           ? parseInt(line.conversionFactor)
           : 1;
         const lineUnit = line.unit || 'Strip';
         const totalBatchQty = (qty + freeQty) * factor;
+
+        // Base unit pricing normalization for inventory batch
+        const basePurchaseRate = rateDec.dividedBy(factor).toDecimalPlaces(4).toNumber();
+        const baseSellingPrice = sellingRateDec.dividedBy(factor).toDecimalPlaces(4).toNumber();
+        const baseMrp = mrpDec.dividedBy(factor).toDecimalPlaces(4).toNumber();
 
         // Check/create batch in branch
         let batch = await tx.stockBatch.findFirst({
@@ -403,9 +419,9 @@ export const createPurchase = async (req: Request, res: Response) => {
             data: {
               quantityReceived: batch.quantityReceived + totalBatchQty,
               availableQuantity: batch.availableQuantity + totalBatchQty,
-              purchaseRate: rateDec.toNumber(),
-              sellingPrice: sellingRateDec.toNumber(),
-              mrp: mrpDec.toNumber(),
+              purchaseRate: basePurchaseRate,
+              sellingPrice: baseSellingPrice,
+              mrp: baseMrp,
               status: 'ACTIVE',
             },
           });
@@ -418,9 +434,9 @@ export const createPurchase = async (req: Request, res: Response) => {
               expiryDate: parsedExpiry,
               quantityReceived: totalBatchQty,
               availableQuantity: totalBatchQty,
-              purchaseRate: rateDec.toNumber(),
-              sellingPrice: sellingRateDec.toNumber(),
-              mrp: mrpDec.toNumber(),
+              purchaseRate: basePurchaseRate,
+              sellingPrice: baseSellingPrice,
+              mrp: baseMrp,
               supplierId: resolvedSupplierId,
               purchaseInvoiceRef: supplierInvoiceNumber.trim(),
               status: 'ACTIVE',
@@ -436,7 +452,7 @@ export const createPurchase = async (req: Request, res: Response) => {
             batchId: batch.id,
             movementType: 'PURCHASE_RECEIPT',
             quantityDelta: totalBatchQty,
-            unitPrice: rateDec.toNumber(),
+            unitPrice: basePurchaseRate,
             referenceDocType: 'PURCHASE_INVOICE',
             referenceDocId: invoiceNumber,
             reason: `Supplier purchase invoice ${supplierInvoiceNumber.trim()}${freeQty > 0 ? ` (+${freeQty} free scheme)` : ''}`,
@@ -620,7 +636,9 @@ export const updatePurchase = async (req: Request, res: Response) => {
       const oldBatchMap = new Map<string, { qty: number; freeQty: number; total: number; line: any }>();
       for (const oldLine of existingInvoice.lines) {
         const key = `${oldLine.medicineId}_${oldLine.batchNumber.trim()}`;
-        const total = oldLine.quantity + oldLine.freeQuantity;
+        const total = (oldLine.baseQuantity && oldLine.baseQuantity > 0)
+          ? oldLine.baseQuantity
+          : ((oldLine.quantity + oldLine.freeQuantity) * (oldLine.conversionFactor || 1));
         oldBatchMap.set(key, { qty: oldLine.quantity, freeQty: oldLine.freeQuantity, total, line: oldLine });
       }
 
@@ -630,7 +648,10 @@ export const updatePurchase = async (req: Request, res: Response) => {
         const key = `${newLine.medicineId}_${newLine.batchNumber.trim()}`;
         const qty = parseInt(newLine.quantity);
         const freeQty = parseInt(newLine.freeQuantity || 0);
-        newBatchMap.set(key, { qty, freeQty, total: qty + freeQty });
+        const factor = (newLine.conversionFactor && parseInt(newLine.conversionFactor) > 0)
+          ? parseInt(newLine.conversionFactor)
+          : 1;
+        newBatchMap.set(key, { qty, freeQty, total: (qty + freeQty) * factor });
       }
 
       // 1. Reconcile batches removed completely
@@ -716,11 +737,23 @@ export const updatePurchase = async (req: Request, res: Response) => {
         const sellingRateDec = sellingRate !== undefined && sellingRate !== null && sellingRate !== ''
           ? new Decimal(sellingRate)
           : mrpDec;
+
+        if (sellingRateDec.isNegative()) {
+          throw new Error('Selling rate cannot be negative.');
+        }
+
+        if (sellingRateDec.greaterThan(mrpDec)) {
+          throw new Error(`Selling rate cannot exceed printed MRP (MRP: ${mrpDec.toNumber()}, Selling Rate: ${sellingRateDec.toNumber()}).`);
+        }
+
         const gstDec = new Decimal(gstRate !== undefined ? gstRate : 5.0);
 
         const grossLine = rateDec.times(qty);
         let lineDisc = new Decimal(0);
         const discPct = new Decimal(discountPercent || 0);
+        if (discPct.isNegative() || discPct.greaterThan(20)) {
+          throw new Error('Purchase discount percentage cannot exceed 20% policy limit and cannot be negative.');
+        }
         if (discPct.greaterThan(0)) {
           lineDisc = grossLine.times(discPct).dividedBy(100);
         } else if (discountAmount && new Decimal(discountAmount).greaterThan(0)) {
@@ -736,7 +769,27 @@ export const updatePurchase = async (req: Request, res: Response) => {
         lineDiscountsTotalDec = lineDiscountsTotalDec.plus(lineDisc);
 
         const parsedExpiry = new Date(expiryDate);
-        const totalNewQty = qty + freeQty;
+        if (isNaN(parsedExpiry.getTime())) {
+          throw new Error(`Invalid expiry date format for batch ${batchNumber}`);
+        }
+
+        if (line.conversionFactor !== undefined && line.conversionFactor !== null && line.conversionFactor !== '') {
+          const parsedFactor = parseInt(line.conversionFactor);
+          if (isNaN(parsedFactor) || parsedFactor <= 0) {
+            throw new Error(`Conversion factor (Units/Pk) for batch ${batchNumber} must be an integer greater than zero.`);
+          }
+        }
+
+        const factor = (line.conversionFactor && parseInt(line.conversionFactor) > 0)
+          ? parseInt(line.conversionFactor)
+          : 1;
+        const lineUnit = line.unit || 'Strip';
+        const totalNewQty = (qty + freeQty) * factor;
+
+        // Base rates
+        const basePurchaseRate = rateDec.dividedBy(factor).toDecimalPlaces(4).toNumber();
+        const baseSellingPrice = sellingRateDec.dividedBy(factor).toDecimalPlaces(4).toNumber();
+        const baseMrp = mrpDec.dividedBy(factor).toDecimalPlaces(4).toNumber();
 
         const key = `${medicineId}_${batchNumber.trim()}`;
         const oldData = oldBatchMap.get(key);
@@ -769,9 +822,9 @@ export const updatePurchase = async (req: Request, res: Response) => {
             data: {
               availableQuantity: newAvailable,
               quantityReceived: Math.max(0, newReceived),
-              purchaseRate: rateDec.toNumber(),
-              sellingPrice: sellingRateDec.toNumber(),
-              mrp: mrpDec.toNumber(),
+              purchaseRate: basePurchaseRate,
+              sellingPrice: baseSellingPrice,
+              mrp: baseMrp,
               status: newAvailable === 0 ? 'DEPLETED' : 'ACTIVE',
             },
           });
@@ -785,9 +838,9 @@ export const updatePurchase = async (req: Request, res: Response) => {
               expiryDate: parsedExpiry,
               quantityReceived: totalNewQty,
               availableQuantity: totalNewQty,
-              purchaseRate: rateDec.toNumber(),
-              sellingPrice: sellingRateDec.toNumber(),
-              mrp: mrpDec.toNumber(),
+              purchaseRate: basePurchaseRate,
+              sellingPrice: baseSellingPrice,
+              mrp: baseMrp,
               supplierId: supplierId || existingInvoice.supplierId,
               purchaseInvoiceRef: (supplierInvoiceNumber || existingInvoice.supplierInvoiceNumber).trim(),
               status: 'ACTIVE',
@@ -804,7 +857,7 @@ export const updatePurchase = async (req: Request, res: Response) => {
               batchId: batch.id,
               movementType: delta > 0 ? 'PURCHASE_RECEIPT' : 'STOCK_CORRECTION',
               quantityDelta: delta,
-              unitPrice: rateDec.toNumber(),
+              unitPrice: basePurchaseRate,
               referenceDocType: 'PURCHASE_INVOICE',
               referenceDocId: existingInvoice.invoiceNumber,
               reason: `Invoice reconciliation (${existingInvoice.invoiceNumber}): ${delta > 0 ? `+${delta} units added` : `${delta} units adjusted`}`,
@@ -819,6 +872,9 @@ export const updatePurchase = async (req: Request, res: Response) => {
           expiryDate: parsedExpiry,
           quantity: qty,
           freeQuantity: freeQty,
+          unit: lineUnit,
+          conversionFactor: factor,
+          baseQuantity: totalNewQty,
           purchaseRate: rateDec.toNumber(),
           sellingRate: sellingRateDec.toNumber(),
           mrp: mrpDec.toNumber(),
@@ -1416,8 +1472,11 @@ export const previewPurchaseImport = async (req: Request, res: Response) => {
       if (isNaN(mrp) || mrp < purchaseRate) {
         errors.push('MRP must be greater than or equal to purchase rate');
       }
-      if (isNaN(discountPercent) || discountPercent < 0 || discountPercent > 100) {
-        errors.push('Discount % must be between 0 and 100');
+      if (!isNaN(sellingRate) && sellingRate > mrp) {
+        errors.push('Selling rate cannot exceed printed MRP');
+      }
+      if (isNaN(discountPercent) || discountPercent < 0 || discountPercent > 20) {
+        errors.push('Discount % must be between 0% and 20%');
       }
       if (isNaN(gstRate) || gstRate < 0) {
         errors.push('Valid GST Rate is required');
@@ -1540,6 +1599,10 @@ export const previewPurchaseImport = async (req: Request, res: Response) => {
         taxableAmount: lineTaxableDec.toDecimalPlaces(2).toNumber(),
         taxAmount: lineTaxDec.toDecimalPlaces(2).toNumber(),
         lineTotal: lineTotalDec.toDecimalPlaces(2).toNumber(),
+        effectiveBaseUnitCost: totalUnits > 0 ? lineTaxableDec.dividedBy(totalUnits).toDecimalPlaces(4).toNumber() : (conversionFactor > 0 ? new Decimal(purchaseRate).dividedBy(conversionFactor).toDecimalPlaces(4).toNumber() : purchaseRate),
+        basePurchaseRate: conversionFactor > 0 ? new Decimal(purchaseRate).dividedBy(conversionFactor).toDecimalPlaces(4).toNumber() : purchaseRate,
+        baseMrp: conversionFactor > 0 ? new Decimal(mrp).dividedBy(conversionFactor).toDecimalPlaces(4).toNumber() : mrp,
+        baseSellingRate: conversionFactor > 0 ? new Decimal(sellingRate).dividedBy(conversionFactor).toDecimalPlaces(4).toNumber() : sellingRate,
         status: errors.length > 0 ? 'ERROR' : 'READY',
         errors,
         warnings,

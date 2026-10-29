@@ -52,6 +52,8 @@ interface PurchaseLineForm {
   discountPercent: number;
   discountAmount: number;
   gstRate: number;
+  discountMode?: 'preset' | 'custom';
+  customDiscount?: string;
 }
 
 interface PurchasesPageProps {
@@ -472,7 +474,24 @@ export const PurchasesPage: React.FC<PurchasesPageProps> = ({ prefilledIndent, o
         // Respect product-level tax classification
         updated[idx].gstRate = prod.gstRate !== undefined ? prod.gstRate : configuredCombinedGST;
         updated[idx].unit = prod.packageUnit || 'Box';
-        updated[idx].conversionFactor = prod.conversionFactor || 10;
+        const form = (prod.dosageForm || '').toLowerCase();
+        const isLiquid = form.includes('syrup') || form.includes('suspension') || form.includes('liquid') || form.includes('drop');
+        updated[idx].conversionFactor = prod.conversionFactor ? prod.conversionFactor : (isLiquid ? 1 : 10);
+      }
+    } else if (field === 'mrp') {
+      const numMrp = parseFloat(val);
+      if (!isNaN(numMrp)) {
+        const currentSelling = parseFloat(updated[idx].sellingRate as any);
+        if (isNaN(currentSelling) || currentSelling > numMrp || currentSelling === 0) {
+          updated[idx].sellingRate = numMrp;
+        }
+      }
+    } else if (field === 'sellingRate') {
+      const numSelling = parseFloat(val);
+      const numMrp = parseFloat(updated[idx].mrp as any);
+      if (!isNaN(numSelling) && !isNaN(numMrp) && numSelling > numMrp) {
+        // Never silently set selling rate above applicable MRP
+        updated[idx].sellingRate = numMrp;
       }
     }
     setLines(updated);
@@ -2618,18 +2637,71 @@ export const PurchasesPage: React.FC<PurchasesPageProps> = ({ prefilledIndent, o
                           </div>
 
                           <div className="col-span-2">
-                            <label className="text-[10px] text-slate-500 block">
-                              Discount ({l.discountPercent}%)
+                            <label className="text-[10px] text-slate-500 block font-medium">
+                              Discount ({Number(l.discountPercent || 0)}%)
                             </label>
-                            <input
-                              type="number"
-                              step="0.1"
-                              min="0"
-                              max="100"
-                              value={l.discountPercent}
-                              onChange={(e) => updateLine(idx, 'discountPercent', e.target.value)}
-                              className="w-full px-2 py-1 bg-white border border-slate-300 rounded font-mono text-xs"
-                            />
+                            <select
+                              value={
+                                [0, 5, 10, 15, 20].includes(Number(l.discountPercent)) && !l.discountMode
+                                  ? String(Number(l.discountPercent))
+                                  : (l.discountMode === 'custom' || ![0, 5, 10, 15, 20].includes(Number(l.discountPercent)) ? 'custom' : '0')
+                              }
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                if (val === 'custom') {
+                                  updateLine(idx, 'discountMode', 'custom');
+                                  if ([0, 5, 10, 15, 20].includes(Number(l.discountPercent))) {
+                                    updateLine(idx, 'customDiscount', String(l.discountPercent));
+                                  }
+                                } else {
+                                  updateLine(idx, 'discountMode', undefined);
+                                  updateLine(idx, 'customDiscount', undefined);
+                                  updateLine(idx, 'discountPercent', Number(val));
+                                }
+                              }}
+                              className="w-full px-1.5 py-1 bg-white border border-slate-300 rounded text-xs font-semibold"
+                            >
+                              <option value="0">0%</option>
+                              <option value="5">5%</option>
+                              <option value="10">10%</option>
+                              <option value="15">15%</option>
+                              <option value="20">20%</option>
+                              <option value="custom">Custom %</option>
+                            </select>
+                            {(l.discountMode === 'custom' || (![0, 5, 10, 15, 20].includes(Number(l.discountPercent)) && Number(l.discountPercent) > 0)) && (
+                              <div className="mt-1">
+                                <input
+                                  type="number"
+                                  step="0.1"
+                                  min="0"
+                                  max="20"
+                                  placeholder="0.0 - 20%"
+                                  value={l.customDiscount !== undefined ? l.customDiscount : (l.discountPercent ?? '')}
+                                  onChange={(e) => {
+                                    const raw = e.target.value;
+                                    updateLine(idx, 'customDiscount', raw);
+                                    if (raw.trim() === '') {
+                                      updateLine(idx, 'discountPercent', 0);
+                                    } else {
+                                      const parsed = parseFloat(raw);
+                                      if (!isNaN(parsed)) {
+                                        if (parsed < 0) {
+                                          updateLine(idx, 'discountPercent', 0);
+                                        } else if (parsed > 20) {
+                                          updateLine(idx, 'discountPercent', 20);
+                                        } else {
+                                          updateLine(idx, 'discountPercent', parsed);
+                                        }
+                                      }
+                                    }
+                                  }}
+                                  className="w-full px-1.5 py-0.5 bg-white border border-amber-300 rounded font-mono text-[11px] text-amber-900"
+                                />
+                                {Number(l.discountPercent) > 20 && (
+                                  <span className="text-[9px] text-rose-600 block">Max discount is 20%</span>
+                                )}
+                              </div>
+                            )}
                           </div>
 
                           <div className="col-span-2">
@@ -2652,6 +2724,9 @@ export const PurchasesPage: React.FC<PurchasesPageProps> = ({ prefilledIndent, o
                           <div className="col-span-2 flex flex-col items-end justify-center font-mono text-[10px] text-slate-600">
                             <span className="font-bold text-slate-800">
                               Base: {baseNormalizedQty} units
+                            </span>
+                            <span className="text-slate-500 font-semibold">
+                              Cost: ₹{(effectiveUnitCost / (factor || 1)).toFixed(2)}/u
                             </span>
                             <span className="text-emerald-700 font-bold">
                               Margin: {expectedMarginPct.toFixed(1)}%

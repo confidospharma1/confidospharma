@@ -39,6 +39,10 @@ interface BillItem {
   baseUnit?: string;
   packageUnit?: string;
   conversionFactor?: number;
+  selectedUnit?: string;
+  unitMultiplier?: number;
+  baseSellingPrice?: number;
+  supportedUnits?: { unit: string; multiplierToBase: number }[];
 }
 
 export const POSBillingPage: React.FC = () => {
@@ -65,6 +69,41 @@ export const POSBillingPage: React.FC = () => {
   const [showReceiptModal, setShowReceiptModal] = useState(false);
 
   const searchInputRef = useRef<HTMLInputElement>(null);
+
+  const deriveUnitsForProduct = (prod: MedicineProduct) => {
+    const form = (prod.dosageForm || '').toLowerCase();
+    const baseUnit = prod.baseUnit || 'Strip';
+    const pkgUnit = prod.packageUnit || 'Box';
+    const factor = prod.conversionFactor && prod.conversionFactor > 0 ? prod.conversionFactor : 10;
+
+    if (form.includes('syrup') || form.includes('suspension') || form.includes('liquid') || form.includes('drop')) {
+      return [
+        { unit: 'Bottle', multiplierToBase: 1 },
+        ...(factor > 1 ? [{ unit: 'Box', multiplierToBase: factor }] : [])
+      ];
+    }
+    if (form.includes('sachet') || form.includes('powder')) {
+      return [
+        { unit: 'Sachet', multiplierToBase: 1 },
+        ...(factor > 1 ? [{ unit: 'Box', multiplierToBase: factor }] : [])
+      ];
+    }
+
+    const isBox = pkgUnit.toLowerCase() === 'box' || pkgUnit.toLowerCase() === 'pack';
+    const stripMultiplier = isBox ? (factor >= 10 ? 10 : 1) : factor;
+    const boxMultiplier = isBox ? factor : factor * 10;
+    const singleUnit = form.includes('capsule') ? 'Capsule' : (baseUnit.toLowerCase() === 'strip' ? 'Tablet' : baseUnit);
+
+    const units: { unit: string; multiplierToBase: number }[] = [];
+    if (stripMultiplier > 1) {
+      units.push({ unit: 'Strip', multiplierToBase: stripMultiplier });
+    }
+    units.push({ unit: singleUnit, multiplierToBase: 1 });
+    if (boxMultiplier > stripMultiplier) {
+      units.push({ unit: 'Box', multiplierToBase: boxMultiplier });
+    }
+    return units;
+  };
 
   // Focus search input on mount and F2 key press
   useEffect(() => {
@@ -146,16 +185,21 @@ export const POSBillingPage: React.FC = () => {
 
     // Default FEFO batch: first active non-expired batch
     const bestBatch = product.activeBatches[0];
+    const supportedUnits = deriveUnitsForProduct(product);
+    const initialUnitObj = supportedUnits[0] || { unit: product.baseUnit || 'Strip', multiplierToBase: 1 };
+    const basePrice = bestBatch.sellingPrice || bestBatch.mrp;
+    const initialMultiplier = initialUnitObj.multiplierToBase;
 
-    // Check if medicine with this batch is already in draft
+    // Check if medicine with this batch and unit is already in draft
     const existingIndex = billItems.findIndex(
-      (item) => item.medicineId === product.id && item.batchId === bestBatch.id
+      (item) => item.medicineId === product.id && item.batchId === bestBatch.id && item.selectedUnit === initialUnitObj.unit
     );
 
     if (existingIndex > -1) {
       const existing = billItems[existingIndex];
-      if (existing.quantity + 1 > bestBatch.availableQuantity) {
-        setErrorMessage(`Cannot add more: Max available stock for Batch ${bestBatch.batchNumber} is ${bestBatch.availableQuantity}.`);
+      const maxAllowed = Math.floor(bestBatch.availableQuantity / initialMultiplier);
+      if (existing.quantity + 1 > maxAllowed) {
+        setErrorMessage(`Cannot add more: Max available stock for Batch ${bestBatch.batchNumber} is ${maxAllowed} ${initialUnitObj.unit}.`);
         return;
       }
 
@@ -176,7 +220,11 @@ export const POSBillingPage: React.FC = () => {
         expiryDate: bestBatch.expiryDate,
         availableStock: bestBatch.availableQuantity,
         quantity: 1,
-        unitMrp: bestBatch.sellingPrice || bestBatch.mrp,
+        unitMrp: basePrice * initialMultiplier,
+        baseSellingPrice: basePrice,
+        selectedUnit: initialUnitObj.unit,
+        unitMultiplier: initialMultiplier,
+        supportedUnits,
         discountPercent: 0,
         availableBatches: product.activeBatches || [bestBatch],
         baseUnit: product.baseUnit,
@@ -195,6 +243,10 @@ export const POSBillingPage: React.FC = () => {
     const targetBatch = item.availableBatches?.find((b) => b.id === newBatchId);
     if (!targetBatch) return;
 
+    const basePrice = targetBatch.sellingPrice || targetBatch.mrp;
+    const multiplier = item.unitMultiplier || 1;
+    const maxAllowedInUnit = Math.floor(targetBatch.availableQuantity / multiplier);
+
     const updated = [...billItems];
     updated[index] = {
       ...item,
@@ -202,8 +254,29 @@ export const POSBillingPage: React.FC = () => {
       batchNumber: targetBatch.batchNumber,
       expiryDate: targetBatch.expiryDate,
       availableStock: targetBatch.availableQuantity,
-      unitMrp: targetBatch.sellingPrice || targetBatch.mrp,
-      quantity: Math.min(item.quantity, targetBatch.availableQuantity),
+      baseSellingPrice: basePrice,
+      unitMrp: basePrice * multiplier,
+      quantity: Math.min(item.quantity, Math.max(1, maxAllowedInUnit)),
+    };
+    setBillItems(updated);
+  };
+
+  const changeItemUnit = (index: number, newUnit: string) => {
+    const item = billItems[index];
+    const matched = item.supportedUnits?.find((u) => u.unit === newUnit);
+    if (!matched) return;
+
+    const newMultiplier = matched.multiplierToBase;
+    const basePrice = item.baseSellingPrice || item.unitMrp;
+    const maxAllowedInUnit = Math.floor(item.availableStock / newMultiplier);
+
+    const updated = [...billItems];
+    updated[index] = {
+      ...item,
+      selectedUnit: newUnit,
+      unitMultiplier: newMultiplier,
+      unitMrp: basePrice * newMultiplier,
+      quantity: Math.min(item.quantity, Math.max(1, maxAllowedInUnit)),
     };
     setBillItems(updated);
   };
@@ -214,8 +287,10 @@ export const POSBillingPage: React.FC = () => {
       removeItem(index);
       return;
     }
-    if (newQty > item.availableStock) {
-      setErrorMessage(`Cannot exceed available stock of ${item.availableStock} for batch ${item.batchNumber}`);
+    const multiplier = item.unitMultiplier || 1;
+    const maxAllowed = Math.floor(item.availableStock / multiplier);
+    if (newQty > maxAllowed) {
+      setErrorMessage(`Cannot exceed available stock of ${maxAllowed} ${item.selectedUnit || 'units'} for batch ${item.batchNumber}`);
       return;
     }
     setErrorMessage('');
@@ -286,6 +361,7 @@ export const POSBillingPage: React.FC = () => {
           medicineId: item.medicineId,
           batchId: item.batchId,
           quantity: item.quantity,
+          unit: item.selectedUnit,
           discountPercent: item.discountPercent,
         })),
       };
@@ -496,7 +572,7 @@ export const POSBillingPage: React.FC = () => {
                             </div>
                           ) : (
                             <p className="text-[11px] text-slate-500 font-mono mt-0.5">
-                              Batch: <span className="font-semibold text-slate-700">{item.batchNumber}</span> (Avail: {item.availableStock} {item.baseUnit || 'Strips'})
+                              Batch: <span className="font-semibold text-slate-700">{item.batchNumber}</span> (Avail: {Math.floor(item.availableStock / (item.unitMultiplier || 1))} {item.selectedUnit || item.baseUnit || 'units'})
                             </p>
                           )}
                         </td>
@@ -504,32 +580,53 @@ export const POSBillingPage: React.FC = () => {
                           {new Date(item.expiryDate).toLocaleDateString('en-IN', { month: 'short', year: 'numeric' })}
                         </td>
                         <td className="py-3 px-3 text-right font-mono text-slate-800">
-                          ₹{item.unitMrp.toFixed(2)}
+                          <span className="font-bold">₹{item.unitMrp.toFixed(2)}</span>
+                          <span className="text-[10px] text-slate-400 block font-sans">/{item.selectedUnit || 'unit'}</span>
                         </td>
                         <td className="py-3 px-3 text-center">
-                          <div className="flex items-center justify-center gap-1">
-                            <button
-                              onClick={() => updateQuantity(idx, item.quantity - 1)}
-                              className="p-1 rounded bg-slate-100 hover:bg-slate-200 text-slate-700"
-                              title="Decrease quantity"
-                            >
-                              <Minus className="w-3 h-3" />
-                            </button>
-                            <input
-                              type="number"
-                              min="1"
-                              max={item.availableStock}
-                              value={item.quantity}
-                              onChange={(e) => updateQuantity(idx, parseInt(e.target.value) || 0)}
-                              className="w-12 text-center py-1 bg-white border border-slate-300 rounded text-xs font-bold font-mono focus:ring-1 focus:ring-emerald-500"
-                            />
-                            <button
-                              onClick={() => updateQuantity(idx, item.quantity + 1)}
-                              className="p-1 rounded bg-slate-100 hover:bg-slate-200 text-slate-700"
-                              title="Increase quantity"
-                            >
-                              <Plus className="w-3 h-3" />
-                            </button>
+                          <div className="flex flex-col items-center justify-center gap-1">
+                            <div className="flex items-center justify-center gap-1">
+                              <button
+                                onClick={() => updateQuantity(idx, item.quantity - 1)}
+                                className="p-1 rounded bg-slate-100 hover:bg-slate-200 text-slate-700"
+                                title="Decrease quantity"
+                              >
+                                <Minus className="w-3 h-3" />
+                              </button>
+                              <input
+                                type="number"
+                                min="1"
+                                max={Math.floor(item.availableStock / (item.unitMultiplier || 1))}
+                                value={item.quantity}
+                                onChange={(e) => updateQuantity(idx, parseInt(e.target.value) || 0)}
+                                className="w-12 text-center py-1 bg-white border border-slate-300 rounded text-xs font-bold font-mono focus:ring-1 focus:ring-emerald-500"
+                              />
+                              <button
+                                onClick={() => updateQuantity(idx, item.quantity + 1)}
+                                className="p-1 rounded bg-slate-100 hover:bg-slate-200 text-slate-700"
+                                title="Increase quantity"
+                              >
+                                <Plus className="w-3 h-3" />
+                              </button>
+                            </div>
+                            {item.supportedUnits && item.supportedUnits.length > 1 ? (
+                              <select
+                                value={item.selectedUnit}
+                                onChange={(e) => changeItemUnit(idx, e.target.value)}
+                                className="text-[10px] font-semibold bg-white border border-slate-300 rounded px-1.5 py-0.5 text-brand-700 shadow-2xs"
+                                title="Select retail unit (Strip / Tablet / Box)"
+                              >
+                                {item.supportedUnits.map((u) => (
+                                  <option key={u.unit} value={u.unit}>
+                                    {u.unit}
+                                  </option>
+                                ))}
+                              </select>
+                            ) : (
+                              <span className="text-[10px] text-slate-400 font-medium">
+                                {item.selectedUnit || item.baseUnit || 'units'}
+                              </span>
+                            )}
                           </div>
                         </td>
                         <td className="py-3 px-3 text-center">

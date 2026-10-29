@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import Decimal from 'decimal.js';
 import prisma from '../../database/prisma';
 import { logAuditEvent } from '../../utils/audit';
+import { buildProductUnitConfig } from '../../utils/unitConverter';
 
 export const createInvoice = async (req: Request, res: Response) => {
   try {
@@ -42,7 +43,7 @@ export const createInvoice = async (req: Request, res: Response) => {
       const now = new Date();
 
       for (const item of items) {
-        const { medicineId, batchId, quantity, discountPercent = 0 } = item;
+        const { medicineId, batchId, quantity, unit, discountPercent = 0 } = item;
 
         const qty = parseInt(quantity);
         if (!qty || qty <= 0) {
@@ -60,6 +61,25 @@ export const createInvoice = async (req: Request, res: Response) => {
           throw new Error(`Medicine product with ID ${medicineId} is not active or not found.`);
         }
 
+        // Build product unit configuration to determine multiplier to base inventory unit
+        const unitConfig = buildProductUnitConfig(
+          medicine.baseUnit,
+          medicine.packageUnit,
+          medicine.conversionFactor,
+          medicine.dosageForm,
+          medicine.unitConfig
+        );
+
+        const selectedUnit = (unit && typeof unit === 'string' && unit.trim())
+          ? unit.trim()
+          : (medicine.baseUnit || 'Strip');
+
+        const matchedUnit = unitConfig.supportedUnits.find(
+          (u) => u.unit.toLowerCase() === selectedUnit.toLowerCase()
+        );
+        const multiplier = matchedUnit ? matchedUnit.multiplierToBase : 1;
+        const baseQtyToDeduct = qty * multiplier;
+
         // Fetch batch
         let batch;
         if (batchId) {
@@ -71,7 +91,7 @@ export const createInvoice = async (req: Request, res: Response) => {
               branchId: targetBranchId,
               medicineId,
               status: 'ACTIVE',
-              availableQuantity: { gte: qty },
+              availableQuantity: { gte: baseQtyToDeduct },
               expiryDate: { gt: now },
             },
             orderBy: { expiryDate: 'asc' },
@@ -94,13 +114,14 @@ export const createInvoice = async (req: Request, res: Response) => {
           throw new Error(`Batch ${batch.batchNumber} of ${medicine.brandName} has expired (${batch.expiryDate.toISOString().split('T')[0]}) and cannot be sold.`);
         }
 
-        if (batch.availableQuantity < qty) {
-          throw new Error(`Insufficient stock for ${medicine.brandName} (Batch: ${batch.batchNumber}). Requested: ${qty}, Available: ${batch.availableQuantity}`);
+        if (batch.availableQuantity < baseQtyToDeduct) {
+          throw new Error(`Insufficient stock for ${medicine.brandName} (Batch: ${batch.batchNumber}). Requested: ${baseQtyToDeduct} base units (${qty} ${selectedUnit}), Available: ${batch.availableQuantity}`);
         }
 
         // Decimal financial calculations
-        // Unit MRP inclusive of GST
-        const unitMrpDec = new Decimal(batch.sellingPrice || batch.mrp);
+        // Unit MRP and Selling Rate scaled to the requested selling unit
+        const baseRate = new Decimal(batch.sellingPrice || batch.mrp);
+        const unitMrpDec = baseRate.times(multiplier);
         const grossAmount = unitMrpDec.times(qty);
 
         // Discount
@@ -124,12 +145,12 @@ export const createInvoice = async (req: Request, res: Response) => {
         cgstTotalDec = cgstTotalDec.plus(lineCgst);
         sgstTotalDec = sgstTotalDec.plus(lineSgst);
 
-        // Deduct batch stock
+        // Deduct batch stock in base units
         await tx.stockBatch.update({
           where: { id: batch.id },
           data: {
-            availableQuantity: batch.availableQuantity - qty,
-            status: batch.availableQuantity - qty === 0 ? 'DEPLETED' : 'ACTIVE',
+            availableQuantity: batch.availableQuantity - baseQtyToDeduct,
+            status: batch.availableQuantity - baseQtyToDeduct === 0 ? 'DEPLETED' : 'ACTIVE',
           },
         });
 
@@ -140,7 +161,10 @@ export const createInvoice = async (req: Request, res: Response) => {
           batchNumber: batch.batchNumber,
           expiryDate: batch.expiryDate,
           quantity: qty,
-          unitMrp: unitMrpDec.toNumber(),
+          unit: selectedUnit,
+          conversionFactor: multiplier,
+          baseQuantity: baseQtyToDeduct,
+          unitMrp: unitMrpDec.toDecimalPlaces(2).toNumber(),
           unitRate: taxableAmount.dividedBy(qty).toDecimalPlaces(2).toNumber(),
           discountPercent: discPct.toNumber(),
           discountAmount: lineDiscount.toDecimalPlaces(2).toNumber(),
@@ -149,7 +173,7 @@ export const createInvoice = async (req: Request, res: Response) => {
           cgstAmount: lineCgst.toDecimalPlaces(2).toNumber(),
           sgstAmount: lineSgst.toDecimalPlaces(2).toNumber(),
           lineTotal: netAfterDiscount.toDecimalPlaces(2).toNumber(),
-          purchaseRate: batch.purchaseRate,
+          purchaseRate: new Decimal(batch.purchaseRate).times(multiplier).toNumber(),
         });
       }
 
@@ -190,6 +214,9 @@ export const createInvoice = async (req: Request, res: Response) => {
               batchNumber: l.batchNumber,
               expiryDate: l.expiryDate,
               quantity: l.quantity,
+              unit: l.unit,
+              conversionFactor: l.conversionFactor,
+              baseQuantity: l.baseQuantity,
               unitMrp: l.unitMrp,
               unitRate: l.unitRate,
               discountPercent: l.discountPercent,
@@ -217,7 +244,7 @@ export const createInvoice = async (req: Request, res: Response) => {
             medicineId: line.medicineId,
             batchId: line.batchId,
             movementType: 'SALE',
-            quantityDelta: -line.quantity,
+            quantityDelta: -line.baseQuantity,
             unitPrice: line.unitMrp,
             referenceDocType: 'SALES_INVOICE',
             referenceDocId: invoice.id,
@@ -228,7 +255,7 @@ export const createInvoice = async (req: Request, res: Response) => {
       }
 
       return invoice;
-    });
+    }, { maxWait: 10000, timeout: 25000 });
 
     await logAuditEvent({
       userId: req.user.id,
@@ -377,10 +404,11 @@ export const cancelInvoice = async (req: Request, res: Response) => {
           // Restore stock batch
           const batch = await tx.stockBatch.findUnique({ where: { id: line.batchId } });
           if (batch) {
+            const qtyToRestore = (line.baseQuantity && line.baseQuantity > 0) ? line.baseQuantity : line.quantity;
             await tx.stockBatch.update({
               where: { id: batch.id },
               data: {
-                availableQuantity: batch.availableQuantity + line.quantity,
+                availableQuantity: batch.availableQuantity + qtyToRestore,
                 status: 'ACTIVE',
               },
             });
@@ -392,7 +420,7 @@ export const cancelInvoice = async (req: Request, res: Response) => {
                 medicineId: line.medicineId,
                 batchId: batch.id,
                 movementType: 'CUSTOMER_RETURN',
-                quantityDelta: line.quantity,
+                quantityDelta: qtyToRestore,
                 unitPrice: line.unitMrp,
                 referenceDocType: 'SALES_INVOICE',
                 referenceDocId: invoice.id,
@@ -403,7 +431,7 @@ export const cancelInvoice = async (req: Request, res: Response) => {
           }
         }
       }
-    });
+    }, { maxWait: 10000, timeout: 25000 });
 
     await logAuditEvent({
       userId: req.user.id,
