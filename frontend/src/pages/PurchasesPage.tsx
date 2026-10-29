@@ -60,7 +60,7 @@ interface PurchasesPageProps {
 }
 
 export const PurchasesPage: React.FC<PurchasesPageProps> = ({ prefilledIndent, onClearPrefill }) => {
-  const { currentBranch, selectedBranchId, isBillingUser, isSuperAdmin, isBranchAdmin } = useAuth();
+  const { currentBranch, selectedBranchId, branches, isBillingUser, isSuperAdmin, isBranchAdmin } = useAuth();
 
   const [activeSubTab, setActiveSubTab] = useState<'invoices' | 'suppliers' | 'returns'>('invoices');
   const [purchases, setPurchases] = useState<PurchaseInvoice[]>([]);
@@ -134,6 +134,7 @@ export const PurchasesPage: React.FC<PurchasesPageProps> = ({ prefilledIndent, o
   const [showModal, setShowModal] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editingInvoiceId, setEditingInvoiceId] = useState<string | null>(null);
+  const [draftBranchId, setDraftBranchId] = useState<string>(selectedBranchId || '');
 
   const [supplierId, setSupplierId] = useState('');
   const [supplierSearchQuery, setSupplierSearchQuery] = useState('');
@@ -281,6 +282,17 @@ export const PurchasesPage: React.FC<PurchasesPageProps> = ({ prefilledIndent, o
     loadData();
   }, [selectedBranchId]);
 
+  // Keep draft branch synchronized with global selection when not editing
+  useEffect(() => {
+    if (!isEditing) {
+      if (selectedBranchId) {
+        setDraftBranchId(selectedBranchId);
+      } else if (branches.length > 0 && !draftBranchId) {
+        setDraftBranchId(branches[0].id);
+      }
+    }
+  }, [selectedBranchId, branches, isEditing]);
+
   // Handle Indent Requisition Conversion Prefill
   useEffect(() => {
     if (prefilledIndent) {
@@ -288,6 +300,11 @@ export const PurchasesPage: React.FC<PurchasesPageProps> = ({ prefilledIndent, o
       setIsEditing(false);
       setEditingInvoiceId(null);
       setEntryMode('manual');
+      if (prefilledIndent.branchId) {
+        setDraftBranchId(prefilledIndent.branchId);
+      } else if (selectedBranchId) {
+        setDraftBranchId(selectedBranchId);
+      }
       if (prefilledIndent.supplierId) {
         setSupplierId(prefilledIndent.supplierId);
         const sup = suppliers.find((s) => s.id === prefilledIndent.supplierId);
@@ -353,6 +370,7 @@ export const PurchasesPage: React.FC<PurchasesPageProps> = ({ prefilledIndent, o
     setInvoiceDiscountPercent('0');
     setInvoiceDiscountAmount('0');
     setAdditionalCharges('0');
+    setDraftBranchId(selectedBranchId || (branches.length > 0 ? branches[0].id : ''));
     setNotes('');
     setLines([
       {
@@ -381,6 +399,7 @@ export const PurchasesPage: React.FC<PurchasesPageProps> = ({ prefilledIndent, o
     }
     setIsEditing(true);
     setEditingInvoiceId(pur.id);
+    setDraftBranchId(pur.branchId || selectedBranchId);
     setEntryMode('manual');
     setImportFile(null);
     setImportPreviewData(null);
@@ -476,16 +495,23 @@ export const PurchasesPage: React.FC<PurchasesPageProps> = ({ prefilledIndent, o
     }
   };
 
-  const handleAnalyzeImport = async () => {
+  const handleAnalyzeImport = async (overrideBranchId?: string) => {
     if (!importFile) {
       setImportError('Please select an Excel (.xlsx) or CSV file first.');
       return;
     }
+    const effectiveBranchId = overrideBranchId || draftBranchId || selectedBranchId || currentBranch?.id;
+    if (!effectiveBranchId) {
+      setImportError('Target branch is required for purchase import. Please select a branch.');
+      return;
+    }
+
     setImportError(null);
     setIsAnalyzingImport(true);
     try {
       const formData = new FormData();
       formData.append('file', importFile);
+      formData.append('branchId', effectiveBranchId);
       if (supplierId) formData.append('supplierId', supplierId);
       if (supplierInvoiceNumber) formData.append('supplierInvoiceNumber', supplierInvoiceNumber);
 
@@ -495,6 +521,13 @@ export const PurchasesPage: React.FC<PurchasesPageProps> = ({ prefilledIndent, o
       setImportError(err.message || 'Failed to parse and validate file.');
     } finally {
       setIsAnalyzingImport(false);
+    }
+  };
+
+  const handleBranchChange = (newBranchId: string) => {
+    setDraftBranchId(newBranchId);
+    if (importFile && entryMode === 'import') {
+      handleAnalyzeImport(newBranchId);
     }
   };
 
@@ -526,6 +559,9 @@ export const PurchasesPage: React.FC<PurchasesPageProps> = ({ prefilledIndent, o
     if (validItems.length === 0) {
       alert('No valid items found in the import preview.');
       return;
+    }
+    if (importPreviewData.targetBranchId) {
+      setDraftBranchId(importPreviewData.targetBranchId);
     }
     const newLines: PurchaseLineForm[] = validItems.map((it: any) => ({
       medicineId: it.medicineId || '',
@@ -567,11 +603,17 @@ export const PurchasesPage: React.FC<PurchasesPageProps> = ({ prefilledIndent, o
       return;
     }
 
+    const effectiveBranchId = importPreviewData.targetBranchId || draftBranchId || selectedBranchId || currentBranch?.id;
+    if (!effectiveBranchId) {
+      setImportError('Target branch is required to post purchase invoice.');
+      return;
+    }
+
     setIsSubmittingImportPurchase(true);
     setImportError(null);
     try {
       const payload = {
-        branchId: selectedBranchId,
+        branchId: effectiveBranchId,
         supplierId,
         supplierInvoiceNumber: supplierInvoiceNumber.trim(),
         invoiceDate,
@@ -746,11 +788,17 @@ export const PurchasesPage: React.FC<PurchasesPageProps> = ({ prefilledIndent, o
       return;
     }
 
+    const effectiveBranchId = draftBranchId || selectedBranchId || currentBranch?.id;
+    if (!effectiveBranchId) {
+      setMessage({ text: 'Target branch is required to record a purchase invoice.', type: 'error' });
+      return;
+    }
+
     try {
       const parsedPaid = paidAmount !== '' ? parseFloat(paidAmount) : (paymentMode === 'CREDIT' ? 0 : formGrandTotal);
 
       const payload = {
-        branchId: selectedBranchId,
+        branchId: effectiveBranchId,
         supplierId,
         supplierInvoiceNumber: supplierInvoiceNumber.trim(),
         invoiceDate,
@@ -1888,7 +1936,38 @@ export const PurchasesPage: React.FC<PurchasesPageProps> = ({ prefilledIndent, o
         maxWidth="5xl"
       >
         <form onSubmit={handleSubmitPurchase} className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-3 bg-slate-50 p-3.5 rounded-xl border border-slate-200">
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-3 bg-slate-50 p-3.5 rounded-xl border border-slate-200">
+            {/* Target Branch Selector / Indicator */}
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <label className="text-xs font-bold text-slate-700">Target Branch *</label>
+              </div>
+              {isEditing ? (
+                <div
+                  className="w-full px-3 py-2 text-xs bg-slate-100 border border-slate-300 rounded-lg font-semibold text-slate-700 truncate"
+                  title="Target branch is locked on existing invoice"
+                >
+                  {branches.find((b) => b.id === draftBranchId)?.name || currentBranch?.name || 'Assigned Branch'}
+                </div>
+              ) : isSuperAdmin && branches.length > 0 ? (
+                <select
+                  value={draftBranchId}
+                  onChange={(e) => handleBranchChange(e.target.value)}
+                  className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-lg font-semibold text-slate-800 focus:ring-2 focus:ring-emerald-500"
+                >
+                  {branches.map((b) => (
+                    <option key={b.id} value={b.id}>
+                      {b.name} ({b.code})
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <div className="w-full px-3 py-2 text-xs bg-slate-100 border border-slate-300 rounded-lg font-semibold text-slate-700 truncate">
+                  {currentBranch?.name || 'Local Branch'} <span className="text-slate-500 font-mono text-[11px]">({currentBranch?.code})</span>
+                </div>
+              )}
+            </div>
+
             {/* Searchable Supplier Combobox with Inline Add */}
             <div className="relative">
               <div className="flex items-center justify-between mb-1">
@@ -2136,11 +2215,16 @@ export const PurchasesPage: React.FC<PurchasesPageProps> = ({ prefilledIndent, o
                 <div className="flex items-center justify-between bg-slate-50 p-3 rounded-lg border border-slate-200">
                   <span className="text-xs text-slate-600 font-medium">
                     Ready to validate items for invoice: <strong className="text-slate-900 font-mono">{supplierInvoiceNumber || 'Draft'}</strong>
+                    {draftBranchId && (
+                      <span className="ml-2 text-emerald-700 font-semibold">
+                        • Branch: {branches.find((b) => b.id === draftBranchId)?.name || currentBranch?.name || draftBranchId}
+                      </span>
+                    )}
                   </span>
                   <button
                     type="button"
                     disabled={isAnalyzingImport}
-                    onClick={handleAnalyzeImport}
+                    onClick={() => handleAnalyzeImport()}
                     className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold flex items-center gap-2 shadow-xs disabled:opacity-50"
                   >
                     {isAnalyzingImport ? (
@@ -2168,6 +2252,24 @@ export const PurchasesPage: React.FC<PurchasesPageProps> = ({ prefilledIndent, o
               {/* Staged Preview Section */}
               {importPreviewData && (
                 <div className="space-y-3 pt-1">
+                  {/* Branch & Status Banner */}
+                  <div className="flex items-center justify-between bg-emerald-50/70 border border-emerald-200 px-3 py-1.5 rounded-lg text-xs">
+                    <div className="flex items-center gap-2">
+                      <Building2 className="w-4 h-4 text-emerald-700" />
+                      <span className="font-semibold text-emerald-900">
+                        Target Branch:{' '}
+                        <strong>
+                          {importPreviewData.branchName ||
+                            branches.find((b) => b.id === (importPreviewData.targetBranchId || draftBranchId))?.name ||
+                            'Selected Branch'}
+                        </strong>
+                      </span>
+                    </div>
+                    <span className="text-[11px] text-emerald-700 font-mono">
+                      Staged for Inwards Validation
+                    </span>
+                  </div>
+
                   {/* Summary Metric Badges */}
                   <div className="grid grid-cols-2 sm:grid-cols-6 gap-2 text-xs">
                     <div className="p-2 bg-slate-50 rounded-lg border border-slate-200">

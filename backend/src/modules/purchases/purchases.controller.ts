@@ -151,7 +151,15 @@ export const createPurchase = async (req: Request, res: Response) => {
       notes,
     } = req.body;
 
-    const targetBranchId = req.user.role === 'SUPER_ADMIN' ? (branchId || req.user.branchId) : req.user.branchId;
+    let targetBranchId: string | null = null;
+    if (req.user.role === 'SUPER_ADMIN') {
+      targetBranchId = (branchId && typeof branchId === 'string' && branchId.trim()) ? branchId.trim() : (req.user.branchId || null);
+    } else {
+      if (branchId && typeof branchId === 'string' && branchId.trim() && branchId.trim() !== req.user.branchId) {
+        return res.status(403).json({ message: 'You are not authorized to record purchases for another branch' });
+      }
+      targetBranchId = req.user.branchId || null;
+    }
 
     if (!targetBranchId) {
       return res.status(400).json({ message: 'Target branch is required.' });
@@ -167,6 +175,7 @@ export const createPurchase = async (req: Request, res: Response) => {
 
     const branch = await prisma.branch.findUnique({ where: { id: targetBranchId } });
     if (!branch) return res.status(404).json({ message: 'Branch not found' });
+    if (!branch.isActive) return res.status(400).json({ message: 'Target branch is inactive' });
 
     const result = await prisma.$transaction(async (tx) => {
       // 1. Resolve or Create Supplier
@@ -1246,10 +1255,31 @@ export const previewPurchaseImport = async (req: Request, res: Response) => {
     }
 
     const { branchId, supplierId } = req.body;
-    const targetBranchId = req.user.role === 'SUPER_ADMIN' ? (branchId || req.user.branchId) : req.user.branchId;
+    let targetBranchId: string | null = null;
+
+    if (req.user.role === 'SUPER_ADMIN') {
+      targetBranchId = (branchId && typeof branchId === 'string' && branchId.trim()) ? branchId.trim() : (req.user.branchId || null);
+    } else {
+      if (branchId && typeof branchId === 'string' && branchId.trim() && branchId.trim() !== req.user.branchId) {
+        return res.status(403).json({ message: 'You are not authorized to import purchases into another branch' });
+      }
+      targetBranchId = req.user.branchId || null;
+    }
 
     if (!targetBranchId) {
       return res.status(400).json({ message: 'Target branch is required for purchase import' });
+    }
+
+    const targetBranch = await prisma.branch.findUnique({
+      where: { id: targetBranchId },
+    });
+
+    if (!targetBranch) {
+      return res.status(404).json({ message: 'Target branch not found' });
+    }
+
+    if (!targetBranch.isActive) {
+      return res.status(400).json({ message: 'Target branch is inactive' });
     }
 
     // Read workbook with xlsx (handles xlsx, xls, and csv buffers)
@@ -1562,6 +1592,9 @@ export const previewPurchaseImport = async (req: Request, res: Response) => {
     };
 
     return res.json({
+      targetBranchId: targetBranch.id,
+      branchName: targetBranch.name,
+      branchCode: targetBranch.code,
       fileName: req.file.originalname,
       totalRows: rawRows.length,
       validRows: validRowsCount,

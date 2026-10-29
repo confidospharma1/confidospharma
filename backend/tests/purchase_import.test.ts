@@ -13,7 +13,12 @@ import {
 
 describe('Purchase Inward Import & Canonical Mapping Test Suite', { timeout: 35000 }, () => {
   let superAdminToken = '';
+  let branchAdminToken = '';
+  let otherBranchAdminToken = '';
+  let billingUserToken = '';
   let branchId = '';
+  let branchId2 = '';
+  let inactiveBranchId = '';
   let supplierId = '';
 
   const binaryParser = (res: any, callback: any) => {
@@ -46,18 +51,26 @@ describe('Purchase Inward Import & Canonical Mapping Test Suite', { timeout: 350
       });
     }
 
+    // Ensure super admin has null branchId for testing strict target branch passing
+    if (superAdminUser.branchId !== null) {
+      superAdminUser = await prisma.user.update({
+        where: { id: superAdminUser.id },
+        data: { branchId: null },
+      });
+    }
+
     superAdminToken = jwt.sign(
       {
         id: superAdminUser.id,
         username: superAdminUser.username,
         role: superAdminUser.role,
-        branchId: superAdminUser.branchId,
+        branchId: null,
       },
       JWT_SECRET,
       { expiresIn: '1d' }
     );
 
-    let branch = await prisma.branch.findFirst();
+    let branch = await prisma.branch.findFirst({ where: { isActive: true } });
     if (!branch) {
       const company = await prisma.company.findFirst();
       branch = await prisma.branch.create({
@@ -66,11 +79,132 @@ describe('Purchase Inward Import & Canonical Mapping Test Suite', { timeout: 350
           code: 'B-TEST',
           name: 'Test Branch',
           address: 'Test Address',
+          phone: '+91 98765 43210',
           isActive: true,
         },
       });
     }
     branchId = branch.id;
+
+    // Second active branch for isolation testing
+    let branch2 = await prisma.branch.findFirst({
+      where: { id: { not: branchId }, isActive: true },
+    });
+    if (!branch2) {
+      const company = await prisma.company.findFirst();
+      branch2 = await prisma.branch.create({
+        data: {
+          companyId: company?.id || 'company-1',
+          code: 'B-TEST-2',
+          name: 'Second Test Branch',
+          address: 'Second Address',
+          phone: '+91 98765 43211',
+          isActive: true,
+        },
+      });
+    }
+    branchId2 = branch2.id;
+
+    // Inactive branch for activity status validation
+    let inactBranch = await prisma.branch.findFirst({ where: { isActive: false } });
+    if (!inactBranch) {
+      const company = await prisma.company.findFirst();
+      inactBranch = await prisma.branch.create({
+        data: {
+          companyId: company?.id || 'company-1',
+          code: 'B-INACT',
+          name: 'Inactive Branch',
+          address: 'Inactive Address',
+          phone: '+91 98765 43212',
+          isActive: false,
+        },
+      });
+    }
+    inactiveBranchId = inactBranch.id;
+
+    // Branch Admin for branch 1
+    let branchAdminUser = await prisma.user.findFirst({
+      where: { role: 'BRANCH_ADMIN', branchId, isActive: true },
+    });
+    if (!branchAdminUser) {
+      branchAdminUser = await prisma.user.create({
+        data: {
+          username: 'import_test_b_admin_1',
+          email: 'badmin1_import@confidos.test',
+          fullName: 'Branch Admin Branch 1',
+          passwordHash: 'dummy',
+          role: 'BRANCH_ADMIN',
+          branchId,
+          isActive: true,
+        },
+      });
+    }
+    branchAdminToken = jwt.sign(
+      {
+        id: branchAdminUser.id,
+        username: branchAdminUser.username,
+        role: branchAdminUser.role,
+        branchId: branchAdminUser.branchId,
+      },
+      JWT_SECRET,
+      { expiresIn: '1d' }
+    );
+
+    // Branch Admin for branch 2
+    let otherBranchAdminUser = await prisma.user.findFirst({
+      where: { role: 'BRANCH_ADMIN', branchId: branchId2, isActive: true },
+    });
+    if (!otherBranchAdminUser) {
+      otherBranchAdminUser = await prisma.user.create({
+        data: {
+          username: 'import_test_b_admin_2',
+          email: 'badmin2_import@confidos.test',
+          fullName: 'Branch Admin Branch 2',
+          passwordHash: 'dummy',
+          role: 'BRANCH_ADMIN',
+          branchId: branchId2,
+          isActive: true,
+        },
+      });
+    }
+    otherBranchAdminToken = jwt.sign(
+      {
+        id: otherBranchAdminUser.id,
+        username: otherBranchAdminUser.username,
+        role: otherBranchAdminUser.role,
+        branchId: otherBranchAdminUser.branchId,
+      },
+      JWT_SECRET,
+      { expiresIn: '1d' }
+    );
+
+    // Billing User
+    let billingUser = await prisma.user.findFirst({
+      where: { role: 'BILLING_USER', isActive: true },
+    });
+    if (!billingUser) {
+      billingUser = await prisma.user.create({
+        data: {
+          username: 'import_test_cashier',
+          email: 'cashier_import@confidos.test',
+          fullName: 'Import Cashier',
+          passwordHash: 'dummy',
+          role: 'BILLING_USER',
+          branchId,
+          isActive: true,
+        },
+      });
+    }
+    billingUserToken = jwt.sign(
+      {
+        id: billingUser.id,
+        username: billingUser.username,
+        role: billingUser.role,
+        branchId: billingUser.branchId,
+      },
+      JWT_SECRET,
+      { expiresIn: '1d' }
+    );
 
     // Ensure an isolated test supplier exists
     let supplier = await prisma.supplier.findFirst({
@@ -731,6 +865,313 @@ describe('Purchase Inward Import & Canonical Mapping Test Suite', { timeout: 350
       });
       expect(movement).not.toBeNull();
       expect(movement?.quantityDelta).toBe(110);
+    });
+  });
+
+  describe('14. Target Branch Validation, Isolation & Propagation Regression Tests', () => {
+    const validSampleRows = [
+      {
+        'Product Name': 'Paracetamol 650mg Caplet',
+        'Generic Name': 'Paracetamol',
+        'Strength': '650mg',
+        'Dosage Form': 'Tablet',
+        'Manufacturer': 'Apex Pharma',
+        'Batch Number': 'REG-BR-01',
+        'Expiry Date': '2028-12-31',
+        'Purchase Unit': 'Box',
+        'Quantity': 20,
+        'Free Quantity': 2,
+        'Units Per Pack': 10,
+        'Purchase Rate': 30.0,
+        'MRP': 45.0,
+        'GST Rate': 12,
+        'Discount': 5,
+      },
+    ];
+
+    it('14.1 A valid selected branch is passed to the import API and returns targetBranchId & branchName', async () => {
+      const buffer = createExcelBuffer(validSampleRows);
+      const res = await request(app)
+        .post('/api/purchases/import-preview')
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .field('branchId', branchId)
+        .field('supplierId', supplierId)
+        .attach('file', buffer, 'branch_valid.xlsx');
+
+      expect(res.status).toBe(200);
+      expect(res.body.targetBranchId).toBe(branchId);
+      expect(res.body.branchName).toBeDefined();
+      expect(res.body.validRows).toBe(1);
+      expect(res.body.errorRows).toBe(0);
+    });
+
+    it('14.2 A missing branch produces a clear HTTP 400 validation message', async () => {
+      const buffer = createExcelBuffer(validSampleRows);
+      const res = await request(app)
+        .post('/api/purchases/import-preview')
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        // Intentionally omit branchId
+        .field('supplierId', supplierId)
+        .attach('file', buffer, 'no_branch.xlsx');
+
+      expect(res.status).toBe(400);
+      expect(res.body.message).toBe('Target branch is required for purchase import');
+    });
+
+    it('14.3 An unauthorized branch is rejected by the backend with HTTP 403 for Branch Admin', async () => {
+      const buffer = createExcelBuffer(validSampleRows);
+      // branchAdminToken belongs to branchId (Branch 1). Attempting to import into branchId2 (Branch 2):
+      const res = await request(app)
+        .post('/api/purchases/import-preview')
+        .set('Authorization', `Bearer ${branchAdminToken}`)
+        .field('branchId', branchId2)
+        .attach('file', buffer, 'unauthorized_branch.xlsx');
+
+      expect(res.status).toBe(403);
+      expect(res.body.message).toContain('not authorized to import purchases into another branch');
+    });
+
+    it('14.4 Branch Admin can import into their own authorized branch without specifying branchId', async () => {
+      const buffer = createExcelBuffer(validSampleRows);
+      const res = await request(app)
+        .post('/api/purchases/import-preview')
+        .set('Authorization', `Bearer ${branchAdminToken}`)
+        .attach('file', buffer, 'own_branch.xlsx');
+
+      expect(res.status).toBe(200);
+      expect(res.body.targetBranchId).toBe(branchId);
+      expect(res.body.validRows).toBe(1);
+    });
+
+    it('14.5 Branch Admin is rejected when attempting to record a purchase invoice for another branch', async () => {
+      const postPayload = {
+        branchId: branchId2, // Unauthorized branch
+        supplierId,
+        supplierInvoiceNumber: `INV-UNAUTH-${Date.now()}`,
+        invoiceDate: new Date().toISOString(),
+        paymentMode: 'CASH',
+        lines: [
+          {
+            batchNumber: 'UNAUTH-01',
+            expiryDate: '2028-12-31',
+            quantity: 10,
+            purchaseRate: 20,
+            mrp: 30,
+            gstRate: 5,
+          },
+        ],
+      };
+
+      const res = await request(app)
+        .post('/api/purchases')
+        .set('Authorization', `Bearer ${branchAdminToken}`)
+        .send(postPayload);
+
+      expect(res.status).toBe(403);
+      expect(res.body.message).toContain('not authorized to record purchases for another branch');
+    });
+
+    it('14.6 Inactive branch is rejected with HTTP 400', async () => {
+      const buffer = createExcelBuffer(validSampleRows);
+      const res = await request(app)
+        .post('/api/purchases/import-preview')
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .field('branchId', inactiveBranchId)
+        .attach('file', buffer, 'inactive_branch.xlsx');
+
+      expect(res.status).toBe(400);
+      expect(res.body.message).toBe('Target branch is inactive');
+    });
+
+    it('14.7 Non-existent branch is rejected with HTTP 404', async () => {
+      const buffer = createExcelBuffer(validSampleRows);
+      const res = await request(app)
+        .post('/api/purchases/import-preview')
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .field('branchId', '00000000-0000-0000-0000-000000000000')
+        .attach('file', buffer, 'non_existent.xlsx');
+
+      expect(res.status).toBe(404);
+      expect(res.body.message).toBe('Target branch not found');
+    });
+
+    it('14.8 Billing users are rejected with HTTP 403', async () => {
+      const buffer = createExcelBuffer(validSampleRows);
+      const res = await request(app)
+        .post('/api/purchases/import-preview')
+        .set('Authorization', `Bearer ${billingUserToken}`)
+        .field('branchId', branchId)
+        .attach('file', buffer, 'billing_user.xlsx');
+
+      expect(res.status).toBe(403);
+      expect(res.body.message).toBe('Billing users cannot import purchases');
+    });
+
+    it('14.9 Switching branches updates the target branch correctly', async () => {
+      const buffer = createExcelBuffer(validSampleRows);
+
+      // Super Admin imports into Branch 1
+      const res1 = await request(app)
+        .post('/api/purchases/import-preview')
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .field('branchId', branchId)
+        .attach('file', buffer, 'switch_branch_1.xlsx');
+
+      expect(res1.status).toBe(200);
+      expect(res1.body.targetBranchId).toBe(branchId);
+
+      // Super Admin switches to Branch 2
+      const res2 = await request(app)
+        .post('/api/purchases/import-preview')
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .field('branchId', branchId2)
+        .attach('file', buffer, 'switch_branch_2.xlsx');
+
+      expect(res2.status).toBe(200);
+      expect(res2.body.targetBranchId).toBe(branchId2);
+      expect(res2.body.targetBranchId).not.toBe(res1.body.targetBranchId);
+    });
+
+    it('14.10 A valid Excel import (confidos_purchase_dummy_data.xlsx) generates staged preview', async () => {
+      const filePath = 'f:/pharma/samples/confidos_purchase_dummy_data.xlsx';
+      const fileBuffer = require('fs').readFileSync(filePath);
+
+      const res = await request(app)
+        .post('/api/purchases/import-preview')
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .field('branchId', branchId)
+        .attach('file', fileBuffer, 'confidos_purchase_dummy_data.xlsx');
+
+      expect(res.status).toBe(200);
+      expect(res.body.targetBranchId).toBe(branchId);
+      expect(res.body.totalRows).toBe(8);
+      expect(res.body.validRows).toBe(8);
+      expect(res.body.errorRows).toBe(0);
+      expect(res.body.metrics.estimatedGrandTotal).toBeGreaterThan(0);
+    });
+
+    it('14.11 A valid CSV import (confidos_purchase_dummy_data.csv) generates staged preview', async () => {
+      const filePath = 'f:/pharma/samples/confidos_purchase_dummy_data.csv';
+      const fileBuffer = require('fs').readFileSync(filePath);
+
+      const res = await request(app)
+        .post('/api/purchases/import-preview')
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .field('branchId', branchId)
+        .attach('file', fileBuffer, 'confidos_purchase_dummy_data.csv');
+
+      expect(res.status).toBe(200);
+      expect(res.body.targetBranchId).toBe(branchId);
+      expect(res.body.totalRows).toBe(8);
+      expect(res.body.validRows).toBe(8);
+      expect(res.body.errorRows).toBe(0);
+      expect(res.body.metrics.estimatedGrandTotal).toBeGreaterThan(0);
+    });
+
+    it('14.12 Failed validation does not create partial inventory or ledger records', async () => {
+      const batchesCountBefore = await prisma.stockBatch.count();
+      const invoicesCountBefore = await prisma.purchaseInvoice.count();
+
+      // Trigger a failed import attempt
+      const buffer = createExcelBuffer(validSampleRows);
+      const res = await request(app)
+        .post('/api/purchases/import-preview')
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .field('branchId', '00000000-0000-0000-0000-000000000000')
+        .attach('file', buffer, 'fail_test.xlsx');
+
+      expect(res.status).toBe(404);
+
+      const batchesCountAfter = await prisma.stockBatch.count();
+      const invoicesCountAfter = await prisma.purchaseInvoice.count();
+
+      expect(batchesCountAfter).toBe(batchesCountBefore);
+      expect(invoicesCountAfter).toBe(invoicesCountBefore);
+    });
+
+    it('14.13 Final invoice posting updates only the intended branch\'s stock and does not pollute other branches', async () => {
+      const uniqueBatch = `ISO-B1-${Date.now()}`;
+      const uniqueInvoiceNo = `INV-ISO-${Date.now()}`;
+
+      // 1. Stage Preview for Branch 1
+      const rows = [
+        {
+          'Product Name': 'Isolated Branch Drug 500mg',
+          'Generic Name': 'Isolacin',
+          'Strength': '500mg',
+          'Dosage Form': 'Tablet',
+          'Manufacturer': 'Isolation Labs',
+          'Batch Number': uniqueBatch,
+          'Expiry Date': '2028-12-31',
+          'Purchase Unit': 'Box',
+          'Quantity': 25,
+          'Free Quantity': 0,
+          'Units Per Pack': 10,
+          'Purchase Rate': 40.0,
+          'MRP': 60.0,
+          'GST Rate': 12,
+          'Discount': 0,
+        },
+      ];
+
+      const previewRes = await request(app)
+        .post('/api/purchases/import-preview')
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .field('branchId', branchId)
+        .attach('file', createExcelBuffer(rows), 'iso_test.xlsx');
+
+      expect(previewRes.status).toBe(200);
+      expect(previewRes.body.targetBranchId).toBe(branchId);
+      const validItem = previewRes.body.rows[0];
+
+      // 2. Post invoice into Branch 1
+      const postPayload = {
+        branchId, // Target: Branch 1
+        supplierId,
+        supplierInvoiceNumber: uniqueInvoiceNo,
+        invoiceDate: new Date().toISOString(),
+        paymentMode: 'CASH',
+        paidAmount: previewRes.body.metrics.estimatedGrandTotal,
+        notes: 'Testing strict branch isolation',
+        lines: [
+          {
+            medicineId: validItem.medicineId,
+            newMedicine: validItem.newMedicine,
+            batchNumber: validItem.batchNumber,
+            expiryDate: validItem.expiryDate,
+            quantity: validItem.quantity,
+            freeQuantity: validItem.freeQuantity,
+            unit: validItem.unit,
+            conversionFactor: validItem.conversionFactor,
+            purchaseRate: validItem.purchaseRate,
+            sellingRate: validItem.sellingRate,
+            mrp: validItem.mrp,
+            discountPercent: validItem.discountPercent,
+            discountAmount: validItem.discountAmount,
+            gstRate: validItem.gstRate,
+          },
+        ],
+      };
+
+      const postRes = await request(app)
+        .post('/api/purchases')
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .send(postPayload);
+
+      expect(postRes.status).toBe(201);
+
+      // Verify batch exists in intended branch (Branch 1)
+      const batchInBranch1 = await prisma.stockBatch.findFirst({
+        where: { batchNumber: uniqueBatch, branchId },
+      });
+      expect(batchInBranch1).not.toBeNull();
+      expect(batchInBranch1?.availableQuantity).toBe(250); // 25 * 10
+
+      // CRITICAL CHECK: Verify batch does NOT exist in Branch 2!
+      const batchInBranch2 = await prisma.stockBatch.findFirst({
+        where: { batchNumber: uniqueBatch, branchId: branchId2 },
+      });
+      expect(batchInBranch2).toBeNull();
     });
   });
 });
