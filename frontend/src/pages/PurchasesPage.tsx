@@ -27,6 +27,11 @@ import {
   UserCheck,
   Filter,
   X,
+  FileSpreadsheet,
+  Download,
+  UploadCloud,
+  CheckSquare,
+  Square,
 } from 'lucide-react';
 import { Badge } from '../components/Badge';
 import { Modal } from '../components/Modal';
@@ -39,6 +44,8 @@ interface PurchaseLineForm {
   expiryDate: string;
   quantity: number;
   freeQuantity: number;
+  unit?: string;
+  conversionFactor?: number;
   purchaseRate: number;
   sellingRate: number;
   mrp: number;
@@ -47,7 +54,12 @@ interface PurchaseLineForm {
   gstRate: number;
 }
 
-export const PurchasesPage: React.FC = () => {
+interface PurchasesPageProps {
+  prefilledIndent?: any;
+  onClearPrefill?: () => void;
+}
+
+export const PurchasesPage: React.FC<PurchasesPageProps> = ({ prefilledIndent, onClearPrefill }) => {
   const { currentBranch, selectedBranchId, isBillingUser, isSuperAdmin, isBranchAdmin } = useAuth();
 
   const [activeSubTab, setActiveSubTab] = useState<'invoices' | 'suppliers' | 'returns'>('invoices');
@@ -219,6 +231,24 @@ export const PurchasesPage: React.FC = () => {
 
   const [message, setMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
 
+  // Inward Purchase Mode: Manual vs Excel/CSV Import
+  const [entryMode, setEntryMode] = useState<'manual' | 'import'>('manual');
+  const [importFile, setImportFile] = useState<File | null>(null);
+  const [importPreviewData, setImportPreviewData] = useState<any | null>(null);
+  const [isAnalyzingImport, setIsAnalyzingImport] = useState(false);
+  const [isSubmittingImportPurchase, setIsSubmittingImportPurchase] = useState(false);
+  const [importError, setImportError] = useState<string | null>(null);
+  const [showTemplatePreview, setShowTemplatePreview] = useState(false);
+
+  // Super Admin Bulk Deletions
+  const [selectedInvoiceIds, setSelectedInvoiceIds] = useState<string[]>([]);
+  const [showBulkDeleteInvoicesModal, setShowBulkDeleteInvoicesModal] = useState(false);
+  const [isBulkDeletingInvoices, setIsBulkDeletingInvoices] = useState(false);
+
+  const [selectedSupplierIds, setSelectedSupplierIds] = useState<string[]>([]);
+  const [showBulkDeleteSuppliersModal, setShowBulkDeleteSuppliersModal] = useState(false);
+  const [isBulkDeletingSuppliers, setIsBulkDeletingSuppliers] = useState(false);
+
   const loadData = async () => {
     setLoading(true);
     try {
@@ -249,6 +279,45 @@ export const PurchasesPage: React.FC = () => {
     loadData();
   }, [selectedBranchId]);
 
+  // Handle Indent Requisition Conversion Prefill
+  useEffect(() => {
+    if (prefilledIndent) {
+      setShowModal(true);
+      setIsEditing(false);
+      setEditingInvoiceId(null);
+      setEntryMode('manual');
+      if (prefilledIndent.supplierId) {
+        setSupplierId(prefilledIndent.supplierId);
+        const sup = suppliers.find((s) => s.id === prefilledIndent.supplierId);
+        if (sup) setSupplierSearchQuery(sup.name);
+      }
+      if (prefilledIndent.indentNumber) {
+        setSupplierInvoiceNumber(`INV-${prefilledIndent.indentNumber}`);
+        setNotes(`Converted from Indent Requisition ${prefilledIndent.indentNumber}`);
+      }
+      if (prefilledIndent.items && prefilledIndent.items.length > 0) {
+        setLines(
+          prefilledIndent.items.map((it: any) => ({
+            medicineId: it.medicineId,
+            batchNumber: '',
+            expiryDate: '',
+            quantity: it.requestedQuantity || 10,
+            freeQuantity: 0,
+            unit: it.unit || 'Box',
+            conversionFactor: it.conversionFactor || 10,
+            purchaseRate: it.estimatedRate || 20,
+            sellingRate: (it.estimatedRate || 20) * 1.3,
+            mrp: (it.estimatedRate || 20) * 1.5,
+            discountPercent: 15,
+            discountAmount: 0,
+            gstRate: 5.0,
+          }))
+        );
+      }
+      if (onClearPrefill) onClearPrefill();
+    }
+  }, [prefilledIndent, suppliers]);
+
   // Derived configurable defaults
   const configuredDiscount = systemSettings?.DEFAULT_PURCHASE_DISCOUNT_PERCENT
     ? parseFloat(systemSettings.DEFAULT_PURCHASE_DISCOUNT_PERCENT)
@@ -269,6 +338,10 @@ export const PurchasesPage: React.FC = () => {
   const openNewPurchaseModal = () => {
     setIsEditing(false);
     setEditingInvoiceId(null);
+    setEntryMode('manual');
+    setImportFile(null);
+    setImportPreviewData(null);
+    setImportError(null);
     setSupplierId('');
     setSupplierSearchQuery('');
     setSupplierInvoiceNumber('');
@@ -286,6 +359,8 @@ export const PurchasesPage: React.FC = () => {
         expiryDate: '',
         quantity: 50,
         freeQuantity: 0,
+        unit: 'Box',
+        conversionFactor: 10,
         purchaseRate: 20,
         sellingRate: 28,
         mrp: 30,
@@ -304,6 +379,9 @@ export const PurchasesPage: React.FC = () => {
     }
     setIsEditing(true);
     setEditingInvoiceId(pur.id);
+    setEntryMode('manual');
+    setImportFile(null);
+    setImportPreviewData(null);
     setSupplierId(pur.supplierId);
     setSupplierSearchQuery(pur.supplier?.name || '');
     setSupplierInvoiceNumber(pur.supplierInvoiceNumber);
@@ -322,6 +400,8 @@ export const PurchasesPage: React.FC = () => {
         expiryDate: new Date(l.expiryDate).toISOString().split('T')[0],
         quantity: l.quantity,
         freeQuantity: l.freeQuantity || 0,
+        unit: l.unit || 'Box',
+        conversionFactor: l.conversionFactor || 10,
         purchaseRate: l.purchaseRate,
         sellingRate: l.sellingRate || l.mrp,
         mrp: l.mrp,
@@ -342,6 +422,8 @@ export const PurchasesPage: React.FC = () => {
         expiryDate: '',
         quantity: 50,
         freeQuantity: 0,
+        unit: 'Box',
+        conversionFactor: 10,
         purchaseRate: 20,
         sellingRate: 28,
         mrp: 30,
@@ -368,9 +450,230 @@ export const PurchasesPage: React.FC = () => {
         updated[idx].purchaseRate = prod.defaultPurchaseRate || Math.round(prod.mrp * 0.7);
         // Respect product-level tax classification
         updated[idx].gstRate = prod.gstRate !== undefined ? prod.gstRate : configuredCombinedGST;
+        updated[idx].unit = prod.packageUnit || 'Box';
+        updated[idx].conversionFactor = prod.conversionFactor || 10;
       }
     }
     setLines(updated);
+  };
+
+  // Import Excel / CSV Handlers
+  const handleDownloadTemplate = async (format: 'xlsx' | 'csv') => {
+    try {
+      const blob = await api.downloadPurchaseTemplate(format);
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `confidos_purchase_template.${format}`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } catch (err: any) {
+      alert(err.message || 'Failed to download purchase template.');
+    }
+  };
+
+  const handleAnalyzeImport = async () => {
+    if (!importFile) {
+      setImportError('Please select an Excel (.xlsx) or CSV file first.');
+      return;
+    }
+    setImportError(null);
+    setIsAnalyzingImport(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', importFile);
+      if (supplierId) formData.append('supplierId', supplierId);
+      if (supplierInvoiceNumber) formData.append('supplierInvoiceNumber', supplierInvoiceNumber);
+
+      const res = await api.previewPurchaseImport(formData);
+      setImportPreviewData(res);
+    } catch (err: any) {
+      setImportError(err.message || 'Failed to parse and validate file.');
+    } finally {
+      setIsAnalyzingImport(false);
+    }
+  };
+
+  const handleRemovePreviewItem = (index: number) => {
+    if (!importPreviewData || !importPreviewData.items) return;
+    const nextItems = importPreviewData.items.filter((_: any, i: number) => i !== index);
+    const validRows = nextItems.filter((it: any) => it.valid).length;
+    const errorRows = nextItems.length - validRows;
+    const estimatedGrandTotal = nextItems
+      .filter((it: any) => it.valid)
+      .reduce((sum: number, it: any) => sum + (Number(it.lineTotal) || 0), 0);
+
+    setImportPreviewData({
+      ...importPreviewData,
+      items: nextItems,
+      metrics: {
+        ...importPreviewData.metrics,
+        totalRows: nextItems.length,
+        validRows,
+        errorRows,
+        estimatedGrandTotal,
+      },
+    });
+  };
+
+  const handleUseValidatedItemsInLines = () => {
+    if (!importPreviewData || !importPreviewData.items) return;
+    const validItems = importPreviewData.items.filter((it: any) => it.valid);
+    if (validItems.length === 0) {
+      alert('No valid items found in the import preview.');
+      return;
+    }
+    const newLines: PurchaseLineForm[] = validItems.map((it: any) => ({
+      medicineId: it.medicineId || '',
+      batchNumber: it.batchNumber || '',
+      expiryDate: it.expiryDate || '',
+      quantity: Number(it.quantity) || 1,
+      freeQuantity: Number(it.freeQuantity) || 0,
+      unit: it.unit || 'Box',
+      conversionFactor: Number(it.conversionFactor) || 10,
+      purchaseRate: Number(it.purchaseRate) || 0,
+      sellingRate: Number(it.sellingRate) || Number(it.mrp) || 0,
+      mrp: Number(it.mrp) || 0,
+      discountPercent: Number(it.discountPercent) || 0,
+      discountAmount: Number(it.discountAmount) || 0,
+      gstRate: Number(it.gstRate) || 5.0,
+    }));
+    setLines(newLines);
+    setEntryMode('manual');
+    setMessage({
+      text: `Transferred ${validItems.length} validated items to invoice lines. Review rates and confirm.`,
+      type: 'success',
+    });
+  };
+
+  const handleConfirmImportPurchase = async () => {
+    if (!importPreviewData || !importPreviewData.items) return;
+    if (!supplierId) {
+      setImportError('Please select or create a supplier before confirming purchase.');
+      return;
+    }
+    if (!supplierInvoiceNumber.trim()) {
+      setImportError('Please enter the Supplier Invoice Number.');
+      return;
+    }
+
+    const validItems = importPreviewData.items.filter((it: any) => it.valid);
+    if (validItems.length === 0) {
+      setImportError('No valid items to commit. Please fix file errors or use manual entry.');
+      return;
+    }
+
+    setIsSubmittingImportPurchase(true);
+    setImportError(null);
+    try {
+      const payload = {
+        branchId: selectedBranchId,
+        supplierId,
+        supplierInvoiceNumber: supplierInvoiceNumber.trim(),
+        invoiceDate,
+        paymentMode,
+        paidAmount: paidAmount !== '' ? parseFloat(paidAmount) : (paymentMode === 'CREDIT' ? 0 : importPreviewData.metrics.estimatedGrandTotal),
+        notes: notes || 'Imported via Excel/CSV inward integration',
+        lines: validItems.map((it: any) => ({
+          medicineId: it.medicineId,
+          batchNumber: it.batchNumber,
+          expiryDate: it.expiryDate,
+          quantity: Number(it.quantity),
+          freeQuantity: Number(it.freeQuantity) || 0,
+          unit: it.unit || 'Box',
+          conversionFactor: Number(it.conversionFactor) || 10,
+          purchaseRate: Number(it.purchaseRate),
+          sellingRate: Number(it.sellingRate) || Number(it.mrp),
+          mrp: Number(it.mrp),
+          discountPercent: Number(it.discountPercent) || 0,
+          discountAmount: Number(it.discountAmount) || 0,
+          gstRate: Number(it.gstRate) || 5.0,
+        })),
+      };
+
+      await api.createPurchase(payload);
+      setMessage({
+        text: `Purchase Invoice recorded with ${validItems.length} items. Batches and stock movements created!`,
+        type: 'success',
+      });
+      setShowModal(false);
+      setImportPreviewData(null);
+      setImportFile(null);
+      loadData();
+    } catch (err: any) {
+      setImportError(err.message || 'Failed to confirm purchase import.');
+    } finally {
+      setIsSubmittingImportPurchase(false);
+    }
+  };
+
+  // Bulk Deletion Handlers for Super Admin
+  const toggleSelectInvoice = (id: string) => {
+    setSelectedInvoiceIds((prev) =>
+      prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id]
+    );
+  };
+
+  const toggleSelectAllInvoices = (displayedInvoices: PurchaseInvoice[]) => {
+    if (selectedInvoiceIds.length === displayedInvoices.length) {
+      setSelectedInvoiceIds([]);
+    } else {
+      setSelectedInvoiceIds(displayedInvoices.map((p) => p.id));
+    }
+  };
+
+  const handleBulkDeleteInvoices = async () => {
+    if (selectedInvoiceIds.length === 0) return;
+    setIsBulkDeletingInvoices(true);
+    try {
+      const res = await api.bulkDeletePurchases(selectedInvoiceIds, 'Super Admin bulk operation');
+      setMessage({
+        text: res.message || `Successfully processed bulk deletion for ${selectedInvoiceIds.length} invoices.`,
+        type: 'success',
+      });
+      setSelectedInvoiceIds([]);
+      setShowBulkDeleteInvoicesModal(false);
+      loadData();
+    } catch (err: any) {
+      setMessage({ text: err.message || 'Failed to bulk delete invoices.', type: 'error' });
+    } finally {
+      setIsBulkDeletingInvoices(false);
+    }
+  };
+
+  const toggleSelectSupplier = (id: string) => {
+    setSelectedSupplierIds((prev) =>
+      prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id]
+    );
+  };
+
+  const toggleSelectAllSuppliers = (displayedSuppliers: Supplier[]) => {
+    if (selectedSupplierIds.length === displayedSuppliers.length) {
+      setSelectedSupplierIds([]);
+    } else {
+      setSelectedSupplierIds(displayedSuppliers.map((s) => s.id));
+    }
+  };
+
+  const handleBulkDeleteSuppliers = async () => {
+    if (selectedSupplierIds.length === 0) return;
+    setIsBulkDeletingSuppliers(true);
+    try {
+      const res = await api.bulkDeleteSuppliers(selectedSupplierIds);
+      setMessage({
+        text: res.message || `Successfully deleted ${selectedSupplierIds.length} suppliers.`,
+        type: 'success',
+      });
+      setSelectedSupplierIds([]);
+      setShowBulkDeleteSuppliersModal(false);
+      loadData();
+    } catch (err: any) {
+      setMessage({ text: err.message || 'Failed to bulk delete suppliers.', type: 'error' });
+    } finally {
+      setIsBulkDeletingSuppliers(false);
+    }
   };
 
   // Calculations for live form
@@ -456,6 +759,8 @@ export const PurchasesPage: React.FC = () => {
           expiryDate: l.expiryDate,
           quantity: Number(l.quantity),
           freeQuantity: Number(l.freeQuantity) || 0,
+          unit: l.unit || 'Box',
+          conversionFactor: Number(l.conversionFactor) || 10,
           purchaseRate: Number(l.purchaseRate),
           sellingRate: Number(l.sellingRate) || Number(l.mrp),
           mrp: Number(l.mrp),
@@ -967,11 +1272,50 @@ export const PurchasesPage: React.FC = () => {
             )}
           </div>
 
+          {/* Super Admin Bulk Invoices Action Bar */}
+          {isSuperAdmin && selectedInvoiceIds.length > 0 && (
+            <div className="flex items-center justify-between bg-rose-50 border border-rose-200 p-2.5 rounded-xl text-xs text-rose-800">
+              <span className="font-semibold flex items-center gap-1.5">
+                <CheckSquare className="w-4 h-4 text-rose-600" />
+                {selectedInvoiceIds.length} purchase invoices selected
+              </span>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setSelectedInvoiceIds([])}
+                  className="px-2.5 py-1 text-slate-600 hover:text-slate-800 text-[11px] font-semibold"
+                >
+                  Clear Selection
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowBulkDeleteInvoicesModal(true)}
+                  className="px-3 py-1 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-xs font-bold transition-all shadow-xs flex items-center gap-1"
+                >
+                  <Trash2 className="w-3.5 h-3.5" /> Delete Selected ({selectedInvoiceIds.length})
+                </button>
+              </div>
+            </div>
+          )}
+
           <div className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs">
                 <thead className="bg-slate-50 text-slate-700 font-bold border-b border-slate-200">
                   <tr>
+                    {isSuperAdmin && (
+                      <th className="py-3 px-3 w-10 text-center">
+                        <input
+                          type="checkbox"
+                          checked={
+                            purchases.length > 0 &&
+                            selectedInvoiceIds.length === purchases.length
+                          }
+                          onChange={() => toggleSelectAllInvoices(purchases)}
+                          className="rounded text-brand-600 focus:ring-brand-500 cursor-pointer"
+                        />
+                      </th>
+                    )}
                     <th className="py-3 px-4">System Inv #</th>
                     <th className="py-3 px-3">Supplier Inv #</th>
                     <th className="py-3 px-3">Supplier & Email</th>
@@ -987,13 +1331,13 @@ export const PurchasesPage: React.FC = () => {
                 <tbody className="divide-y divide-slate-100 font-medium">
                   {loading ? (
                     <tr>
-                      <td colSpan={10} className="py-8 text-center text-slate-400">
+                      <td colSpan={isSuperAdmin ? 11 : 10} className="py-8 text-center text-slate-400">
                         Loading purchase invoices...
                       </td>
                     </tr>
                   ) : purchases.length === 0 ? (
                     <tr>
-                      <td colSpan={10} className="py-12 text-center text-slate-500">
+                      <td colSpan={isSuperAdmin ? 11 : 10} className="py-12 text-center text-slate-500">
                         <p className="text-sm font-bold text-slate-800">No purchase invoices available yet.</p>
                         <p className="text-xs text-slate-500 mt-1">Record inward purchases to automatically generate batches and stock movements.</p>
                         <button
@@ -1033,6 +1377,16 @@ export const PurchasesPage: React.FC = () => {
                       })
                       .map((pur) => (
                         <tr key={pur.id} className="hover:bg-slate-50/80 transition-colors">
+                          {isSuperAdmin && (
+                            <td className="py-3 px-3 text-center" onClick={(e) => e.stopPropagation()}>
+                              <input
+                                type="checkbox"
+                                checked={selectedInvoiceIds.includes(pur.id)}
+                                onChange={() => toggleSelectInvoice(pur.id)}
+                                className="rounded text-brand-600 focus:ring-brand-500 cursor-pointer"
+                              />
+                            </td>
+                          )}
                           <td className="py-3 px-4 font-mono font-bold text-slate-900">{pur.invoiceNumber}</td>
                           <td className="py-3 px-3 font-mono font-semibold text-slate-700">{pur.supplierInvoiceNumber}</td>
                           <td className="py-3 px-3">
@@ -1199,11 +1553,50 @@ export const PurchasesPage: React.FC = () => {
             )}
           </div>
 
+          {/* Super Admin Bulk Suppliers Action Bar */}
+          {isSuperAdmin && selectedSupplierIds.length > 0 && (
+            <div className="flex items-center justify-between bg-rose-50 border border-rose-200 p-2.5 rounded-xl text-xs text-rose-800">
+              <span className="font-semibold flex items-center gap-1.5">
+                <CheckSquare className="w-4 h-4 text-rose-600" />
+                {selectedSupplierIds.length} suppliers selected
+              </span>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setSelectedSupplierIds([])}
+                  className="px-2.5 py-1 text-slate-600 hover:text-slate-800 text-[11px] font-semibold"
+                >
+                  Clear Selection
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowBulkDeleteSuppliersModal(true)}
+                  className="px-3 py-1 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-xs font-bold transition-all shadow-xs flex items-center gap-1"
+                >
+                  <Trash2 className="w-3.5 h-3.5" /> Delete Selected ({selectedSupplierIds.length})
+                </button>
+              </div>
+            </div>
+          )}
+
           <div className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs">
                 <thead className="bg-slate-50 text-slate-700 font-bold border-b border-slate-200">
                   <tr>
+                    {isSuperAdmin && (
+                      <th className="py-3 px-3 w-10 text-center">
+                        <input
+                          type="checkbox"
+                          checked={
+                            suppliers.length > 0 &&
+                            selectedSupplierIds.length === suppliers.length
+                          }
+                          onChange={() => toggleSelectAllSuppliers(suppliers)}
+                          className="rounded text-brand-600 focus:ring-brand-500 cursor-pointer"
+                        />
+                      </th>
+                    )}
                     <th className="py-3 px-4">Supplier Name</th>
                     <th className="py-3 px-3">Contact Person</th>
                     <th className="py-3 px-3">Phone</th>
@@ -1217,7 +1610,7 @@ export const PurchasesPage: React.FC = () => {
                 <tbody className="divide-y divide-slate-100 font-medium">
                   {suppliers.length === 0 ? (
                     <tr>
-                      <td colSpan={8} className="py-12 text-center text-slate-500">
+                      <td colSpan={isSuperAdmin ? 9 : 8} className="py-12 text-center text-slate-500">
                         <p className="text-sm font-bold text-slate-800">No suppliers found.</p>
                         <p className="text-xs text-slate-500 mt-1">Add your first supplier to continue with purchasing and vendor management.</p>
                         <button
@@ -1251,6 +1644,16 @@ export const PurchasesPage: React.FC = () => {
                       })
                       .map((sup) => (
                         <tr key={sup.id} className="hover:bg-slate-50/80 transition-colors">
+                          {isSuperAdmin && (
+                            <td className="py-3 px-3 text-center" onClick={(e) => e.stopPropagation()}>
+                              <input
+                                type="checkbox"
+                                checked={selectedSupplierIds.includes(sup.id)}
+                                onChange={() => toggleSelectSupplier(sup.id)}
+                                className="rounded text-brand-600 focus:ring-brand-500 cursor-pointer"
+                              />
+                            </td>
+                          )}
                           <td className="py-3 px-4">
                             <span className="font-bold text-slate-900 block">{sup.name}</span>
                             {sup.address && <span className="text-[10px] text-slate-400 truncate max-w-xs block">{sup.address}</span>}
@@ -1575,328 +1978,676 @@ export const PurchasesPage: React.FC = () => {
             </div>
           </div>
 
-          {/* Invoice Line Items */}
-          <div className="space-y-2 pt-1">
-            <div className="flex items-center justify-between">
-              <div>
-                <label className="text-xs font-bold text-slate-800">Invoice Line Items & Batches</label>
-                <p className="text-[10px] text-slate-400">
-                  Pre-configured default discount ({configuredDiscount}%) & default GST ({configuredCombinedGST}%) applied. Custom items register directly to catalogue.
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={addLine}
-                className="text-xs text-emerald-600 hover:text-emerald-800 font-bold flex items-center gap-1"
-              >
-                <Plus className="w-3.5 h-3.5" /> Add Line Item
-              </button>
-            </div>
-
-            <div className="space-y-3 max-h-96 overflow-y-auto pr-1">
-              {lines.map((l, idx) => {
-                const qty = Number(l.quantity) || 0;
-                const freeQty = Number(l.freeQuantity) || 0;
-                const pRate = Number(l.purchaseRate) || 0;
-                const sRate = Number(l.sellingRate) || Number(l.mrp) || 0;
-                const gross = qty * pRate;
-                const disc = l.discountPercent > 0 ? (gross * l.discountPercent) / 100 : (l.discountAmount || 0);
-                const taxable = Math.max(0, gross - disc);
-                const lineGst = Number(l.gstRate) || 0;
-                const lineTax = (taxable * lineGst) / 100;
-                const lineCGST = lineTax / 2;
-                const lineSGST = lineTax / 2;
-                const totalUnits = qty + freeQty;
-                const effectiveUnitCost = totalUnits > 0 ? taxable / totalUnits : pRate;
-                const expectedMarginPct = sRate > 0 ? ((sRate - effectiveUnitCost) / sRate) * 100 : 0;
-
-                return (
-                  <div key={idx} className="p-3 bg-slate-50 rounded-xl border border-slate-200 text-xs space-y-2">
-                    <div className="grid grid-cols-12 gap-2 items-end">
-                      <div className="col-span-4">
-                        <div className="flex items-center justify-between mb-0.5">
-                          <label className="text-[10px] font-bold text-slate-600">Medicine *</label>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setInlineMedicineTargetIdx(idx);
-                              setShowInlineMedicineModal(true);
-                            }}
-                            className="text-[10px] text-emerald-600 hover:text-emerald-800 font-bold flex items-center gap-0.5"
-                          >
-                            <Plus className="w-2.5 h-2.5" /> New Item
-                          </button>
-                        </div>
-                        <select
-                          required
-                          value={l.medicineId}
-                          onChange={(e) => updateLine(idx, 'medicineId', e.target.value)}
-                          className="w-full px-2 py-1.5 text-xs bg-white border border-slate-300 rounded font-medium"
-                        >
-                          <option value="">-- Choose Catalogue Medicine --</option>
-                          {products.map((p) => (
-                            <option key={p.id} value={p.id}>
-                              {p.brandName} ({p.strength}) - MRP ₹{p.mrp} [GST {p.gstRate}%]
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-
-                      <div className="col-span-2">
-                        <label className="text-[10px] font-bold text-slate-600 block mb-0.5">Batch # *</label>
-                        <input
-                          type="text"
-                          required
-                          placeholder="e.g. DL-24A01"
-                          value={l.batchNumber}
-                          onChange={(e) => updateLine(idx, 'batchNumber', e.target.value)}
-                          className="w-full px-2 py-1.5 text-xs bg-white border border-slate-300 rounded font-mono font-bold"
-                        />
-                      </div>
-
-                      <div className="col-span-2">
-                        <label className="text-[10px] font-bold text-slate-600 block mb-0.5">Expiry Date *</label>
-                        <input
-                          type="date"
-                          required
-                          value={l.expiryDate}
-                          onChange={(e) => updateLine(idx, 'expiryDate', e.target.value)}
-                          className="w-full px-2 py-1.5 text-xs bg-white border border-slate-300 rounded font-mono"
-                        />
-                      </div>
-
-                      <div className="col-span-1">
-                        <label className="text-[10px] font-bold text-slate-600 block mb-0.5">Qty *</label>
-                        <input
-                          type="number"
-                          min="1"
-                          required
-                          value={l.quantity}
-                          onChange={(e) => updateLine(idx, 'quantity', e.target.value)}
-                          className="w-full px-2 py-1.5 text-xs bg-white border border-slate-300 rounded font-mono text-center font-bold"
-                        />
-                      </div>
-
-                      <div className="col-span-1">
-                        <label className="text-[10px] font-bold text-emerald-700 block mb-0.5">Free Scheme</label>
-                        <input
-                          type="number"
-                          min="0"
-                          value={l.freeQuantity}
-                          onChange={(e) => updateLine(idx, 'freeQuantity', e.target.value)}
-                          className="w-full px-2 py-1.5 text-xs bg-white border border-emerald-300 rounded font-mono text-center text-emerald-800 font-bold"
-                        />
-                      </div>
-
-                      <div className="col-span-1">
-                        <label className="text-[10px] font-bold text-blue-900 block mb-0.5">Pur Rate (₹) *</label>
-                        <input
-                          type="number"
-                          step="0.01"
-                          required
-                          value={l.purchaseRate}
-                          onChange={(e) => updateLine(idx, 'purchaseRate', e.target.value)}
-                          className="w-full px-2 py-1.5 text-xs bg-white border border-blue-300 rounded font-mono font-bold text-blue-900"
-                        />
-                      </div>
-
-                      <div className="col-span-1 flex items-center justify-end">
-                        {lines.length > 1 && (
-                          <button
-                            type="button"
-                            onClick={() => removeLine(idx)}
-                            className="text-rose-600 hover:text-rose-800 p-1"
-                            title="Remove Line"
-                          >
-                            &times;
-                          </button>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Secondary Row: Rates, Discounts, GST, Margins */}
-                    <div className="grid grid-cols-12 gap-2 pt-1 border-t border-slate-200/60 items-center text-[11px]">
-                      <div className="col-span-2">
-                        <label className="text-[10px] text-slate-500 block">Printed MRP (₹)</label>
-                        <input
-                          type="number"
-                          step="0.01"
-                          required
-                          value={l.mrp}
-                          onChange={(e) => updateLine(idx, 'mrp', e.target.value)}
-                          className="w-full px-2 py-1 bg-white border border-slate-300 rounded font-mono text-xs"
-                        />
-                      </div>
-
-                      <div className="col-span-2">
-                        <label className="text-[10px] text-slate-500 block">Selling Rate (₹)</label>
-                        <input
-                          type="number"
-                          step="0.01"
-                          required
-                          value={l.sellingRate}
-                          onChange={(e) => updateLine(idx, 'sellingRate', e.target.value)}
-                          className="w-full px-2 py-1 bg-white border border-emerald-300 rounded font-mono text-xs font-semibold text-emerald-900"
-                        />
-                      </div>
-
-                      <div className="col-span-2">
-                        <label className="text-[10px] text-slate-500 block">
-                          Pur Discount ({l.discountPercent}%)
-                        </label>
-                        <div className="flex items-center gap-1">
-                          <input
-                            type="number"
-                            step="0.1"
-                            min="0"
-                            max="100"
-                            value={l.discountPercent}
-                            onChange={(e) => updateLine(idx, 'discountPercent', e.target.value)}
-                            className="w-full px-2 py-1 bg-white border border-slate-300 rounded font-mono text-xs"
-                          />
-                          <span className="text-slate-400 font-mono">%</span>
-                        </div>
-                      </div>
-
-                      <div className="col-span-2">
-                        <label className="text-[10px] text-slate-500 block">
-                          GST Rate ({l.gstRate}%)
-                        </label>
-                        <select
-                          value={l.gstRate}
-                          onChange={(e) => updateLine(idx, 'gstRate', e.target.value)}
-                          className="w-full px-2 py-1 bg-white border border-slate-300 rounded text-xs font-semibold"
-                        >
-                          <option value="0">0% (Nil)</option>
-                          <option value="5">5% (CGST 2.5% + SGST 2.5%)</option>
-                          <option value="12">12% (CGST 6% + SGST 6%)</option>
-                          <option value="18">18% (CGST 9% + SGST 9%)</option>
-                          <option value="28">28% (CGST 14% + SGST 14%)</option>
-                        </select>
-                      </div>
-
-                      <div className="col-span-4 flex items-center justify-end gap-2 font-mono text-[10px] text-slate-600">
-                        <span>Taxable: ₹{taxable.toFixed(2)}</span>
-                        <span>CGST ({(lineGst / 2).toFixed(1)}%): ₹{lineCGST.toFixed(2)}</span>
-                        <span>SGST ({(lineGst / 2).toFixed(1)}%): ₹{lineSGST.toFixed(2)}</span>
-                        <span className="text-emerald-700 font-bold bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
-                          Margin: {expectedMarginPct.toFixed(1)}%
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Structured Financial Invoice Summary Box with Percentages beside Monetary Amounts */}
-          <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-3">
-            <h4 className="text-[11px] font-bold uppercase tracking-wider text-slate-600">
-              Invoice Financial Summary & Dual Tax Breakdown
-            </h4>
-
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
-              <div className="p-2.5 bg-white rounded-lg border border-slate-200">
-                <span className="text-[10px] text-slate-500 block">Gross Subtotal</span>
-                <span className="text-sm font-bold font-mono text-slate-800">
-                  ₹{(formSubtotal + formLineDiscounts).toFixed(2)}
-                </span>
-              </div>
-
-              <div className="p-2.5 bg-white rounded-lg border border-slate-200">
-                <span className="text-[10px] text-slate-500 block">
-                  Total Discounts ({formSubtotal > 0 ? ((formLineDiscounts / (formSubtotal + formLineDiscounts)) * 100).toFixed(1) : 0}%)
-                </span>
-                <span className="text-sm font-bold font-mono text-rose-600">
-                  -₹{(formLineDiscounts + invDiscAmt).toFixed(2)}
-                </span>
-              </div>
-
-              <div className="p-2.5 bg-white rounded-lg border border-slate-200">
-                <span className="text-[10px] text-slate-500 block">Taxable Base</span>
-                <span className="text-sm font-bold font-mono text-slate-900">
-                  ₹{formSubtotal.toFixed(2)}
-                </span>
-              </div>
-
-              <div className="p-2.5 bg-emerald-50 rounded-lg border border-emerald-200">
-                <span className="text-[10px] text-emerald-800 block">Final Payable Amount</span>
-                <span className="text-base font-black font-mono text-emerald-800">
-                  ₹{formGrandTotal.toFixed(2)}
-                </span>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-3 gap-3 text-xs pt-1 border-t border-slate-200/80">
-              <div className="flex justify-between items-center bg-white p-2 rounded border border-slate-200 font-mono">
-                <span className="text-slate-600 text-[11px]">CGST ({configuredCGST}%):</span>
-                <span className="font-bold text-slate-800">₹{formCGSTTotal.toFixed(2)}</span>
-              </div>
-              <div className="flex justify-between items-center bg-white p-2 rounded border border-slate-200 font-mono">
-                <span className="text-slate-600 text-[11px]">SGST ({configuredSGST}%):</span>
-                <span className="font-bold text-slate-800">₹{formSGSTTotal.toFixed(2)}</span>
-              </div>
-              <div className="flex justify-between items-center bg-white p-2 rounded border border-slate-200 font-mono">
-                <span className="text-slate-700 text-[11px] font-bold">Total GST ({configuredCombinedGST}%):</span>
-                <span className="font-black text-emerald-700">₹{formTaxTotal.toFixed(2)}</span>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-3 gap-3 pt-1">
-              <div>
-                <label className="text-[10px] font-bold text-slate-600 block mb-0.5">Additional Charges (₹)</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  value={additionalCharges}
-                  onChange={(e) => setAdditionalCharges(e.target.value)}
-                  className="w-full px-2.5 py-1.5 text-xs bg-white border border-slate-300 rounded font-mono"
-                />
-              </div>
-
-              <div>
-                <label className="text-[10px] font-bold text-slate-600 block mb-0.5">Paid Amount (₹)</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  placeholder={paymentMode === 'CREDIT' ? '0.00' : formGrandTotal.toFixed(2)}
-                  value={paidAmount}
-                  onChange={(e) => setPaidAmount(e.target.value)}
-                  className="w-full px-2.5 py-1.5 text-xs bg-white border border-slate-300 rounded font-mono font-bold text-slate-800"
-                />
-              </div>
-
-              <div>
-                <label className="text-[10px] font-bold text-slate-600 block mb-0.5">Notes / Logistics</label>
-                <input
-                  type="text"
-                  placeholder="e.g. VRL Logistics, cold chain verified"
-                  value={notes}
-                  onChange={(e) => setNotes(e.target.value)}
-                  className="w-full px-2.5 py-1.5 text-xs bg-white border border-slate-300 rounded"
-                />
-              </div>
-            </div>
-          </div>
-
-          <div className="flex justify-end gap-2 pt-4 border-t border-slate-200">
+          {/* Mode Switcher: Manual Line Entry vs Integrated Excel/CSV Bulk Import */}
+          <div className="flex items-center gap-2 border-b border-slate-200 pb-2">
             <button
               type="button"
-              onClick={() => setShowModal(false)}
-              className="px-4 py-2 border border-slate-300 rounded-lg text-xs font-semibold text-slate-600 hover:bg-slate-50 transition-colors"
+              onClick={() => setEntryMode('manual')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                entryMode === 'manual'
+                  ? 'bg-emerald-600 text-white shadow-xs'
+                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+              }`}
             >
-              Cancel
+              Manual Line Entry
             </button>
             <button
-              type="submit"
-              className="px-5 py-2 bg-brand-500 hover:bg-brand-600 active:bg-brand-700 text-white rounded-lg text-xs font-bold shadow-xs transition-colors"
+              type="button"
+              onClick={() => setEntryMode('import')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
+                entryMode === 'import'
+                  ? 'bg-emerald-600 text-white shadow-xs'
+                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+              }`}
             >
-              {isEditing ? 'Save Changes & Reconcile Stock' : 'Confirm Purchase & Receive Stock'}
+              <FileSpreadsheet className="w-3.5 h-3.5" />
+              Import Excel / CSV
             </button>
           </div>
+
+          {entryMode === 'import' ? (
+            <div className="space-y-4 pt-1">
+              {/* Template Download & Spec Header */}
+              <div className="p-3.5 bg-emerald-50/60 rounded-xl border border-emerald-200 flex flex-wrap items-center justify-between gap-3 text-xs">
+                <div>
+                  <span className="font-bold text-emerald-950 block">Purchase Invoice Import Specification</span>
+                  <span className="text-[11px] text-emerald-800">
+                    Import purchase lines with automatic product matching, unit conversions, and tax calculations.
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => handleDownloadTemplate('xlsx')}
+                    className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-bold flex items-center gap-1.5 shadow-xs transition-colors"
+                  >
+                    <Download className="w-3.5 h-3.5" /> Download Excel (.xlsx)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleDownloadTemplate('csv')}
+                    className="px-3 py-1.5 bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 rounded-lg font-bold flex items-center gap-1.5 shadow-xs transition-colors"
+                  >
+                    <Download className="w-3.5 h-3.5" /> Download CSV
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowTemplatePreview(!showTemplatePreview)}
+                    className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg font-semibold"
+                  >
+                    {showTemplatePreview ? 'Hide Spec' : 'Show Format Preview'}
+                  </button>
+                </div>
+              </div>
+
+              {/* On-Screen Template Format Preview */}
+              {showTemplatePreview && (
+                <div className="p-3 bg-white border border-slate-200 rounded-xl space-y-2 text-xs">
+                  <span className="font-bold text-slate-800 text-[11px] uppercase tracking-wider block">
+                    Supported Columns & Data Type Definitions:
+                  </span>
+                  <div className="overflow-x-auto max-h-48">
+                    <table className="w-full text-left text-[11px] border-collapse">
+                      <thead className="bg-slate-50 text-slate-600 font-bold border-b border-slate-200">
+                        <tr>
+                          <th className="p-1.5">Column Name</th>
+                          <th className="p-1.5">Requirement</th>
+                          <th className="p-1.5">Description</th>
+                          <th className="p-1.5">Example</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 text-slate-700">
+                        <tr><td className="p-1.5 font-bold">Product Name</td><td className="p-1.5 text-rose-600 font-bold">Mandatory</td><td className="p-1.5">Brand name or commercial medicine name</td><td className="p-1.5 font-mono">Dolo 650</td></tr>
+                        <tr><td className="p-1.5 font-bold">Generic Name</td><td className="p-1.5 text-slate-500">Optional</td><td className="p-1.5">Active pharmaceutical ingredient</td><td className="p-1.5 font-mono">Paracetamol</td></tr>
+                        <tr><td className="p-1.5 font-bold">Strength</td><td className="p-1.5 text-slate-500">Optional</td><td className="p-1.5">Potency or dosage strength</td><td className="p-1.5 font-mono">650mg</td></tr>
+                        <tr><td className="p-1.5 font-bold">Dosage Form</td><td className="p-1.5 text-slate-500">Optional</td><td className="p-1.5">Tablet, Syrup, Injection, Capsule, etc.</td><td className="p-1.5 font-mono">Tablet</td></tr>
+                        <tr><td className="p-1.5 font-bold">Batch Number</td><td className="p-1.5 text-rose-600 font-bold">Mandatory</td><td className="p-1.5">Manufacturer physical batch reference</td><td className="p-1.5 font-mono">DL-24A01</td></tr>
+                        <tr><td className="p-1.5 font-bold">Expiry Date</td><td className="p-1.5 text-rose-600 font-bold">Mandatory</td><td className="p-1.5">Standard expiry date (YYYY-MM-DD)</td><td className="p-1.5 font-mono">2026-12-31</td></tr>
+                        <tr><td className="p-1.5 font-bold">Quantity</td><td className="p-1.5 text-rose-600 font-bold">Mandatory</td><td className="p-1.5">Number of purchase units received</td><td className="p-1.5 font-mono">50</td></tr>
+                        <tr><td className="p-1.5 font-bold">Purchase Unit</td><td className="p-1.5 text-slate-500">Optional</td><td className="p-1.5">Box, Strip, Bottle, Sachet, Tablet</td><td className="p-1.5 font-mono">Box</td></tr>
+                        <tr><td className="p-1.5 font-bold">Units Per Pack</td><td className="p-1.5 text-slate-500">Optional</td><td className="p-1.5">Conversion factor to base units (tablets per pack)</td><td className="p-1.5 font-mono">10</td></tr>
+                        <tr><td className="p-1.5 font-bold">Purchase Rate</td><td className="p-1.5 text-rose-600 font-bold">Mandatory</td><td className="p-1.5">Purchase cost per purchase unit</td><td className="p-1.5 font-mono">20.00</td></tr>
+                        <tr><td className="p-1.5 font-bold">MRP</td><td className="p-1.5 text-slate-500">Optional</td><td className="p-1.5">Maximum Retail Price per unit</td><td className="p-1.5 font-mono">30.00</td></tr>
+                        <tr><td className="p-1.5 font-bold">GST Rate</td><td className="p-1.5 text-slate-500">Optional</td><td className="p-1.5">GST percentage (0%, 5%, 12%, 18%, 28%)</td><td className="p-1.5 font-mono">5.0</td></tr>
+                        <tr><td className="p-1.5 font-bold">Discount</td><td className="p-1.5 text-slate-500">Optional</td><td className="p-1.5">Trade discount percent on invoice line</td><td className="p-1.5 font-mono">15.0</td></tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              {/* Upload Dropzone */}
+              <div className="border-2 border-dashed border-slate-300 hover:border-emerald-500 rounded-xl p-5 text-center bg-white transition-colors">
+                <input
+                  type="file"
+                  id="purchase-file-input"
+                  accept=".xlsx,.csv,.xls"
+                  onChange={(e) => {
+                    if (e.target.files && e.target.files[0]) {
+                      setImportFile(e.target.files[0]);
+                      setImportPreviewData(null);
+                      setImportError(null);
+                    }
+                  }}
+                  className="hidden"
+                />
+                <label htmlFor="purchase-file-input" className="cursor-pointer flex flex-col items-center justify-center gap-2">
+                  <UploadCloud className="w-8 h-8 text-emerald-600" />
+                  <span className="text-xs font-bold text-slate-700">
+                    {importFile ? importFile.name : 'Click to select Excel (.xlsx) or CSV file, or drag and drop here'}
+                  </span>
+                  {importFile ? (
+                    <span className="text-[10px] text-slate-500 font-mono">
+                      {(importFile.size / 1024).toFixed(1)} KB — Ready to parse
+                    </span>
+                  ) : (
+                    <span className="text-[10px] text-slate-400">
+                      Standard Excel workbook (.xlsx) or CSV files supported.
+                    </span>
+                  )}
+                </label>
+              </div>
+
+              {/* Action: Generate Preview */}
+              {importFile && !importPreviewData && (
+                <div className="flex items-center justify-between bg-slate-50 p-3 rounded-lg border border-slate-200">
+                  <span className="text-xs text-slate-600 font-medium">
+                    Ready to validate items for invoice: <strong className="text-slate-900 font-mono">{supplierInvoiceNumber || 'Draft'}</strong>
+                  </span>
+                  <button
+                    type="button"
+                    disabled={isAnalyzingImport}
+                    onClick={handleAnalyzeImport}
+                    className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold flex items-center gap-2 shadow-xs disabled:opacity-50"
+                  >
+                    {isAnalyzingImport ? (
+                      <>
+                        <div className="w-3.5 h-3.5 rounded-full border-2 border-white border-t-transparent animate-spin" />
+                        Validating file items...
+                      </>
+                    ) : (
+                      <>
+                        <CheckCircle className="w-3.5 h-3.5" /> Generate Staged Preview
+                      </>
+                    )}
+                  </button>
+                </div>
+              )}
+
+              {/* Error Message */}
+              {importError && (
+                <div className="p-3 bg-rose-50 border border-rose-200 rounded-lg text-rose-700 text-xs flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 shrink-0" />
+                  <span>{importError}</span>
+                </div>
+              )}
+
+              {/* Staged Preview Section */}
+              {importPreviewData && (
+                <div className="space-y-3 pt-1">
+                  {/* Summary Metric Badges */}
+                  <div className="grid grid-cols-2 sm:grid-cols-6 gap-2 text-xs">
+                    <div className="p-2 bg-slate-50 rounded-lg border border-slate-200">
+                      <span className="text-[10px] text-slate-500 block">Total Rows</span>
+                      <span className="text-sm font-bold font-mono text-slate-800">{importPreviewData.metrics.totalRows}</span>
+                    </div>
+                    <div className="p-2 bg-emerald-50 rounded-lg border border-emerald-200">
+                      <span className="text-[10px] text-emerald-700 block">Valid Items</span>
+                      <span className="text-sm font-bold font-mono text-emerald-800">{importPreviewData.metrics.validRows}</span>
+                    </div>
+                    <div className={`p-2 rounded-lg border ${importPreviewData.metrics.errorRows > 0 ? 'bg-rose-50 border-rose-200' : 'bg-slate-50 border-slate-200'}`}>
+                      <span className={`text-[10px] block ${importPreviewData.metrics.errorRows > 0 ? 'text-rose-700 font-bold' : 'text-slate-500'}`}>Errors</span>
+                      <span className={`text-sm font-bold font-mono ${importPreviewData.metrics.errorRows > 0 ? 'text-rose-700' : 'text-slate-800'}`}>
+                        {importPreviewData.metrics.errorRows}
+                      </span>
+                    </div>
+                    <div className="p-2 bg-blue-50 rounded-lg border border-blue-200">
+                      <span className="text-[10px] text-blue-700 block">New Products</span>
+                      <span className="text-sm font-bold font-mono text-blue-800">{importPreviewData.metrics.newProducts}</span>
+                    </div>
+                    <div className="p-2 bg-amber-50 rounded-lg border border-amber-200">
+                      <span className="text-[10px] text-amber-700 block">Stock Increments</span>
+                      <span className="text-sm font-bold font-mono text-amber-800">{importPreviewData.metrics.existingBatches}</span>
+                    </div>
+                    <div className="p-2 bg-emerald-50 rounded-lg border border-emerald-200">
+                      <span className="text-[10px] text-emerald-800 block">Est. Grand Total</span>
+                      <span className="text-sm font-black font-mono text-emerald-900">
+                        ₹{Number(importPreviewData.metrics.estimatedGrandTotal || 0).toFixed(2)}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Staged Items Table */}
+                  <div className="border border-slate-200 rounded-lg overflow-hidden max-h-64 overflow-y-auto">
+                    <table className="w-full text-left text-xs">
+                      <thead className="bg-slate-50 border-b border-slate-200 text-[10px] font-bold text-slate-500 uppercase sticky top-0">
+                        <tr>
+                          <th className="p-2">Row #</th>
+                          <th className="p-2 text-center">Status</th>
+                          <th className="p-2">Medicine / Product</th>
+                          <th className="p-2">Batch #</th>
+                          <th className="p-2">Expiry</th>
+                          <th className="p-2 text-center">Qty (Unit)</th>
+                          <th className="p-2 text-right">P.Rate</th>
+                          <th className="p-2 text-right">MRP</th>
+                          <th className="p-2 text-right">Line Total</th>
+                          <th className="p-2">Validation Notes</th>
+                          <th className="p-2 text-center">Action</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 font-medium">
+                        {importPreviewData.items.map((item: any, i: number) => (
+                          <tr key={i} className={item.valid ? 'hover:bg-slate-50' : 'bg-rose-50/50 hover:bg-rose-50'}>
+                            <td className="p-2 font-mono font-bold text-slate-500">{item.rowNumber}</td>
+                            <td className="p-2 text-center">
+                              {item.valid ? (
+                                <Badge variant="success" size="sm">Valid</Badge>
+                              ) : (
+                                <Badge variant="danger" size="sm">Error</Badge>
+                              )}
+                            </td>
+                            <td className="p-2">
+                              <span className="font-bold text-slate-900">{item.productName || item.brandName}</span>
+                              {item.strength && <span className="text-slate-500 ml-1">({item.strength})</span>}
+                              {item.isNewProduct && <span className="ml-1.5 text-[9px] bg-blue-100 text-blue-800 font-bold px-1 rounded">NEW</span>}
+                            </td>
+                            <td className="p-2 font-mono font-semibold">{item.batchNumber}</td>
+                            <td className="p-2 font-mono text-slate-600">{item.expiryDate}</td>
+                            <td className="p-2 text-center font-mono">
+                              {item.quantity} {item.unit || 'Pack'}
+                              {item.conversionFactor > 1 && (
+                                <span className="text-[10px] text-slate-400 block font-normal">
+                                  ={item.quantity * item.conversionFactor} base
+                                </span>
+                              )}
+                            </td>
+                            <td className="p-2 text-right font-mono">₹{Number(item.purchaseRate || 0).toFixed(2)}</td>
+                            <td className="p-2 text-right font-mono">₹{Number(item.mrp || 0).toFixed(2)}</td>
+                            <td className="p-2 text-right font-mono font-bold text-emerald-800">
+                              ₹{Number(item.lineTotal || 0).toFixed(2)}
+                            </td>
+                            <td className="p-2 text-[11px]">
+                              {item.errors && item.errors.length > 0 ? (
+                                <span className="text-rose-600 font-semibold">{item.errors.join('; ')}</span>
+                              ) : (
+                                <span className="text-emerald-700">Ready to record</span>
+                              )}
+                            </td>
+                            <td className="p-2 text-center">
+                              <button
+                                type="button"
+                                onClick={() => handleRemovePreviewItem(i)}
+                                className="text-rose-600 hover:text-rose-800 p-1"
+                                title="Remove row"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {/* Actions Bar */}
+                  <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-200">
+                    <button
+                      type="button"
+                      onClick={handleUseValidatedItemsInLines}
+                      className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold"
+                    >
+                      Transfer to Manual Lines
+                    </button>
+
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setImportPreviewData(null);
+                          setImportFile(null);
+                        }}
+                        className="px-3 py-1.5 text-slate-500 hover:text-slate-700 text-xs font-semibold"
+                      >
+                        Discard Preview
+                      </button>
+                      <button
+                        type="button"
+                        disabled={isSubmittingImportPurchase || importPreviewData.metrics.validRows === 0}
+                        onClick={handleConfirmImportPurchase}
+                        className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold shadow-xs transition-all disabled:opacity-50 flex items-center gap-1.5"
+                      >
+                        {isSubmittingImportPurchase ? (
+                          <>
+                            <div className="w-3.5 h-3.5 rounded-full border-2 border-white border-t-transparent animate-spin" />
+                            Recording Purchase...
+                          </>
+                        ) : (
+                          <>
+                            <CheckCircle className="w-3.5 h-3.5" />
+                            Confirm Purchase & Save Inward Stock ({importPreviewData.metrics.validRows} Items)
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          ) : (
+            <>
+              {/* Manual Invoice Line Items */}
+              <div className="space-y-2 pt-1">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <label className="text-xs font-bold text-slate-800">Invoice Line Items & Batches</label>
+                    <p className="text-[10px] text-slate-400">
+                      Configure packaging hierarchy (Box/Strip/Tablet/Bottle/Sachet). Base inventory is normalized automatically.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={addLine}
+                    className="text-xs text-emerald-600 hover:text-emerald-800 font-bold flex items-center gap-1"
+                  >
+                    <Plus className="w-3.5 h-3.5" /> Add Line Item
+                  </button>
+                </div>
+
+                <div className="space-y-3 max-h-96 overflow-y-auto pr-1">
+                  {lines.map((l, idx) => {
+                    const qty = Number(l.quantity) || 0;
+                    const freeQty = Number(l.freeQuantity) || 0;
+                    const pRate = Number(l.purchaseRate) || 0;
+                    const sRate = Number(l.sellingRate) || Number(l.mrp) || 0;
+                    const factor = Number(l.conversionFactor) || 10;
+                    const gross = qty * pRate;
+                    const disc = l.discountPercent > 0 ? (gross * l.discountPercent) / 100 : (l.discountAmount || 0);
+                    const taxable = Math.max(0, gross - disc);
+                    const lineGst = Number(l.gstRate) || 0;
+                    const lineTax = (taxable * lineGst) / 100;
+                    const lineCGST = lineTax / 2;
+                    const lineSGST = lineTax / 2;
+                    const totalUnits = qty + freeQty;
+                    const effectiveUnitCost = totalUnits > 0 ? taxable / totalUnits : pRate;
+                    const expectedMarginPct = sRate > 0 ? ((sRate - effectiveUnitCost) / sRate) * 100 : 0;
+                    const baseNormalizedQty = totalUnits * factor;
+
+                    return (
+                      <div key={idx} className="p-3 bg-slate-50 rounded-xl border border-slate-200 text-xs space-y-2">
+                        <div className="grid grid-cols-12 gap-2 items-end">
+                          <div className="col-span-3">
+                            <div className="flex items-center justify-between mb-0.5">
+                              <label className="text-[10px] font-bold text-slate-600">Medicine *</label>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setInlineMedicineTargetIdx(idx);
+                                  setShowInlineMedicineModal(true);
+                                }}
+                                className="text-[10px] text-emerald-600 hover:text-emerald-800 font-bold flex items-center gap-0.5"
+                              >
+                                <Plus className="w-2.5 h-2.5" /> New Item
+                              </button>
+                            </div>
+                            <select
+                              required
+                              value={l.medicineId}
+                              onChange={(e) => updateLine(idx, 'medicineId', e.target.value)}
+                              className="w-full px-2 py-1.5 text-xs bg-white border border-slate-300 rounded font-medium"
+                            >
+                              <option value="">-- Choose Catalogue Medicine --</option>
+                              {products.map((p) => (
+                                <option key={p.id} value={p.id}>
+                                  {p.brandName} ({p.strength}) - Pack {p.packageUnit || 'Box'}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+
+                          <div className="col-span-2">
+                            <label className="text-[10px] font-bold text-slate-600 block mb-0.5">Batch # *</label>
+                            <input
+                              type="text"
+                              required
+                              placeholder="e.g. DL-24A01"
+                              value={l.batchNumber}
+                              onChange={(e) => updateLine(idx, 'batchNumber', e.target.value)}
+                              className="w-full px-2 py-1.5 text-xs bg-white border border-slate-300 rounded font-mono font-bold"
+                            />
+                          </div>
+
+                          <div className="col-span-2">
+                            <label className="text-[10px] font-bold text-slate-600 block mb-0.5">Expiry Date *</label>
+                            <input
+                              type="date"
+                              required
+                              value={l.expiryDate}
+                              onChange={(e) => updateLine(idx, 'expiryDate', e.target.value)}
+                              className="w-full px-2 py-1.5 text-xs bg-white border border-slate-300 rounded font-mono"
+                            />
+                          </div>
+
+                          <div className="col-span-1">
+                            <label className="text-[10px] font-bold text-slate-600 block mb-0.5">Unit</label>
+                            <select
+                              value={l.unit || 'Box'}
+                              onChange={(e) => updateLine(idx, 'unit', e.target.value)}
+                              className="w-full px-1.5 py-1.5 text-xs bg-white border border-slate-300 rounded font-semibold text-slate-800"
+                            >
+                              <option value="Box">Box</option>
+                              <option value="Strip">Strip</option>
+                              <option value="Tablet">Tablet</option>
+                              <option value="Capsule">Capsule</option>
+                              <option value="Sachet">Sachet</option>
+                              <option value="Bottle">Bottle</option>
+                              <option value="Pack">Pack</option>
+                            </select>
+                          </div>
+
+                          <div className="col-span-1">
+                            <label className="text-[10px] font-bold text-slate-600 block mb-0.5" title="Units per Pack/Box">Units/Pk</label>
+                            <input
+                              type="number"
+                              min="1"
+                              required
+                              value={l.conversionFactor || 10}
+                              onChange={(e) => updateLine(idx, 'conversionFactor', e.target.value)}
+                              className="w-full px-1.5 py-1.5 text-xs bg-white border border-slate-300 rounded font-mono text-center font-bold"
+                              title="Units per Pack"
+                            />
+                          </div>
+
+                          <div className="col-span-1">
+                            <label className="text-[10px] font-bold text-slate-600 block mb-0.5">Qty *</label>
+                            <input
+                              type="number"
+                              min="1"
+                              required
+                              value={l.quantity}
+                              onChange={(e) => updateLine(idx, 'quantity', e.target.value)}
+                              className="w-full px-2 py-1.5 text-xs bg-white border border-slate-300 rounded font-mono text-center font-bold"
+                            />
+                          </div>
+
+                          <div className="col-span-1">
+                            <label className="text-[10px] font-bold text-emerald-700 block mb-0.5">Free</label>
+                            <input
+                              type="number"
+                              min="0"
+                              value={l.freeQuantity}
+                              onChange={(e) => updateLine(idx, 'freeQuantity', e.target.value)}
+                              className="w-full px-1.5 py-1.5 text-xs bg-white border border-emerald-300 rounded font-mono text-center text-emerald-800 font-bold"
+                            />
+                          </div>
+
+                          <div className="col-span-1 flex items-center justify-end">
+                            {lines.length > 1 && (
+                              <button
+                                type="button"
+                                onClick={() => removeLine(idx)}
+                                className="text-rose-600 hover:text-rose-800 p-1"
+                                title="Remove Line"
+                              >
+                                &times;
+                              </button>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Secondary Row: Rates, Discounts, GST, Margins */}
+                        <div className="grid grid-cols-12 gap-2 pt-1 border-t border-slate-200/60 items-center text-[11px]">
+                          <div className="col-span-2">
+                            <label className="text-[10px] text-blue-900 block font-bold">Pur Rate (₹) *</label>
+                            <input
+                              type="number"
+                              step="0.01"
+                              required
+                              value={l.purchaseRate}
+                              onChange={(e) => updateLine(idx, 'purchaseRate', e.target.value)}
+                              className="w-full px-2 py-1 bg-white border border-blue-300 rounded font-mono font-bold text-blue-900 text-xs"
+                            />
+                          </div>
+
+                          <div className="col-span-2">
+                            <label className="text-[10px] text-slate-500 block">Printed MRP (₹)</label>
+                            <input
+                              type="number"
+                              step="0.01"
+                              required
+                              value={l.mrp}
+                              onChange={(e) => updateLine(idx, 'mrp', e.target.value)}
+                              className="w-full px-2 py-1 bg-white border border-slate-300 rounded font-mono text-xs"
+                            />
+                          </div>
+
+                          <div className="col-span-2">
+                            <label className="text-[10px] text-slate-500 block">Selling Rate (₹)</label>
+                            <input
+                              type="number"
+                              step="0.01"
+                              required
+                              value={l.sellingRate}
+                              onChange={(e) => updateLine(idx, 'sellingRate', e.target.value)}
+                              className="w-full px-2 py-1 bg-white border border-emerald-300 rounded font-mono text-xs font-semibold text-emerald-900"
+                            />
+                          </div>
+
+                          <div className="col-span-2">
+                            <label className="text-[10px] text-slate-500 block">
+                              Discount ({l.discountPercent}%)
+                            </label>
+                            <input
+                              type="number"
+                              step="0.1"
+                              min="0"
+                              max="100"
+                              value={l.discountPercent}
+                              onChange={(e) => updateLine(idx, 'discountPercent', e.target.value)}
+                              className="w-full px-2 py-1 bg-white border border-slate-300 rounded font-mono text-xs"
+                            />
+                          </div>
+
+                          <div className="col-span-2">
+                            <label className="text-[10px] text-slate-500 block">
+                              GST ({l.gstRate}%)
+                            </label>
+                            <select
+                              value={l.gstRate}
+                              onChange={(e) => updateLine(idx, 'gstRate', e.target.value)}
+                              className="w-full px-2 py-1 bg-white border border-slate-300 rounded text-xs font-semibold"
+                            >
+                              <option value="0">0% (Nil)</option>
+                              <option value="5">5% (CGST 2.5% + SGST 2.5%)</option>
+                              <option value="12">12% (CGST 6% + SGST 6%)</option>
+                              <option value="18">18% (CGST 9% + SGST 9%)</option>
+                              <option value="28">28% (CGST 14% + SGST 14%)</option>
+                            </select>
+                          </div>
+
+                          <div className="col-span-2 flex flex-col items-end justify-center font-mono text-[10px] text-slate-600">
+                            <span className="font-bold text-slate-800">
+                              Base: {baseNormalizedQty} units
+                            </span>
+                            <span className="text-emerald-700 font-bold">
+                              Margin: {expectedMarginPct.toFixed(1)}%
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Structured Financial Invoice Summary Box */}
+              <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-3">
+                <h4 className="text-[11px] font-bold uppercase tracking-wider text-slate-600">
+                  Invoice Financial Summary & Dual Tax Breakdown
+                </h4>
+
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+                  <div className="p-2.5 bg-white rounded-lg border border-slate-200">
+                    <span className="text-[10px] text-slate-500 block">Gross Subtotal</span>
+                    <span className="text-sm font-bold font-mono text-slate-800">
+                      ₹{(formSubtotal + formLineDiscounts).toFixed(2)}
+                    </span>
+                  </div>
+
+                  <div className="p-2.5 bg-white rounded-lg border border-slate-200">
+                    <span className="text-[10px] text-slate-500 block">
+                      Total Discounts ({formSubtotal > 0 ? ((formLineDiscounts / (formSubtotal + formLineDiscounts)) * 100).toFixed(1) : 0}%)
+                    </span>
+                    <span className="text-sm font-bold font-mono text-rose-600">
+                      -₹{(formLineDiscounts + invDiscAmt).toFixed(2)}
+                    </span>
+                  </div>
+
+                  <div className="p-2.5 bg-white rounded-lg border border-slate-200">
+                    <span className="text-[10px] text-slate-500 block">Taxable Base</span>
+                    <span className="text-sm font-bold font-mono text-slate-900">
+                      ₹{formSubtotal.toFixed(2)}
+                    </span>
+                  </div>
+
+                  <div className="p-2.5 bg-emerald-50 rounded-lg border border-emerald-200">
+                    <span className="text-[10px] text-emerald-800 block">Final Payable Amount</span>
+                    <span className="text-base font-black font-mono text-emerald-800">
+                      ₹{formGrandTotal.toFixed(2)}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-3 gap-3 text-xs pt-1 border-t border-slate-200/80">
+                  <div className="flex justify-between items-center bg-white p-2 rounded border border-slate-200 font-mono">
+                    <span className="text-slate-600 text-[11px]">CGST ({configuredCGST}%):</span>
+                    <span className="font-bold text-slate-800">₹{formCGSTTotal.toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between items-center bg-white p-2 rounded border border-slate-200 font-mono">
+                    <span className="text-slate-600 text-[11px]">SGST ({configuredSGST}%):</span>
+                    <span className="font-bold text-slate-800">₹{formSGSTTotal.toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between items-center bg-white p-2 rounded border border-slate-200 font-mono">
+                    <span className="text-slate-700 text-[11px] font-bold">Total GST ({configuredCombinedGST}%):</span>
+                    <span className="font-black text-emerald-700">₹{formTaxTotal.toFixed(2)}</span>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-3 gap-3 pt-1">
+                  <div>
+                    <label className="text-[10px] font-bold text-slate-600 block mb-0.5">Additional Charges (₹)</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={additionalCharges}
+                      onChange={(e) => setAdditionalCharges(e.target.value)}
+                      className="w-full px-2.5 py-1.5 text-xs bg-white border border-slate-300 rounded font-mono"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-[10px] font-bold text-slate-600 block mb-0.5">Paid Amount (₹)</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      placeholder={paymentMode === 'CREDIT' ? '0.00' : formGrandTotal.toFixed(2)}
+                      value={paidAmount}
+                      onChange={(e) => setPaidAmount(e.target.value)}
+                      className="w-full px-2.5 py-1.5 text-xs bg-white border border-slate-300 rounded font-mono font-bold text-slate-800"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-[10px] font-bold text-slate-600 block mb-0.5">Notes / Logistics</label>
+                    <input
+                      type="text"
+                      placeholder="e.g. VRL Logistics, cold chain verified"
+                      value={notes}
+                      onChange={(e) => setNotes(e.target.value)}
+                      className="w-full px-2.5 py-1.5 text-xs bg-white border border-slate-300 rounded"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-2 pt-4 border-t border-slate-200">
+                <button
+                  type="button"
+                  onClick={() => setShowModal(false)}
+                  className="px-4 py-2 border border-slate-300 rounded-lg text-xs font-semibold text-slate-600 hover:bg-slate-50 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold shadow-xs transition-colors"
+                >
+                  {isEditing ? 'Save Changes & Reconcile Stock' : 'Confirm Purchase & Receive Stock'}
+                </button>
+              </div>
+            </>
+          )}
         </form>
       </Modal>
 
@@ -2561,6 +3312,90 @@ export const PurchasesPage: React.FC = () => {
           </div>
         </form>
       </Modal>
+
+      {/* Super Admin Bulk Delete Invoices Confirmation Modal */}
+      {showBulkDeleteInvoicesModal && (
+        <Modal
+          isOpen={true}
+          onClose={() => setShowBulkDeleteInvoicesModal(false)}
+          title={`Confirm Bulk Deletion: ${selectedInvoiceIds.length} Purchase Invoices`}
+          maxWidth="md"
+        >
+          <div className="space-y-4 text-xs">
+            <div className="p-3 bg-rose-50 border border-rose-200 rounded-lg text-rose-800 space-y-1">
+              <span className="font-bold flex items-center gap-1.5">
+                <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                Administrative Deletion Safeguard
+              </span>
+              <p className="text-[11px]">
+                You are about to delete <strong>{selectedInvoiceIds.length}</strong> purchase invoices. Invoices with recorded supplier returns or active batch sales will be protected to ensure financial integrity.
+              </p>
+            </div>
+            <p className="text-slate-600">
+              Are you sure you want to proceed with deleting the selected purchase invoices?
+            </p>
+            <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-200">
+              <button
+                type="button"
+                onClick={() => setShowBulkDeleteInvoicesModal(false)}
+                className="px-3.5 py-1.5 border border-slate-300 rounded-lg text-slate-700 font-semibold"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={isBulkDeletingInvoices}
+                onClick={handleBulkDeleteInvoices}
+                className="px-4 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-lg font-bold disabled:opacity-50 flex items-center gap-1.5"
+              >
+                {isBulkDeletingInvoices ? 'Deleting...' : 'Confirm Bulk Deletion'}
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* Super Admin Bulk Delete Suppliers Confirmation Modal */}
+      {showBulkDeleteSuppliersModal && (
+        <Modal
+          isOpen={true}
+          onClose={() => setShowBulkDeleteSuppliersModal(false)}
+          title={`Confirm Bulk Deletion: ${selectedSupplierIds.length} Suppliers`}
+          maxWidth="md"
+        >
+          <div className="space-y-4 text-xs">
+            <div className="p-3 bg-rose-50 border border-rose-200 rounded-lg text-rose-800 space-y-1">
+              <span className="font-bold flex items-center gap-1.5">
+                <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                Supplier Dependency Check
+              </span>
+              <p className="text-[11px]">
+                You are about to delete <strong>{selectedSupplierIds.length}</strong> supplier records. Suppliers with existing purchase invoices or active inventory batches will be protected to protect ledger history.
+              </p>
+            </div>
+            <p className="text-slate-600">
+              Are you sure you want to proceed with deleting the selected suppliers?
+            </p>
+            <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-200">
+              <button
+                type="button"
+                onClick={() => setShowBulkDeleteSuppliersModal(false)}
+                className="px-3.5 py-1.5 border border-slate-300 rounded-lg text-slate-700 font-semibold"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={isBulkDeletingSuppliers}
+                onClick={handleBulkDeleteSuppliers}
+                className="px-4 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-lg font-bold disabled:opacity-50 flex items-center gap-1.5"
+              >
+                {isBulkDeletingSuppliers ? 'Deleting...' : 'Confirm Bulk Deletion'}
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
     </div>
   );
 };

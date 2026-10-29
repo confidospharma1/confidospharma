@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { api } from '../services/api';
 import { MedicineProduct } from '../types';
-import { Pill, Plus, Search, Filter, AlertCircle, CheckCircle, Barcode, DollarSign, Edit2, Trash2, X } from 'lucide-react';
+import { Pill, Plus, Search, Filter, AlertCircle, CheckCircle, Barcode, DollarSign, Edit2, Trash2, X, CheckSquare } from 'lucide-react';
 import { Badge } from '../components/Badge';
 import { Modal } from '../components/Modal';
 import { FilterButton } from '../components/FilterButton';
@@ -91,6 +91,44 @@ export const ProductsPage: React.FC = () => {
   // Delete/Archive Confirmation Modal
   const [deleteTarget, setDeleteTarget] = useState<MedicineProduct | null>(null);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+
+  // Super Admin Bulk Deletions
+  const [selectedProductIds, setSelectedProductIds] = useState<string[]>([]);
+  const [showBulkDeleteProductsModal, setShowBulkDeleteProductsModal] = useState(false);
+  const [isBulkDeletingProducts, setIsBulkDeletingProducts] = useState(false);
+
+  const toggleSelectProduct = (id: string) => {
+    setSelectedProductIds((prev) =>
+      prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id]
+    );
+  };
+
+  const toggleSelectAllProducts = (displayed: MedicineProduct[]) => {
+    if (selectedProductIds.length === displayed.length) {
+      setSelectedProductIds([]);
+    } else {
+      setSelectedProductIds(displayed.map((p) => p.id));
+    }
+  };
+
+  const handleBulkDeleteProducts = async () => {
+    if (selectedProductIds.length === 0) return;
+    setIsBulkDeletingProducts(true);
+    try {
+      const res = await api.bulkDeleteProducts(selectedProductIds);
+      setMessage({
+        text: res.message || `Successfully processed bulk deletion for ${selectedProductIds.length} products.`,
+        type: 'success',
+      });
+      setSelectedProductIds([]);
+      setShowBulkDeleteProductsModal(false);
+      loadProducts();
+    } catch (err: any) {
+      setMessage({ text: err.message || 'Failed to bulk delete products.', type: 'error' });
+    } finally {
+      setIsBulkDeletingProducts(false);
+    }
+  };
 
   const [message, setMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
 
@@ -423,12 +461,51 @@ export const ProductsPage: React.FC = () => {
         )}
       </div>
 
+      {/* Super Admin Bulk Products Action Bar */}
+      {isSuperAdmin && selectedProductIds.length > 0 && (
+        <div className="flex items-center justify-between bg-rose-50 border border-rose-200 p-2.5 rounded-xl text-xs text-rose-800">
+          <span className="font-semibold flex items-center gap-1.5">
+            <CheckSquare className="w-4 h-4 text-rose-600" />
+            {selectedProductIds.length} medicine products selected
+          </span>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setSelectedProductIds([])}
+              className="px-2.5 py-1 text-slate-600 hover:text-slate-800 text-[11px] font-semibold"
+            >
+              Clear Selection
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowBulkDeleteProductsModal(true)}
+              className="px-3 py-1 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-xs font-bold transition-all shadow-xs flex items-center gap-1"
+            >
+              <Trash2 className="w-3.5 h-3.5" /> Delete Selected ({selectedProductIds.length})
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Products Table */}
       <div className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs">
             <thead className="bg-slate-50 text-slate-700 font-bold border-b border-slate-200">
               <tr>
+                {isSuperAdmin && (
+                  <th className="py-3 px-3 w-10 text-center">
+                    <input
+                      type="checkbox"
+                      checked={
+                        filteredProducts.length > 0 &&
+                        selectedProductIds.length === filteredProducts.length
+                      }
+                      onChange={() => toggleSelectAllProducts(filteredProducts)}
+                      className="rounded text-brand-600 focus:ring-brand-500 cursor-pointer"
+                    />
+                  </th>
+                )}
                 <th className="py-3 px-4">Internal Code</th>
                 <th className="py-3 px-4">Brand & Generic Name</th>
                 <th className="py-3 px-3">Strength & Form</th>
@@ -446,13 +523,13 @@ export const ProductsPage: React.FC = () => {
             <tbody className="divide-y divide-slate-100 font-medium">
               {loading ? (
                 <tr>
-                  <td colSpan={isBillingUser ? 11 : 12} className="py-8 text-center text-slate-400">
+                  <td colSpan={isSuperAdmin ? (isBillingUser ? 12 : 13) : (isBillingUser ? 11 : 12)} className="py-8 text-center text-slate-400">
                     Loading medicines catalogue...
                   </td>
                 </tr>
               ) : filteredProducts.length === 0 ? (
                 <tr>
-                  <td colSpan={isBillingUser ? 11 : 12} className="py-12 text-center text-slate-500">
+                  <td colSpan={isSuperAdmin ? (isBillingUser ? 12 : 13) : (isBillingUser ? 11 : 12)} className="py-12 text-center text-slate-500">
                     <p className="text-sm font-bold text-slate-800">No medicines found.</p>
                     <p className="text-xs text-slate-500 mt-1">Add a medicine to begin managing your inventory catalogue.</p>
                     {!isBillingUser && (
@@ -469,6 +546,16 @@ export const ProductsPage: React.FC = () => {
               ) : (
                 filteredProducts.map((p) => (
                   <tr key={p.id} className="hover:bg-slate-50/80 transition-colors">
+                    {isSuperAdmin && (
+                      <td className="py-3 px-3 text-center" onClick={(e) => e.stopPropagation()}>
+                        <input
+                          type="checkbox"
+                          checked={selectedProductIds.includes(p.id)}
+                          onChange={() => toggleSelectProduct(p.id)}
+                          className="rounded text-brand-600 focus:ring-brand-500 cursor-pointer"
+                        />
+                      </td>
+                    )}
                     <td className="py-3 px-4 font-mono font-bold text-slate-800">{p.internalCode}</td>
                     <td className="py-3 px-4">
                       <span className="font-bold text-slate-900 block">{p.brandName}</span>
@@ -992,6 +1079,48 @@ export const ProductsPage: React.FC = () => {
           </div>
         </div>
       </Modal>
+
+      {/* Super Admin Bulk Delete Products Modal */}
+      {showBulkDeleteProductsModal && (
+        <Modal
+          isOpen={true}
+          onClose={() => setShowBulkDeleteProductsModal(false)}
+          title={`Confirm Bulk Deletion: ${selectedProductIds.length} Medicine Products`}
+          maxWidth="md"
+        >
+          <div className="space-y-4 text-xs">
+            <div className="p-3 bg-rose-50 border border-rose-200 rounded-lg text-rose-800 space-y-1">
+              <span className="font-bold flex items-center gap-1.5">
+                <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                Ledger Integrity & Batch Dependency Check
+              </span>
+              <p className="text-[11px]">
+                You are about to delete <strong>{selectedProductIds.length}</strong> catalogue medicine products. Products with existing stock batches or historical purchase/sales lines will be archived instead of purged to preserve ledger consistency.
+              </p>
+            </div>
+            <p className="text-slate-600">
+              Are you sure you want to proceed with deleting the selected medicines?
+            </p>
+            <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-200">
+              <button
+                type="button"
+                onClick={() => setShowBulkDeleteProductsModal(false)}
+                className="px-3.5 py-1.5 border border-slate-300 rounded-lg text-slate-700 font-semibold"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={isBulkDeletingProducts}
+                onClick={handleBulkDeleteProducts}
+                className="px-4 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-lg font-bold disabled:opacity-50 flex items-center gap-1.5"
+              >
+                {isBulkDeletingProducts ? 'Deleting...' : 'Confirm Bulk Deletion'}
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
 
       {/* Permission Restriction Modal */}
       <PermissionDeniedModal

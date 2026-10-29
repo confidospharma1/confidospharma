@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { api } from '../services/api';
 import { User } from '../types';
-import { Users, Plus, ShieldCheck, Mail, Building2, CheckCircle2, Edit2, Trash2, AlertCircle, Search, Filter, X } from 'lucide-react';
+import { Users, Plus, ShieldCheck, Mail, Building2, CheckCircle2, Edit2, Trash2, AlertCircle, Search, Filter, X, CheckSquare } from 'lucide-react';
 import { Badge } from '../components/Badge';
 import { Modal } from '../components/Modal';
 import { FilterButton } from '../components/FilterButton';
@@ -58,6 +58,44 @@ export const UsersPage: React.FC = () => {
   // Delete/Deactivate Confirmation Modal
   const [deleteTarget, setDeleteTarget] = useState<User | null>(null);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+
+  // Super Admin Bulk Operations
+  const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
+  const [showBulkDeleteUsersModal, setShowBulkDeleteUsersModal] = useState(false);
+  const [isBulkDeletingUsers, setIsBulkDeletingUsers] = useState(false);
+
+  const toggleSelectUser = (id: string) => {
+    setSelectedUserIds((prev) =>
+      prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id]
+    );
+  };
+
+  const toggleSelectAllUsers = (displayed: User[]) => {
+    if (selectedUserIds.length === displayed.length) {
+      setSelectedUserIds([]);
+    } else {
+      setSelectedUserIds(displayed.map((u) => u.id));
+    }
+  };
+
+  const handleBulkDeleteUsers = async () => {
+    if (selectedUserIds.length === 0) return;
+    setIsBulkDeletingUsers(true);
+    try {
+      const res = await api.bulkDeleteUsers(selectedUserIds);
+      setMessage({
+        text: res.message || `Successfully processed bulk deletion for ${selectedUserIds.length} users.`,
+        type: 'success',
+      });
+      setSelectedUserIds([]);
+      setShowBulkDeleteUsersModal(false);
+      loadUsers();
+    } catch (err: any) {
+      setMessage({ text: err.message || 'Failed to bulk delete users.', type: 'error' });
+    } finally {
+      setIsBulkDeletingUsers(false);
+    }
+  };
 
   const [message, setMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
 
@@ -323,12 +361,49 @@ export const UsersPage: React.FC = () => {
         )}
       </div>
 
+      {/* Super Admin Bulk Users Action Bar */}
+      {isSuperAdmin && selectedUserIds.length > 0 && (
+        <div className="flex items-center justify-between bg-rose-50 border border-rose-200 p-2.5 rounded-xl text-xs text-rose-800">
+          <span className="font-semibold flex items-center gap-1.5">
+            <CheckSquare className="w-4 h-4 text-rose-600" />
+            {selectedUserIds.length} staff accounts selected
+          </span>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setSelectedUserIds([])}
+              className="px-2.5 py-1 text-slate-600 hover:text-slate-800 text-[11px] font-semibold"
+            >
+              Clear Selection
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowBulkDeleteUsersModal(true)}
+              className="flex items-center gap-1.5 px-3 py-1 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-xs font-bold transition-colors shadow-xs"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              Delete / Deactivate Selected ({selectedUserIds.length})
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Users Table */}
       <div className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs">
             <thead className="bg-slate-50 text-slate-700 font-bold border-b border-slate-200">
               <tr>
+                {isSuperAdmin && (
+                  <th className="py-3 px-3 text-center w-10">
+                    <input
+                      type="checkbox"
+                      checked={filteredUsers.length > 0 && selectedUserIds.length === filteredUsers.length}
+                      onChange={() => toggleSelectAllUsers(filteredUsers)}
+                      className="rounded border-slate-300 text-brand-600 focus:ring-brand-500"
+                    />
+                  </th>
+                )}
                 <th className="py-3 px-4">Full Name</th>
                 <th className="py-3 px-3">Username</th>
                 <th className="py-3 px-3">Email Address</th>
@@ -342,20 +417,20 @@ export const UsersPage: React.FC = () => {
             <tbody className="divide-y divide-slate-100 font-medium">
               {loading ? (
                 <tr>
-                  <td colSpan={(isSuperAdmin || isBranchAdmin) ? 8 : 7} className="py-8 text-center text-slate-400">
+                  <td colSpan={(isSuperAdmin ? 1 : 0) + ((isSuperAdmin || isBranchAdmin) ? 8 : 7)} className="py-8 text-center text-slate-400">
                     Loading staff accounts...
                   </td>
                 </tr>
               ) : users.length === 0 ? (
                 <tr>
-                  <td colSpan={(isSuperAdmin || isBranchAdmin) ? 8 : 7} className="py-12 text-center text-slate-400">
+                  <td colSpan={(isSuperAdmin ? 1 : 0) + ((isSuperAdmin || isBranchAdmin) ? 8 : 7)} className="py-12 text-center text-slate-400">
                     <p className="text-xs font-semibold text-slate-600">No staff accounts found.</p>
                     <p className="text-[11px] text-slate-400 mt-1">Register additional branch administrators or billing cashiers as needed.</p>
                   </td>
                 </tr>
               ) : filteredUsers.length === 0 ? (
                 <tr>
-                  <td colSpan={(isSuperAdmin || isBranchAdmin) ? 8 : 7} className="py-12 text-center text-slate-400">
+                  <td colSpan={(isSuperAdmin ? 1 : 0) + ((isSuperAdmin || isBranchAdmin) ? 8 : 7)} className="py-12 text-center text-slate-400">
                     <p className="text-xs font-semibold text-slate-700">No staff accounts match your filter criteria.</p>
                     <p className="text-[11px] text-slate-400 mt-1">Try resetting the filter or search keyword.</p>
                     <button
@@ -373,6 +448,16 @@ export const UsersPage: React.FC = () => {
               ) : (
                 filteredUsers.map((u) => (
                   <tr key={u.id} className="hover:bg-slate-50/80 transition-colors">
+                    {isSuperAdmin && (
+                      <td className="py-3 px-3 text-center">
+                        <input
+                          type="checkbox"
+                          checked={selectedUserIds.includes(u.id)}
+                          onChange={() => toggleSelectUser(u.id)}
+                          className="rounded border-slate-300 text-brand-600 focus:ring-brand-500"
+                        />
+                      </td>
+                    )}
                     <td className="py-3 px-4 font-bold text-slate-900">{u.fullName}</td>
                     <td className="py-3 px-3 font-mono text-slate-600">{u.username}</td>
                     <td className="py-3 px-3 text-slate-600">{u.email}</td>
@@ -671,6 +756,47 @@ export const UsersPage: React.FC = () => {
               className="px-5 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-xs font-bold shadow-xs"
             >
               Confirm Deactivation
+            </button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Modal: Bulk Delete Users Confirmation */}
+      <Modal
+        isOpen={showBulkDeleteUsersModal}
+        onClose={() => setShowBulkDeleteUsersModal(false)}
+        title="Confirm Bulk Staff Account Deactivation"
+        maxWidth="md"
+      >
+        <div className="space-y-4">
+          <div className="flex items-start gap-3 p-3 bg-rose-50 border border-rose-200 rounded-lg text-rose-800 text-xs">
+            <AlertCircle className="w-5 h-5 flex-shrink-0 text-rose-600 mt-0.5" />
+            <div>
+              <p className="font-bold mb-1">
+                Are you sure you want to delete or deactivate {selectedUserIds.length} selected staff accounts?
+              </p>
+              <p className="text-[11px] text-rose-700 mt-1">
+                Accounts will be safely deactivated or removed. Active accounts will lose immediate access. Historical transactions, sales, and audit trails remain preserved.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex justify-end gap-2 pt-2 border-t border-slate-200">
+            <button
+              type="button"
+              onClick={() => setShowBulkDeleteUsersModal(false)}
+              className="px-4 py-2 border border-slate-300 rounded-lg text-xs font-semibold text-slate-600"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={handleBulkDeleteUsers}
+              disabled={isBulkDeletingUsers}
+              className="px-5 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-xs font-bold shadow-xs flex items-center gap-1.5"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              {isBulkDeletingUsers ? 'Processing Deactivations...' : `Deactivate ${selectedUserIds.length} Accounts`}
             </button>
           </div>
         </div>

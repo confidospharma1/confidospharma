@@ -1,6 +1,7 @@
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 generator client {
@@ -48,6 +49,7 @@ model Branch {
   stockAdjustments  StockAdjustment[]
   expenses          Expense[]
   purchaseReturns   PurchaseReturn[]
+  purchaseIndents   PurchaseIndent[]
 }
 
 model User {
@@ -85,6 +87,9 @@ model MedicineProduct {
   barcode             String?
   prescriptionType    String   @default("Schedule H") // Schedule H, Schedule H1, OTC, General
   storageNotes        String?
+  packageUnit         String?  @default("Box")
+  conversionFactor    Int?     @default(10)
+  unitConfig          String?
   isActive            Boolean  @default(true)
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
@@ -95,6 +100,7 @@ model MedicineProduct {
   purchaseLines       PurchaseInvoiceLine[]
   adjustments         StockAdjustment[]
   purchaseReturnLines PurchaseReturnLine[]
+  purchaseIndentItems PurchaseIndentItem[]
 }
 
 model Supplier {
@@ -113,6 +119,7 @@ model Supplier {
   batches         StockBatch[]
   purchases       PurchaseInvoice[]
   purchaseReturns PurchaseReturn[]
+  purchaseIndents PurchaseIndent[]
 }
 
 model StockBatch {
@@ -227,6 +234,9 @@ model SalesInvoiceLine {
   sgstAmount     Float
   lineTotal      Float
   purchaseRate   Float?   // Unit acquisition cost at time of sale for deterministic COGS
+  unit           String?  @default("Strip")
+  conversionFactor Int?   @default(1)
+  baseQuantity   Int?
 
   invoice  SalesInvoice    @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
   medicine MedicineProduct @relation(fields: [medicineId], references: [id])
@@ -275,6 +285,9 @@ model PurchaseInvoiceLine {
   gstRate           Float
   taxAmount         Float    @default(0.0)
   lineTotal         Float
+  unit              String?  @default("Strip")
+  conversionFactor  Int?     @default(1)
+  baseQuantity      Int?
 
   purchaseInvoice PurchaseInvoice @relation(fields: [purchaseInvoiceId], references: [id], onDelete: Cascade)
   medicine        MedicineProduct @relation(fields: [medicineId], references: [id])
@@ -410,4 +423,39 @@ model PurchaseReturnLine {
   purchaseReturn PurchaseReturn  @relation(fields: [purchaseReturnId], references: [id], onDelete: Cascade)
   medicine       MedicineProduct @relation(fields: [medicineId], references: [id])
 }
+
+model PurchaseIndent {
+  id                   String               @id @default(uuid())
+  indentNumber         String               @unique // e.g. IND-VJA-2026-00001
+  branchId             String
+  supplierId           String?
+  requestedByUserId    String
+  approvedByUserId     String?
+  status               String               @default("SUBMITTED") // DRAFT, SUBMITTED, APPROVED, CONVERTED, REJECTED
+  requestedDate        DateTime             @default(now())
+  requiredByDate       DateTime?
+  totalEstimatedAmount Float                @default(0.0)
+  notes                String?
+  purchaseInvoiceId    String?
+  createdAt            DateTime             @default(now())
+  updatedAt            DateTime             @updatedAt
+
+  branch               Branch               @relation(fields: [branchId], references: [id])
+  supplier             Supplier?            @relation(fields: [supplierId], references: [id])
+  items                PurchaseIndentItem[]
+}
+
+model PurchaseIndentItem {
+  id                String          @id @default(uuid())
+  indentId          String
+  medicineId        String
+  requestedQuantity Int
+  unit              String          @default("Strip")
+  estimatedRate     Float?
+  notes             String?
+
+  indent            PurchaseIndent  @relation(fields: [indentId], references: [id], onDelete: Cascade)
+  medicine          MedicineProduct @relation(fields: [medicineId], references: [id])
+}
+
 

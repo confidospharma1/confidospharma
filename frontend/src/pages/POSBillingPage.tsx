@@ -35,6 +35,7 @@ interface BillItem {
   quantity: number;
   unitMrp: number;
   discountPercent: number;
+  availableBatches?: StockBatch[];
 }
 
 export const POSBillingPage: React.FC = () => {
@@ -174,12 +175,31 @@ export const POSBillingPage: React.FC = () => {
         quantity: 1,
         unitMrp: bestBatch.sellingPrice || bestBatch.mrp,
         discountPercent: 0,
+        availableBatches: product.activeBatches || [bestBatch],
       };
 
       setBillItems((prev) => [...prev, newItem]);
     }
 
     searchInputRef.current?.focus();
+  };
+
+  const changeItemBatch = (index: number, newBatchId: string) => {
+    const item = billItems[index];
+    const targetBatch = item.availableBatches?.find((b) => b.id === newBatchId);
+    if (!targetBatch) return;
+
+    const updated = [...billItems];
+    updated[index] = {
+      ...item,
+      batchId: targetBatch.id,
+      batchNumber: targetBatch.batchNumber,
+      expiryDate: targetBatch.expiryDate,
+      availableStock: targetBatch.availableQuantity,
+      unitMrp: targetBatch.sellingPrice || targetBatch.mrp,
+      quantity: Math.min(item.quantity, targetBatch.availableQuantity),
+    };
+    setBillItems(updated);
   };
 
   const updateQuantity = (index: number, newQty: number) => {
@@ -445,9 +465,27 @@ export const POSBillingPage: React.FC = () => {
                       <tr key={`${item.medicineId}_${item.batchId}`} className="hover:bg-slate-50/80 transition-colors">
                         <td className="py-3 px-4">
                           <p className="font-bold text-slate-900">{item.brandName}</p>
-                          <p className="text-[11px] text-slate-500 font-mono mt-0.5">
-                            Batch: <span className="font-semibold text-slate-700">{item.batchNumber}</span> (Avail: {item.availableStock})
-                          </p>
+                          {item.availableBatches && item.availableBatches.length > 1 ? (
+                            <div className="flex items-center gap-1.5 mt-1">
+                              <span className="text-[10px] text-slate-400 font-semibold uppercase">Batch:</span>
+                              <select
+                                value={item.batchId}
+                                onChange={(e) => changeItemBatch(idx, e.target.value)}
+                                className="text-[11px] font-mono bg-white border border-slate-300 rounded px-1.5 py-0.5 text-slate-800 font-semibold focus:outline-brand-500 shadow-2xs"
+                                title="Select specific physical stock batch"
+                              >
+                                {item.availableBatches.map((b) => (
+                                  <option key={b.id} value={b.id}>
+                                    {b.batchNumber} (Avail: {b.availableQuantity})
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                          ) : (
+                            <p className="text-[11px] text-slate-500 font-mono mt-0.5">
+                              Batch: <span className="font-semibold text-slate-700">{item.batchNumber}</span> (Avail: {item.availableStock})
+                            </p>
+                          )}
                         </td>
                         <td className="py-3 px-3 text-center font-mono text-[11px] text-slate-600">
                           {new Date(item.expiryDate).toLocaleDateString('en-IN', { month: 'short', year: 'numeric' })}

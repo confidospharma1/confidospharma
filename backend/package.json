@@ -11,7 +11,8 @@
     "prisma:generate": "prisma generate",
     "prisma:push": "prisma db push",
     "prisma:seed": "ts-node-dev --transpile-only prisma/seed.ts",
-    "test": "vitest run tests/api.test.ts"
+    "prisma:reset-empty": "ts-node-dev --transpile-only prisma/reset_empty.ts",
+    "test": "vitest run tests/"
   },
   "dependencies": {
     "@prisma/client": "^5.22.0",

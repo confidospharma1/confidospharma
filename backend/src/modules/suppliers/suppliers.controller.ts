@@ -287,3 +287,81 @@ export const deleteSupplier = async (req: Request, res: Response) => {
     return res.status(500).json({ message: error.message || 'Failed to delete supplier' });
   }
 };
+
+export const bulkDeleteSuppliers = async (req: Request, res: Response) => {
+  try {
+    if (!req.user || req.user.role !== 'SUPER_ADMIN') {
+      return res.status(403).json({ message: 'Forbidden: Super Admin only' });
+    }
+
+    const { ids } = req.body;
+    if (!ids || !Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({ message: 'No supplier IDs provided' });
+    }
+
+    const results = {
+      deleted: [] as string[],
+      archived: [] as string[],
+      failed: [] as { id: string; reason: string }[],
+    };
+
+    for (const id of ids) {
+      const supplier = await prisma.supplier.findUnique({
+        where: { id },
+        include: {
+          _count: {
+            select: {
+              purchases: true,
+              batches: true,
+              purchaseReturns: true,
+            },
+          },
+        },
+      });
+
+      if (!supplier) {
+        results.failed.push({ id, reason: 'Supplier not found' });
+        continue;
+      }
+
+      const totalReferences =
+        supplier._count.purchases +
+        supplier._count.batches +
+        supplier._count.purchaseReturns;
+
+      if (totalReferences > 0) {
+        // Safe archive
+        await prisma.supplier.update({
+          where: { id },
+          data: { isActive: false },
+        });
+        results.archived.push(supplier.name);
+      } else {
+        // Permanent delete
+        await prisma.supplier.delete({ where: { id } });
+        results.deleted.push(supplier.name);
+      }
+    }
+
+    await logAuditEvent({
+      userId: req.user.id,
+      action: 'SUPPLIER_BULK_DELETE',
+      targetEntity: 'SUPPLIER',
+      details: {
+        deletedCount: results.deleted.length,
+        archivedCount: results.archived.length,
+      },
+      req,
+    });
+
+    return res.json({
+      message: `Processed ${results.deleted.length + results.archived.length} suppliers (${results.deleted.length} deleted, ${results.archived.length} safely archived)`,
+      deleted: results.deleted,
+      archived: results.archived,
+      failed: results.failed,
+    });
+  } catch (error: any) {
+    return res.status(500).json({ message: error.message || 'Bulk delete failed' });
+  }
+};
+

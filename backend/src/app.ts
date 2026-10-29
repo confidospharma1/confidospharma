@@ -16,6 +16,7 @@ import expenseRoutes from './modules/expenses/expenses.routes';
 import auditRoutes from './modules/audit/audit.routes';
 import privacyRoutes from './modules/privacy/privacy.routes';
 import settingRoutes from './modules/settings/settings.routes';
+import indentRoutes from './modules/indents/indents.routes';
 
 const app = express();
 
@@ -88,6 +89,7 @@ app.use('/api/expenses', expenseRoutes);
 app.use('/api/audit', auditRoutes);
 app.use('/api/privacy', privacyRoutes);
 app.use('/api/settings', settingRoutes);
+app.use('/api/indents', indentRoutes);
 
 // Centralized 404 handler
 app.use((req: Request, res: Response) => {

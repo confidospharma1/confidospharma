@@ -93,6 +93,9 @@ export const api = {
   createUser: (data: any) => apiRequest('/users', { method: 'POST', body: JSON.stringify(data) }),
   updateUser: (id: string, data: any) => apiRequest(`/users/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   deleteUser: (id: string) => apiRequest(`/users/${id}`, { method: 'DELETE' }),
+  bulkDeleteUsers: (userIds: string[]) => apiRequest('/users/bulk-delete', { method: 'POST', body: JSON.stringify({ userIds }) }),
+  getProfile: () => apiRequest('/users/profile'),
+  updateProfile: (data: any) => apiRequest('/users/profile', { method: 'PUT', body: JSON.stringify(data) }),
 
   // Products
   getProducts: (params?: { search?: string; barcode?: string; branchId?: string; page?: number; limit?: number }) => {
@@ -108,6 +111,7 @@ export const api = {
   createProduct: (data: any) => apiRequest('/products', { method: 'POST', body: JSON.stringify(data) }),
   updateProduct: (id: string, data: any) => apiRequest(`/products/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   deleteProduct: (id: string) => apiRequest(`/products/${id}`, { method: 'DELETE' }),
+  bulkDeleteProducts: (productIds: string[]) => apiRequest('/products/bulk-delete', { method: 'POST', body: JSON.stringify({ productIds }) }),
 
   // Inventory
   getBatches: (params?: { branchId?: string; medicineId?: string; status?: string; nearExpiry?: boolean; expired?: boolean }) => {
@@ -177,6 +181,7 @@ export const api = {
   createSupplier: (data: any) => apiRequest('/suppliers', { method: 'POST', body: JSON.stringify(data) }),
   updateSupplier: (id: string, data: any) => apiRequest(`/suppliers/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   deleteSupplier: (id: string) => apiRequest(`/suppliers/${id}`, { method: 'DELETE' }),
+  bulkDeleteSuppliers: (supplierIds: string[]) => apiRequest('/suppliers/bulk-delete', { method: 'POST', body: JSON.stringify({ supplierIds }) }),
 
   getPurchases: (params?: { branchId?: string; search?: string; page?: number }) => {
     const q = new URLSearchParams();
@@ -190,6 +195,33 @@ export const api = {
   updatePurchase: (id: string, data: any) => apiRequest(`/purchases/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   cancelPurchase: (id: string, reason: string) =>
     apiRequest(`/purchases/${id}/cancel`, { method: 'POST', body: JSON.stringify({ reason }) }),
+  bulkDeletePurchases: (invoiceIds: string[], reason?: string) =>
+    apiRequest('/purchases/bulk-delete', { method: 'POST', body: JSON.stringify({ invoiceIds, reason }) }),
+  previewPurchaseImport: (formData: FormData) =>
+    apiRequest('/purchases/import-preview', { method: 'POST', body: formData }),
+  downloadPurchaseTemplateUrl: (format: 'xlsx' | 'csv' = 'xlsx') =>
+    `${BASE_URL}/purchases/template?format=${format}`,
+  downloadPurchaseTemplate: async (format: 'xlsx' | 'csv' = 'xlsx'): Promise<Blob> => {
+    const token = getAuthToken();
+    const headers: Record<string, string> = {};
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+
+    const response = await fetch(`${BASE_URL}/purchases/template?format=${format}`, {
+      method: 'GET',
+      headers,
+    });
+
+    if (!response.ok) {
+      let errMsg = 'Failed to download purchase template.';
+      try {
+        const errJson = await response.json();
+        if (errJson?.message) errMsg = errJson.message;
+      } catch (_) {}
+      throw new Error(errMsg);
+    }
+
+    return response.blob();
+  },
   createPurchaseReturn: (data: any) => apiRequest('/purchases/returns', { method: 'POST', body: JSON.stringify(data) }),
   getPurchaseReturns: (params?: { branchId?: string; page?: number }) => {
     const q = new URLSearchParams();
@@ -197,6 +229,20 @@ export const api = {
     if (params?.page) q.append('page', params.page.toString());
     return apiRequest(`/purchases/returns?${q.toString()}`);
   },
+
+  // Indents
+  getIndents: (params?: { branchId?: string; status?: string; page?: number }) => {
+    const q = new URLSearchParams();
+    if (params?.branchId) q.append('branchId', params.branchId);
+    if (params?.status) q.append('status', params.status);
+    if (params?.page) q.append('page', params.page.toString());
+    return apiRequest(`/indents?${q.toString()}`);
+  },
+  getIndent: (id: string) => apiRequest(`/indents/${id}`),
+  createIndent: (data: any) => apiRequest('/indents', { method: 'POST', body: JSON.stringify(data) }),
+  updateIndentStatus: (id: string, status: string, reviewNotes?: string) =>
+    apiRequest(`/indents/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status, reviewNotes }) }),
+  convertIndentToPurchase: (id: string) => apiRequest(`/indents/${id}/convert`, { method: 'POST' }),
 
   // System Settings & Customization
   getSettings: () => apiRequest('/settings'),

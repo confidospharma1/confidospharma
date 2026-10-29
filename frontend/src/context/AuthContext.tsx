@@ -10,6 +10,7 @@ interface AuthContextType {
   setSelectedBranchId: (id: string) => void;
   login: (token: string, userData: User) => void;
   logout: () => void;
+  refreshProfile: () => Promise<void>;
   isSuperAdmin: boolean;
   isBranchAdmin: boolean;
   isBillingUser: boolean;
@@ -103,6 +104,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setSelectedBranchId: handleBranchSelect,
         login,
         logout,
+        refreshProfile: fetchProfile,
         isSuperAdmin,
         isBranchAdmin,
         isBillingUser,

@@ -379,3 +379,83 @@ export const deleteProduct = async (req: Request, res: Response) => {
   }
 };
 
+export const bulkDeleteProducts = async (req: Request, res: Response) => {
+  try {
+    if (!req.user || req.user.role !== 'SUPER_ADMIN') {
+      return res.status(403).json({ message: 'Forbidden: Super Admin only' });
+    }
+
+    const { ids } = req.body;
+    if (!ids || !Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({ message: 'No product IDs provided' });
+    }
+
+    const results = {
+      deleted: [] as string[],
+      archived: [] as string[],
+      failed: [] as { id: string; reason: string }[],
+    };
+
+    for (const id of ids) {
+      const product = await prisma.medicineProduct.findUnique({
+        where: { id },
+        include: {
+          _count: {
+            select: {
+              batches: true,
+              salesLines: true,
+              purchaseLines: true,
+              movements: true,
+            },
+          },
+        },
+      });
+
+      if (!product) {
+        results.failed.push({ id, reason: 'Product not found' });
+        continue;
+      }
+
+      const totalReferences =
+        product._count.batches +
+        product._count.salesLines +
+        product._count.purchaseLines +
+        product._count.movements;
+
+      if (totalReferences > 0) {
+        // Safe archive
+        await prisma.medicineProduct.update({
+          where: { id },
+          data: { isActive: false },
+        });
+        results.archived.push(product.brandName);
+      } else {
+        // Permanent delete
+        await prisma.medicineProduct.delete({ where: { id } });
+        results.deleted.push(product.brandName);
+      }
+    }
+
+    await logAuditEvent({
+      userId: req.user.id,
+      action: 'PRODUCT_BULK_DELETE',
+      targetEntity: 'MEDICINE_PRODUCT',
+      details: {
+        deletedCount: results.deleted.length,
+        archivedCount: results.archived.length,
+      },
+      req,
+    });
+
+    return res.json({
+      message: `Processed ${results.deleted.length + results.archived.length} products (${results.deleted.length} deleted, ${results.archived.length} safely archived)`,
+      deleted: results.deleted,
+      archived: results.archived,
+      failed: results.failed,
+    });
+  } catch (error: any) {
+    return res.status(500).json({ message: error.message || 'Bulk delete failed' });
+  }
+};
+
+

@@ -10,6 +10,7 @@ import { DashboardPage } from './pages/DashboardPage';
 import { InventoryPage } from './pages/InventoryPage';
 import { ProductsPage } from './pages/ProductsPage';
 import { PurchasesPage } from './pages/PurchasesPage';
+import { IndentsPage } from './pages/IndentsPage';
 import { TransfersPage } from './pages/TransfersPage';
 import { BulkImportPage } from './pages/BulkImportPage';
 import { ReportsPage } from './pages/ReportsPage';
@@ -23,6 +24,7 @@ import { LegalPage } from './pages/LegalPage';
 const MainLayout: React.FC = () => {
   const { user, loading, isBillingUser } = useAuth();
   const [activeTab, setActiveTab] = useState('pos');
+  const [prefilledPurchaseData, setPrefilledPurchaseData] = useState<any>(null);
 
   useEffect(() => {
     if (user) {
@@ -57,7 +59,20 @@ const MainLayout: React.FC = () => {
           {activeTab === 'dashboard' && <DashboardPage onNavigate={setActiveTab} />}
           {activeTab === 'inventory' && <InventoryPage />}
           {activeTab === 'catalogue' && <ProductsPage />}
-          {activeTab === 'purchases' && <PurchasesPage />}
+          {activeTab === 'purchases' && (
+            <PurchasesPage
+              prefilledIndent={prefilledPurchaseData}
+              onClearPrefill={() => setPrefilledPurchaseData(null)}
+            />
+          )}
+          {activeTab === 'indents' && (
+            <IndentsPage
+              onNavigateToPurchase={(indent) => {
+                setPrefilledPurchaseData(indent);
+                setActiveTab('purchases');
+              }}
+            />
+          )}
           {activeTab === 'transfers' && <TransfersPage />}
           {activeTab === 'imports' && <BulkImportPage />}
           {activeTab === 'reports' && <ReportsPage />}

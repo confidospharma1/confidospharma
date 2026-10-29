@@ -163,15 +163,64 @@ const STOCK_RECEIPT_FIELD_ALIASES: Record<string, string[]> = {
   ],
 };
 
+// Purchase Invoice canonical fields and aliases (Phase 4 Specification)
+const PURCHASE_INVOICE_FIELD_ALIASES: Record<string, string[]> = {
+  brandName: [
+    'product name', 'productname', 'product',
+    'brand name', 'brandname', 'brand',
+    'medicine name', 'medicinename', 'medicine',
+    'item name', 'itemname', 'item',
+  ],
+  genericName: [
+    'generic name', 'genericname', 'generic',
+    'salt', 'composition', 'active ingredient',
+  ],
+  strength: ['strength', 'potency', 'dose', 'power'],
+  dosageForm: ['dosage form', 'dosageform', 'form', 'formulation', 'type'],
+  manufacturer: ['manufacturer', 'mfg', 'company', 'make', 'producer', 'brand owner'],
+  hsnCode: ['hsn code', 'hsncode', 'hsn', 'hsn/sac', 'hsn sac'],
+  batchNumber: [
+    'batch number', 'batchnumber', 'batch', 'batch no', 'batchno',
+    'lot', 'lot number', 'lot no',
+  ],
+  expiryDate: [
+    'expiry date', 'expirydate', 'expiry', 'exp date', 'expdate', 'exp dt', 'exp',
+  ],
+  purchaseUnit: ['purchase unit', 'purchaseunit', 'unit', 'pack unit', 'packaging unit', 'p unit'],
+  quantity: [
+    'quantity', 'qty', 'units', 'purchase quantity', 'purchased qty', 'received qty', 'box qty', 'strip qty',
+  ],
+  freeQuantity: [
+    'free quantity', 'freequantity', 'free qty', 'freeqty', 'scheme qty', 'scheme', 'free', 'bonus qty',
+  ],
+  unitsPerPack: [
+    'units per pack', 'unitsperpack', 'pack size', 'packsize', 'conversion factor', 'conversion', 'pack',
+  ],
+  purchaseRate: [
+    'purchase rate', 'purchaserate', 'cost price', 'cost rate', 'purchase price', 'p rate', 'p.rate', 'unit cost', 'rate', 'purchase_rate',
+  ],
+  sellingRate: [
+    'selling rate', 'sellingrate', 'selling price', 'sale rate', 'sales rate', 's rate',
+  ],
+  mrp: ['mrp', 'maximum retail price', 'retail price', 'retail price (mrp)', 'price', 'unit mrp'],
+  gstRate: ['gst rate', 'gstrate', 'gst', 'gst %', 'tax rate', 'tax', 'tax %'],
+  discountPercent: ['discount', 'discount %', 'disc %', 'discount percent', 'disc percent', 'disc', 'scheme discount'],
+  sellingUnit: ['selling unit', 'sellingunit', 'base unit', 'sale unit'],
+};
+
 /**
  * Build mapping from raw spreadsheet column headers to canonical internal fields
  */
 export function buildHeaderMapping(
   rawHeaders: string[],
-  importType: 'CATALOGUE' | 'STOCK_RECEIPT'
+  importType: 'CATALOGUE' | 'STOCK_RECEIPT' | 'PURCHASE_INVOICE'
 ): HeaderMappingResult {
-  const aliasDefinitions =
-    importType === 'CATALOGUE' ? CATALOGUE_FIELD_ALIASES : STOCK_RECEIPT_FIELD_ALIASES;
+  let aliasDefinitions = CATALOGUE_FIELD_ALIASES;
+  if (importType === 'STOCK_RECEIPT') {
+    aliasDefinitions = STOCK_RECEIPT_FIELD_ALIASES;
+  } else if (importType === 'PURCHASE_INVOICE') {
+    aliasDefinitions = PURCHASE_INVOICE_FIELD_ALIASES;
+  }
 
   const headerMap = new Map<string, string>(); // rawKey -> internalField
   const seenNormalized = new Map<string, string>(); // normKey -> rawHeader

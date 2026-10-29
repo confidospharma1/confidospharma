@@ -7,13 +7,12 @@ import {
   Boxes,
   Pill,
   Truck,
+  ClipboardList,
   ArrowLeftRight,
-  FileSpreadsheet,
   BarChart3,
   TrendingUp,
   Users,
   Building,
-  History,
   Scale,
   ShieldCheck,
 } from 'lucide-react';
@@ -81,13 +80,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => 
                 <span>Branch Dashboard</span>
               </button>
               <button
-                onClick={() => setActiveTab('inventory')}
-                className={navItemClass('inventory')}
-              >
-                <Boxes className={iconClass('inventory')} />
-                <span>Stock Batches & FEFO</span>
-              </button>
-              <button
                 onClick={() => setActiveTab('catalogue')}
                 className={navItemClass('catalogue')}
               >
@@ -102,18 +94,18 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => 
                 <span>Purchases & Suppliers</span>
               </button>
               <button
+                onClick={() => setActiveTab('indents')}
+                className={navItemClass('indents')}
+              >
+                <ClipboardList className={iconClass('indents')} />
+                <span>Indent Management</span>
+              </button>
+              <button
                 onClick={() => setActiveTab('transfers')}
                 className={navItemClass('transfers')}
               >
                 <ArrowLeftRight className={iconClass('transfers')} />
                 <span>Branch Transfers</span>
-              </button>
-              <button
-                onClick={() => setActiveTab('imports')}
-                className={navItemClass('imports')}
-              >
-                <FileSpreadsheet className={iconClass('imports')} />
-                <span>Bulk Import (Excel/CSV)</span>
               </button>
               <button
                 onClick={() => setActiveTab('reports')}
@@ -155,13 +147,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => 
                   >
                     <Building className={iconClass('branches')} />
                     <span>Branches Setup</span>
-                  </button>
-                  <button
-                    onClick={() => setActiveTab('audit')}
-                    className={navItemClass('audit')}
-                  >
-                    <History className={iconClass('audit')} />
-                    <span>Audit Trail Log</span>
                   </button>
                 </>
               )}

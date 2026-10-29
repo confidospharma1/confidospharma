@@ -3,6 +3,7 @@ import { useAuth } from '../context/AuthContext';
 import { Building2, ShoppingCart, LogOut, ShieldCheck, User as UserIcon, Sliders } from 'lucide-react';
 import { Badge } from './Badge';
 import { SettingsModal } from './SettingsModal';
+import { ProfileModal } from './ProfileModal';
 
 interface NavbarProps {
   onOpenPOS: () => void;
@@ -12,6 +13,7 @@ interface NavbarProps {
 export const Navbar: React.FC<NavbarProps> = ({ onOpenPOS, activeTab }) => {
   const { user, isSuperAdmin, isBranchAdmin, branches, selectedBranchId, setSelectedBranchId, logout, currentBranch } = useAuth();
   const [showSettingsModal, setShowSettingsModal] = useState(false);
+  const [showProfileModal, setShowProfileModal] = useState(false);
 
   const getRoleVariant = (role?: string) => {
     switch (role) {
@@ -107,8 +109,13 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenPOS, activeTab }) => {
           </button>
         )}
 
-        {/* User Role Badge & Name */}
-        <div className="hidden lg:flex items-center gap-2.5 pl-3 border-l border-slate-200">
+        {/* User Role Badge & Name (Clickable Profile) */}
+        <button
+          type="button"
+          onClick={() => setShowProfileModal(true)}
+          className="hidden lg:flex items-center gap-2.5 pl-3 border-l border-slate-200 hover:bg-slate-50 p-1 rounded-lg transition-colors text-left"
+          title="View & Edit Administrator Profile"
+        >
           <div className="text-right">
             <p className="text-xs font-bold text-slate-800 leading-tight">{user?.fullName}</p>
             <p className="text-[11px] text-slate-500 font-mono">{user?.email}</p>
@@ -117,7 +124,7 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenPOS, activeTab }) => {
             <ShieldCheck className="w-3 h-3" />
             {getRoleLabel(user?.role)}
           </Badge>
-        </div>
+        </button>
 
         {/* Sign Out */}
         <button
@@ -133,6 +140,11 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenPOS, activeTab }) => {
       <SettingsModal
         isOpen={showSettingsModal}
         onClose={() => setShowSettingsModal(false)}
+      />
+
+      <ProfileModal
+        isOpen={showProfileModal}
+        onClose={() => setShowProfileModal(false)}
       />
     </header>
   );

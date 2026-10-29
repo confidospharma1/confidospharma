@@ -50,6 +50,9 @@ export interface MedicineProduct {
   prescriptionType: string;
   storageNotes?: string | null;
   isActive: boolean;
+  packageUnit?: string | null;
+  conversionFactor?: number | null;
+  unitConfig?: any;
   totalAvailableStock?: number;
   activeBatches?: StockBatch[];
 }
@@ -82,6 +85,9 @@ export interface SalesInvoiceLine {
   batchNumber: string;
   expiryDate: string;
   quantity: number;
+  unit?: string | null;
+  conversionFactor?: number | null;
+  baseQuantity?: number | null;
   unitMrp: number;
   unitRate: number;
   discountPercent: number;
@@ -127,6 +133,9 @@ export interface PurchaseInvoiceLine {
   expiryDate: string;
   quantity: number;
   freeQuantity?: number;
+  unit?: string | null;
+  conversionFactor?: number | null;
+  baseQuantity?: number | null;
   purchaseRate: number;
   sellingRate?: number | null;
   mrp: number;
@@ -316,3 +325,39 @@ export interface AuditEvent {
   createdAt: string;
   branch?: Branch | null;
 }
+
+export interface PurchaseIndentItem {
+  id?: string;
+  indentId?: string;
+  medicineId: string;
+  requestedQuantity: number;
+  approvedQuantity?: number | null;
+  unit?: string;
+  conversionFactor?: number;
+  estimatedRate?: number | null;
+  estimatedTotal?: number | null;
+  medicine?: MedicineProduct;
+}
+
+export interface PurchaseIndent {
+  id: string;
+  indentNumber: string;
+  branchId: string;
+  supplierId?: string | null;
+  status: 'DRAFT' | 'SUBMITTED' | 'APPROVED' | 'REJECTED' | 'CONVERTED' | 'CANCELLED';
+  requestedDate: string;
+  requiredByDate?: string | null;
+  totalEstimatedAmount?: number;
+  notes?: string | null;
+  reviewNotes?: string | null;
+  createdById: string;
+  approvedById?: string | null;
+  approvedAt?: string | null;
+  purchaseInvoiceId?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  supplier?: Supplier | null;
+  branch?: Branch;
+  items: PurchaseIndentItem[];
+}
+

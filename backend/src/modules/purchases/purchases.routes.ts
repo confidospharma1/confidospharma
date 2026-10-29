@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import multer from 'multer';
 import {
   getPurchases,
   getPurchaseById,
@@ -7,12 +8,23 @@ import {
   cancelPurchase,
   createPurchaseReturn,
   getPurchaseReturns,
+  previewPurchaseImport,
+  downloadPurchaseTemplate,
+  bulkDeletePurchases,
 } from './purchases.controller';
 import { authenticate } from '../../middlewares/auth.middleware';
 
 const router = Router();
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB limit
+});
 
 router.use(authenticate);
+
+router.get('/template', downloadPurchaseTemplate);
+router.post('/import-preview', upload.single('file'), previewPurchaseImport);
+router.post('/bulk-delete', bulkDeletePurchases);
 
 router.get('/', getPurchases);
 router.get('/:id', getPurchaseById);

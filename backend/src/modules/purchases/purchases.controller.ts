@@ -1,8 +1,18 @@
 import { Request, Response } from 'express';
 import Decimal from 'decimal.js';
+import * as xlsx from 'xlsx';
 import prisma from '../../database/prisma';
 import { logAuditEvent } from '../../utils/audit';
 import { generateUniqueMedicineCode } from '../../utils/codeGenerator';
+import {
+  buildHeaderMapping,
+  extractMappedRow,
+  parseExpiryDate,
+  parseCleanNumber,
+  parseCleanInt,
+} from '../imports/imports.mapper';
+import { matchProduct, CandidateProduct } from '../../utils/productMatcher';
+import { buildProductUnitConfig, convertToBaseQuantity } from '../../utils/unitConverter';
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -359,7 +369,11 @@ export const createPurchase = async (req: Request, res: Response) => {
           throw new Error(`Invalid expiry date format for batch ${batchNumber}`);
         }
 
-        const totalBatchQty = qty + freeQty;
+        const factor = (line.conversionFactor && parseInt(line.conversionFactor) > 0)
+          ? parseInt(line.conversionFactor)
+          : 1;
+        const lineUnit = line.unit || 'Strip';
+        const totalBatchQty = (qty + freeQty) * factor;
 
         // Check/create batch in branch
         let batch = await tx.stockBatch.findFirst({
@@ -423,6 +437,9 @@ export const createPurchase = async (req: Request, res: Response) => {
           expiryDate: parsedExpiry,
           quantity: qty,
           freeQuantity: freeQty,
+          unit: lineUnit,
+          conversionFactor: factor,
+          baseQuantity: totalBatchQty,
           purchaseRate: rateDec.toNumber(),
           sellingRate: sellingRateDec.toNumber(),
           mrp: mrpDec.toNumber(),
@@ -1209,3 +1226,457 @@ export const getPurchaseReturns = async (req: Request, res: Response) => {
     return res.status(500).json({ message: 'Failed to fetch purchase returns' });
   }
 };
+
+/**
+ * Preview Purchase Import from Excel / CSV (Phase 3 & 4)
+ */
+export const previewPurchaseImport = async (req: Request, res: Response) => {
+  try {
+    if (!req.user) return res.status(401).json({ message: 'Unauthorized' });
+    if (req.user.role === 'BILLING_USER') {
+      return res.status(403).json({ message: 'Billing users cannot import purchases' });
+    }
+
+    if (!req.file) {
+      return res.status(400).json({ message: 'Please upload an Excel (.xlsx) or CSV (.csv) file' });
+    }
+
+    const { branchId, supplierId } = req.body;
+    const targetBranchId = req.user.role === 'SUPER_ADMIN' ? (branchId || req.user.branchId) : req.user.branchId;
+
+    if (!targetBranchId) {
+      return res.status(400).json({ message: 'Target branch is required for purchase import' });
+    }
+
+    // Read workbook with xlsx (handles xlsx, xls, and csv buffers)
+    const workbook = xlsx.read(req.file.buffer, { type: 'buffer', cellDates: true });
+    const firstSheetName = workbook.SheetNames[0];
+    if (!firstSheetName) {
+      return res.status(400).json({ message: 'Uploaded file contains no sheets' });
+    }
+
+    const rawRows = xlsx.utils.sheet_to_json<any>(workbook.Sheets[firstSheetName], { defval: '' });
+    if (!rawRows || rawRows.length === 0) {
+      return res.status(400).json({ message: 'Uploaded file contains zero data rows' });
+    }
+
+    const rawHeaders = Object.keys(rawRows[0] || {});
+    const { headerMap, duplicateHeaders, conflictingColumns } = buildHeaderMapping(rawHeaders, 'PURCHASE_INVOICE');
+
+    if (duplicateHeaders.length > 0) {
+      return res.status(400).json({
+        message: `Duplicate column headers detected: ${duplicateHeaders.join('; ')}`,
+      });
+    }
+
+    if (conflictingColumns.length > 0) {
+      return res.status(400).json({
+        message: `Conflicting column mappings detected: ${conflictingColumns.join('; ')}`,
+      });
+    }
+
+    // Load active catalogue products & existing batches for target branch
+    const [catalogue, branchBatches] = await Promise.all([
+      prisma.medicineProduct.findMany({
+        where: { isActive: true },
+        select: {
+          id: true,
+          internalCode: true,
+          brandName: true,
+          genericName: true,
+          strength: true,
+          dosageForm: true,
+          manufacturer: true,
+          mrp: true,
+          hsnCode: true,
+          gstRate: true,
+          baseUnit: true,
+          packageUnit: true,
+          conversionFactor: true,
+          unitConfig: true,
+        },
+      }),
+      prisma.stockBatch.findMany({
+        where: { branchId: targetBranchId },
+        select: { id: true, medicineId: true, batchNumber: true, availableQuantity: true },
+      }),
+    ]);
+
+    let validRowsCount = 0;
+    let errorRowsCount = 0;
+    let warningRowsCount = 0;
+    let newProductsCount = 0;
+    let existingProductsCount = 0;
+    let newBatchesCount = 0;
+    let existingBatchesCount = 0;
+    let totalQuantity = 0;
+
+    let totalGrossDec = new Decimal(0);
+    let totalDiscountDec = new Decimal(0);
+    let totalTaxableDec = new Decimal(0);
+    let totalTaxDec = new Decimal(0);
+    let totalGrandDec = new Decimal(0);
+
+    const validatedRows: any[] = [];
+    const seenBatchKeys = new Set<string>();
+
+    rawRows.forEach((row, idx) => {
+      const rowIndex = idx + 2; // 1-based, row 1 is header
+      const errors: string[] = [];
+      const warnings: string[] = [];
+      const mapped = extractMappedRow(row, headerMap);
+
+      const brandName = (mapped.brandName || '').toString().trim();
+      const genericName = (mapped.genericName || '').toString().trim();
+      const strength = (mapped.strength || '').toString().trim();
+      const dosageForm = (mapped.dosageForm || 'Tablet').toString().trim();
+      const manufacturer = (mapped.manufacturer || '').toString().trim();
+      const hsnCode = (mapped.hsnCode || '').toString().trim() || null;
+      const batchNumber = (mapped.batchNumber || '').toString().trim();
+      const expiryRaw = mapped.expiryDate;
+      const purchaseUnit = (mapped.purchaseUnit || 'Strip').toString().trim();
+      const sellingUnit = (mapped.sellingUnit || 'Tablet').toString().trim();
+      const quantity = parseCleanInt(mapped.quantity, 0);
+      const freeQuantity = parseCleanInt(mapped.freeQuantity, 0);
+      const unitsPerPack = parseCleanInt(mapped.unitsPerPack, 10);
+      const purchaseRate = parseCleanNumber(mapped.purchaseRate, 0);
+      const mrp = parseCleanNumber(mapped.mrp, 0);
+      const sellingRate = parseCleanNumber(mapped.sellingRate, mrp);
+      const gstRate = parseCleanNumber(mapped.gstRate, 5.0);
+      const discountPercent = parseCleanNumber(mapped.discountPercent, 0);
+
+      // Validation
+      if (!brandName) {
+        errors.push('Product / Brand Name is required');
+      }
+      if (!batchNumber) {
+        errors.push('Batch Number is required');
+      }
+      if (isNaN(quantity) || quantity <= 0) {
+        errors.push('Quantity is required and must be greater than zero');
+      }
+      if (isNaN(freeQuantity) || freeQuantity < 0) {
+        errors.push('Free quantity cannot be negative');
+      }
+      if (isNaN(purchaseRate) || purchaseRate < 0) {
+        errors.push('Purchase rate is required and cannot be negative');
+      }
+      if (isNaN(mrp) || mrp < purchaseRate) {
+        errors.push('MRP must be greater than or equal to purchase rate');
+      }
+      if (isNaN(discountPercent) || discountPercent < 0 || discountPercent > 100) {
+        errors.push('Discount % must be between 0 and 100');
+      }
+      if (isNaN(gstRate) || gstRate < 0) {
+        errors.push('Valid GST Rate is required');
+      }
+
+      // Safe expiry parsing
+      const { date: expDate, isoString: expDateIso, error: expError } = parseExpiryDate(expiryRaw);
+      if (expError) {
+        errors.push(expError);
+      } else if (expDate && expDate <= new Date()) {
+        errors.push('Batch is already expired. Expired stock cannot be accepted into inventory.');
+      }
+
+      // Phase 6 Product Matching
+      const matchResult = matchProduct(
+        {
+          brandName,
+          genericName,
+          strength,
+          dosageForm,
+          manufacturer,
+        },
+        catalogue as CandidateProduct[]
+      );
+
+      const matchedProd = matchResult.matchedProduct;
+      const isNewProd = matchResult.isNewProduct;
+
+      if (isNewProd) {
+        newProductsCount++;
+        warnings.push('New medicine: will be registered in catalogue upon confirmation');
+      } else {
+        existingProductsCount++;
+      }
+
+      // Check batch uniqueness within file & in branch
+      const batchKey = `${(matchedProd?.id || brandName).toLowerCase()}_${batchNumber.toLowerCase()}`;
+      if (seenBatchKeys.has(batchKey)) {
+        warnings.push('Duplicate batch entry for same medicine in this spreadsheet');
+      } else {
+        seenBatchKeys.add(batchKey);
+      }
+
+      const existingBatch = branchBatches.find(
+        (b) =>
+          b.batchNumber.toLowerCase() === batchNumber.toLowerCase() &&
+          (!matchedProd || b.medicineId === matchedProd.id)
+      );
+
+      const isNewBatch = !existingBatch;
+      if (isNewBatch) {
+        newBatchesCount++;
+      } else {
+        existingBatchesCount++;
+        warnings.push(`Existing batch: will add stock to current inventory (${existingBatch.availableQuantity} units)`);
+      }
+
+      // Unit conversion
+      const unitConfig = buildProductUnitConfig(
+        matchedProd?.baseUnit || sellingUnit,
+        matchedProd?.packageUnit || purchaseUnit,
+        matchedProd?.conversionFactor || unitsPerPack,
+        dosageForm
+      );
+
+      const conversionFactor = unitsPerPack > 0 ? unitsPerPack : (unitConfig.conversionFactor || 1);
+      const totalUnits = (quantity + freeQuantity) * conversionFactor;
+
+      // Derived financial amounts
+      const lineGrossDec = new Decimal(isNaN(quantity) ? 0 : quantity).times(isNaN(purchaseRate) ? 0 : purchaseRate);
+      const lineDiscDec = lineGrossDec.times(isNaN(discountPercent) ? 0 : discountPercent).dividedBy(100);
+      const lineTaxableDec = lineGrossDec.minus(lineDiscDec);
+      const lineTaxDec = lineTaxableDec.times(isNaN(gstRate) ? 0 : gstRate).dividedBy(100);
+      const lineTotalDec = lineTaxableDec.plus(lineTaxDec);
+
+      if (errors.length === 0) {
+        validRowsCount++;
+        totalQuantity += (quantity + freeQuantity);
+        totalGrossDec = totalGrossDec.plus(lineGrossDec);
+        totalDiscountDec = totalDiscountDec.plus(lineDiscDec);
+        totalTaxableDec = totalTaxableDec.plus(lineTaxableDec);
+        totalTaxDec = totalTaxDec.plus(lineTaxDec);
+        totalGrandDec = totalGrandDec.plus(lineTotalDec);
+      } else {
+        errorRowsCount++;
+      }
+
+      if (warnings.length > 0) warningRowsCount++;
+
+      validatedRows.push({
+        rowIndex,
+        brandName,
+        genericName: genericName || matchedProd?.genericName || '',
+        strength: strength || matchedProd?.strength || '',
+        dosageForm: dosageForm || matchedProd?.dosageForm || 'Tablet',
+        manufacturer: manufacturer || matchedProd?.manufacturer || 'Standard Pharma',
+        hsnCode: hsnCode || matchedProd?.hsnCode || '30049099',
+        batchNumber,
+        expiryDate: expDateIso || (expiryRaw ? String(expiryRaw) : ''),
+        purchaseUnit,
+        sellingUnit: matchedProd?.baseUnit || sellingUnit,
+        quantity,
+        freeQuantity,
+        conversionFactor,
+        totalUnits,
+        purchaseRate,
+        sellingRate,
+        mrp,
+        gstRate,
+        discountPercent,
+        discountAmount: lineDiscDec.toDecimalPlaces(2).toNumber(),
+        taxableAmount: lineTaxableDec.toDecimalPlaces(2).toNumber(),
+        taxAmount: lineTaxDec.toDecimalPlaces(2).toNumber(),
+        lineTotal: lineTotalDec.toDecimalPlaces(2).toNumber(),
+        status: errors.length > 0 ? 'ERROR' : 'READY',
+        errors,
+        warnings,
+        isNewProduct: isNewProd,
+        isNewBatch,
+        matchedProductId: matchedProd?.id || null,
+        potentialCandidates: matchResult.potentialCandidates || [],
+      });
+    });
+
+    return res.json({
+      fileName: req.file.originalname,
+      totalRows: rawRows.length,
+      validRows: validRowsCount,
+      errorRows: errorRowsCount,
+      warningRows: warningRowsCount,
+      summary: {
+        totalRows: rawRows.length,
+        validRows: validRowsCount,
+        errorRows: errorRowsCount,
+        warningRows: warningRowsCount,
+        newProductsCount,
+        existingProductsCount,
+        newBatchesCount,
+        existingBatchesCount,
+        totalQuantity,
+        estimatedGross: totalGrossDec.toDecimalPlaces(2).toNumber(),
+        estimatedDiscount: totalDiscountDec.toDecimalPlaces(2).toNumber(),
+        estimatedTaxable: totalTaxableDec.toDecimalPlaces(2).toNumber(),
+        estimatedTax: totalTaxDec.toDecimalPlaces(2).toNumber(),
+        estimatedGrandTotal: totalGrandDec.toDecimalPlaces(2).toNumber(),
+      },
+      rows: validatedRows,
+    });
+  } catch (error: any) {
+    console.error('Purchase import preview error:', error);
+    return res.status(500).json({ message: error.message || 'Failed to process purchase import' });
+  }
+};
+
+/**
+ * Download Excel / CSV Template for Purchase Inwards (Phase 4.1 & 7.2)
+ */
+export const downloadPurchaseTemplate = async (req: Request, res: Response) => {
+  try {
+    const { format = 'csv' } = req.query;
+
+    const templateRows = [
+      {
+        'Product Name': 'Dolo 650',
+        'Brand Name': 'Dolo 650',
+        'Generic Name': 'Paracetamol',
+        'Strength': '650mg',
+        'Dosage Form': 'Tablet',
+        'Manufacturer': 'Micro Labs Ltd',
+        'HSN Code': '30049099',
+        'Batch Number': 'DL-2026-X1',
+        'Expiry Date': '2028-12-31',
+        'Purchase Unit': 'Strip',
+        'Quantity': 50,
+        'Free Quantity': 5,
+        'Units Per Pack': 15,
+        'Purchase Rate': 24.50,
+        'MRP': 35.00,
+        'GST Rate': 12,
+        'Discount': 10,
+        'Selling Unit': 'Tablet',
+      },
+      {
+        'Product Name': 'Azithral 500',
+        'Brand Name': 'Azithral 500',
+        'Generic Name': 'Azithromycin',
+        'Strength': '500mg',
+        'Dosage Form': 'Tablet',
+        'Manufacturer': 'Alembic Pharmaceuticals',
+        'HSN Code': '30049099',
+        'Batch Number': 'AZ-2026-B9',
+        'Expiry Date': '2028-06-30',
+        'Purchase Unit': 'Strip',
+        'Quantity': 30,
+        'Free Quantity': 0,
+        'Units Per Pack': 5,
+        'Purchase Rate': 85.00,
+        'MRP': 125.00,
+        'GST Rate': 12,
+        'Discount': 5,
+        'Selling Unit': 'Tablet',
+      },
+      {
+        'Product Name': 'Benadryl Cough Syrup',
+        'Brand Name': 'Benadryl Cough Formula',
+        'Generic Name': 'Diphenhydramine + Ammonium Chloride',
+        'Strength': '100ml',
+        'Dosage Form': 'Syrup',
+        'Manufacturer': 'Johnson & Johnson',
+        'HSN Code': '30049099',
+        'Batch Number': 'BN-2026-S3',
+        'Expiry Date': '2027-11-30',
+        'Purchase Unit': 'Bottle',
+        'Quantity': 20,
+        'Free Quantity': 2,
+        'Units Per Pack': 1,
+        'Purchase Rate': 95.00,
+        'MRP': 140.00,
+        'GST Rate': 12,
+        'Discount': 0,
+        'Selling Unit': 'Bottle',
+      },
+    ];
+
+    const worksheet = xlsx.utils.json_to_sheet(templateRows);
+
+    if (format === 'xlsx') {
+      const workbook = xlsx.utils.book_new();
+      xlsx.utils.book_append_sheet(workbook, worksheet, 'Purchase_Invoice_Template');
+      const buffer = xlsx.write(workbook, { type: 'buffer', bookType: 'xlsx' });
+
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      res.setHeader('Content-Disposition', 'attachment; filename="confidos_purchase_invoice_template.xlsx"');
+      return res.send(buffer);
+    } else {
+      const csv = xlsx.utils.sheet_to_csv(worksheet);
+      res.setHeader('Content-Type', 'text/csv');
+      res.setHeader('Content-Disposition', 'attachment; filename="confidos_purchase_invoice_template.csv"');
+      return res.send(csv);
+    }
+  } catch (error) {
+    return res.status(500).json({ message: 'Failed to generate template' });
+  }
+};
+
+/**
+ * Super Admin Bulk Deletion / Cancellation for Purchase Invoices (Phase 10)
+ */
+export const bulkDeletePurchases = async (req: Request, res: Response) => {
+  try {
+    if (!req.user || req.user.role !== 'SUPER_ADMIN') {
+      return res.status(403).json({ message: 'Forbidden: Super Admin only' });
+    }
+
+    const { ids } = req.body;
+    if (!ids || !Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({ message: 'No invoice IDs provided' });
+    }
+
+    const results = {
+      deleted: [] as string[],
+      failed: [] as { id: string; reason: string }[],
+    };
+
+    for (const id of ids) {
+      const invoice = await prisma.purchaseInvoice.findUnique({
+        where: { id },
+        include: { returns: true },
+      });
+
+      if (!invoice) {
+        results.failed.push({ id, reason: 'Invoice not found' });
+        continue;
+      }
+
+      if (invoice.returns && invoice.returns.length > 0) {
+        results.failed.push({
+          id,
+          reason: `Invoice ${invoice.invoiceNumber} has associated purchase returns and cannot be deleted`,
+        });
+        continue;
+      }
+
+      if (invoice.status === 'RECEIVED') {
+        await prisma.purchaseInvoice.update({
+          where: { id },
+          data: { status: 'CANCELLED' },
+        });
+        results.deleted.push(invoice.invoiceNumber);
+      } else {
+        await prisma.purchaseInvoice.delete({ where: { id } });
+        results.deleted.push(invoice.invoiceNumber);
+      }
+    }
+
+    await logAuditEvent({
+      userId: req.user.id,
+      branchId: null,
+      action: 'PURCHASE_BULK_DELETE',
+      targetEntity: 'PURCHASE_INVOICE',
+      details: { count: results.deleted.length, invoices: results.deleted },
+      req,
+    });
+
+    return res.json({
+      message: `Processed ${results.deleted.length} purchase invoices`,
+      deleted: results.deleted,
+      failed: results.failed,
+    });
+  } catch (error: any) {
+    return res.status(500).json({ message: error.message || 'Bulk delete failed' });
+  }
+};
+

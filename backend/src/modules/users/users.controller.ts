@@ -124,7 +124,7 @@ export const updateUser = async (req: Request, res: Response) => {
     if (!req.user) return res.status(401).json({ message: 'Unauthorized' });
 
     const id = req.params.id as string;
-    const { fullName, email, isActive, branchId, password } = req.body;
+    const { fullName, email, isActive, branchId, password, role } = req.body;
 
     const existingUser = await prisma.user.findUnique({ where: { id } });
     if (!existingUser) return res.status(404).json({ message: 'User not found' });
@@ -142,8 +142,11 @@ export const updateUser = async (req: Request, res: Response) => {
     if (email) dataToUpdate.email = email.toLowerCase().trim();
     if (isActive !== undefined) dataToUpdate.isActive = isActive;
     if (password) dataToUpdate.passwordHash = await bcrypt.hash(password, 10);
-    if (req.user.role === 'SUPER_ADMIN' && branchId !== undefined) {
-      dataToUpdate.branchId = branchId || null;
+    if (req.user.role === 'SUPER_ADMIN') {
+      if (branchId !== undefined) dataToUpdate.branchId = branchId || null;
+      if (role && ['SUPER_ADMIN', 'BRANCH_ADMIN', 'BILLING_USER'].includes(role)) {
+        dataToUpdate.role = role;
+      }
     }
 
     const updated = await prisma.user.update({
@@ -229,4 +232,124 @@ export const deleteUser = async (req: Request, res: Response) => {
     return res.status(500).json({ message: error.message || 'Failed to delete user' });
   }
 };
+
+export const getProfile = async (req: Request, res: Response) => {
+  try {
+    if (!req.user) return res.status(401).json({ message: 'Unauthorized' });
+
+    const user = await prisma.user.findUnique({
+      where: { id: req.user.id },
+      select: {
+        id: true,
+        username: true,
+        email: true,
+        fullName: true,
+        role: true,
+        branchId: true,
+        isActive: true,
+        createdAt: true,
+        lastLoginAt: true,
+        branch: { select: { id: true, code: true, name: true, phone: true } },
+      },
+    });
+
+    if (!user) return res.status(404).json({ message: 'User not found' });
+    return res.json(user);
+  } catch (error: any) {
+    return res.status(500).json({ message: error.message || 'Failed to fetch profile' });
+  }
+};
+
+export const updateProfile = async (req: Request, res: Response) => {
+  try {
+    if (!req.user) return res.status(401).json({ message: 'Unauthorized' });
+
+    const { fullName, email, password } = req.body;
+    const dataToUpdate: any = {};
+
+    if (fullName && fullName.trim()) dataToUpdate.fullName = fullName.trim();
+    if (email && email.trim()) {
+      const trimmedEmail = email.toLowerCase().trim();
+      const existing = await prisma.user.findFirst({
+        where: { email: trimmedEmail, id: { not: req.user.id } },
+      });
+      if (existing) {
+        return res.status(409).json({ message: 'Email address is already in use by another account' });
+      }
+      dataToUpdate.email = trimmedEmail;
+    }
+    if (password && password.length >= 6) {
+      dataToUpdate.passwordHash = await bcrypt.hash(password, 10);
+    }
+
+    // Role and branchId cannot be modified via self-service profile update!
+    const updated = await prisma.user.update({
+      where: { id: req.user.id },
+      data: dataToUpdate,
+      select: {
+        id: true,
+        username: true,
+        email: true,
+        fullName: true,
+        role: true,
+        branchId: true,
+        isActive: true,
+        branch: { select: { id: true, code: true, name: true } },
+      },
+    });
+
+    return res.json({
+      message: 'Profile updated successfully',
+      user: updated,
+    });
+  } catch (error: any) {
+    return res.status(500).json({ message: error.message || 'Failed to update profile' });
+  }
+};
+
+export const bulkDeleteUsers = async (req: Request, res: Response) => {
+  try {
+    if (!req.user || req.user.role !== 'SUPER_ADMIN') {
+      return res.status(403).json({ message: 'Forbidden: Super Admin only' });
+    }
+
+    const { ids } = req.body;
+    if (!ids || !Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({ message: 'No user IDs provided' });
+    }
+
+    const results = {
+      deactivated: [] as string[],
+      failed: [] as { id: string; reason: string }[],
+    };
+
+    for (const id of ids) {
+      if (id === req.user.id) {
+        results.failed.push({ id, reason: 'Cannot deactivate your own logged-in account' });
+        continue;
+      }
+
+      const targetUser = await prisma.user.findUnique({ where: { id } });
+      if (!targetUser) {
+        results.failed.push({ id, reason: 'User not found' });
+        continue;
+      }
+
+      await prisma.user.update({
+        where: { id },
+        data: { isActive: false },
+      });
+      results.deactivated.push(targetUser.username);
+    }
+
+    return res.json({
+      message: `Deactivated ${results.deactivated.length} user accounts`,
+      deactivated: results.deactivated,
+      failed: results.failed,
+    });
+  } catch (error: any) {
+    return res.status(500).json({ message: error.message || 'Bulk user deactivation failed' });
+  }
+};
+
 
