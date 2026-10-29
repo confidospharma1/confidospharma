@@ -4,15 +4,19 @@
   "description": "Confidos Pharma Enterprise Multi-Branch Inventory and Billing Backend",
   "main": "dist/server.js",
   "scripts": {
-    "postinstall": "node -e \"const fs=require('fs');if(!fs.existsSync('.env')&&fs.existsSync('.env.example'))fs.copyFileSync('.env.example','.env');\" && prisma generate",
+    "postinstall": "node scripts/prepare-env.js && prisma generate",
     "dev": "ts-node-dev --respawn --transpile-only src/server.ts",
     "build": "tsc",
     "start": "node dist/server.js",
+    "prisma": "prisma",
     "prisma:generate": "prisma generate",
     "prisma:push": "prisma db push",
     "prisma:seed": "ts-node-dev --transpile-only prisma/seed.ts",
     "prisma:reset-empty": "ts-node-dev --transpile-only prisma/reset_empty.ts",
     "test": "vitest run tests/"
+  },
+  "engines": {
+    "node": ">=20.0.0"
   },
   "dependencies": {
     "@prisma/client": "^5.22.0",
