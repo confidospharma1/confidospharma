@@ -101,7 +101,7 @@ export const uploadAndPreviewImport = async (req: Request, res: Response) => {
       const mapped = extractMappedRow(row, headerMap);
 
       if (importType === 'CATALOGUE') {
-        const brandName = (mapped.brandName || '').toString().trim();
+        const brandName = (mapped.brandName || mapped.productName || '').toString().trim();
         const genericName = (mapped.genericName || '').toString().trim();
         const strength = (mapped.strength || '').toString().trim();
         const dosageForm = (mapped.dosageForm || 'Tablet').toString().trim();
@@ -167,7 +167,7 @@ export const uploadAndPreviewImport = async (req: Request, res: Response) => {
       } else {
         // STOCK_RECEIPT IMPORT
         const internalCode = (mapped.internalCode || '').toString().trim();
-        const brandName = (mapped.brandName || '').toString().trim();
+        const brandName = (mapped.brandName || mapped.productName || '').toString().trim();
         const batchNumber = (mapped.batchNumber || '').toString().trim();
         const expiryRaw = mapped.expiryDate;
         const quantity = parseCleanInt(mapped.quantity, 0);

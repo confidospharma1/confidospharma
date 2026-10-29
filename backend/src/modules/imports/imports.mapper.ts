@@ -25,17 +25,20 @@ export function normalizeHeaderKey(header: string): string {
 
 // Catalogue canonical fields and aliases
 const CATALOGUE_FIELD_ALIASES: Record<string, string[]> = {
+  productName: [
+    'product name',
+    'productname',
+    'product',
+    'item name',
+    'itemname',
+    'item',
+  ],
   brandName: [
     'brand name',
     'brandname',
     'brand',
     'medicine name',
     'medicinename',
-    'product name',
-    'productname',
-    'item name',
-    'itemname',
-    'item',
   ],
   genericName: [
     'generic name',
@@ -99,18 +102,21 @@ const STOCK_RECEIPT_FIELD_ALIASES: Record<string, string[]> = {
     'code',
     'sku',
   ],
+  productName: [
+    'product name',
+    'productname',
+    'product',
+    'item name',
+    'itemname',
+    'item',
+  ],
   brandName: [
     'brand name',
     'brandname',
     'brand',
     'medicine name',
     'medicinename',
-    'product name',
-    'productname',
-    'item name',
-    'itemname',
     'medicine',
-    'item',
   ],
   batchNumber: [
     'batch number',
@@ -165,11 +171,13 @@ const STOCK_RECEIPT_FIELD_ALIASES: Record<string, string[]> = {
 
 // Purchase Invoice canonical fields and aliases (Phase 4 Specification)
 const PURCHASE_INVOICE_FIELD_ALIASES: Record<string, string[]> = {
-  brandName: [
+  productName: [
     'product name', 'productname', 'product',
-    'brand name', 'brandname', 'brand',
     'medicine name', 'medicinename', 'medicine',
     'item name', 'itemname', 'item',
+  ],
+  brandName: [
+    'brand name', 'brandname', 'brand',
   ],
   genericName: [
     'generic name', 'genericname', 'generic',
@@ -454,3 +462,111 @@ export function parseCleanInt(raw: any, fallback = NaN): number {
   const num = parseInt(cleaned, 10);
   return isNaN(num) ? fallback : num;
 }
+
+/**
+ * Check if Product Name and Brand Name in the same row are compatible or conflicting
+ */
+export function areProductAndBrandCompatible(
+  productName?: string | null,
+  brandName?: string | null
+): boolean {
+  const p = (productName || '').trim();
+  const b = (brandName || '').trim();
+  if (!p || !b) return true; // If one is empty, no conflict
+
+  const pNorm = p.toLowerCase().replace(/[\W_]+/g, ' ').trim();
+  const bNorm = b.toLowerCase().replace(/[\W_]+/g, ' ').trim();
+  if (pNorm === bNorm) return true;
+
+  // Substring / containment check (e.g. "Dolo 650 Tablet" contains "Dolo 650", "Dolo" in "Dolo 650")
+  if (pNorm.includes(bNorm) || bNorm.includes(pNorm)) return true;
+
+  // Token overlap check (e.g. "Benadryl Cough Syrup" and "Benadryl Cough Formula")
+  const pTokens = pNorm.split(/\s+/).filter((t) => t.length > 2);
+  const bTokens = bNorm.split(/\s+/).filter((t) => t.length > 2);
+  const common = pTokens.filter((t) => bTokens.includes(t));
+  if (common.length > 0) return true;
+
+  // Fallback: character n-gram / similarity check (minimum 45% similarity)
+  const getBigrams = (str: string) => {
+    const s = new Set<string>();
+    for (let i = 0; i < str.length - 1; i++) s.add(str.substring(i, i + 2));
+    return s;
+  };
+  const b1 = getBigrams(pNorm);
+  const b2 = getBigrams(bNorm);
+  let intersection = 0;
+  for (const bg of b1) if (b2.has(bg)) intersection++;
+  const dice = (2 * intersection) / (b1.size + b2.size || 1);
+  return dice >= 0.45;
+}
+
+/**
+ * Explicit canonical resolution of Product Name and Brand Name
+ */
+export function resolveProductAndBrandNames(
+  rawProductName?: string | null,
+  rawBrandName?: string | null
+): {
+  effectiveBrandName: string;
+  effectiveProductName: string;
+  isCompatible: boolean;
+  warning?: string;
+  error?: string;
+} {
+  const p = (rawProductName || '').toString().trim();
+  const b = (rawBrandName || '').toString().trim();
+
+  if (!p && !b) {
+    return {
+      effectiveBrandName: '',
+      effectiveProductName: '',
+      isCompatible: false,
+      error: 'Product / Brand Name is required',
+    };
+  }
+
+  // Only one present
+  if (!p && b) {
+    return {
+      effectiveBrandName: b,
+      effectiveProductName: b,
+      isCompatible: true,
+    };
+  }
+
+  if (p && !b) {
+    return {
+      effectiveBrandName: p,
+      effectiveProductName: p,
+      isCompatible: true,
+    };
+  }
+
+  // Both present
+  const isCompatible = areProductAndBrandCompatible(p, b);
+  if (!isCompatible) {
+    return {
+      effectiveBrandName: b,
+      effectiveProductName: p,
+      isCompatible: false,
+      error: `Conflicting product identity: Product Name '${p}' and Brand Name '${b}' represent different medicines.`,
+    };
+  }
+
+  let warning: string | undefined;
+  if (p.toLowerCase() !== b.toLowerCase()) {
+    warning = `Note: Product Name '${p}' and Brand Name '${b}' differ slightly. Both are preserved.`;
+  }
+
+  const effectiveBrandName = b || p;
+  const effectiveProductName = p || b;
+
+  return {
+    effectiveBrandName,
+    effectiveProductName,
+    isCompatible: true,
+    warning,
+  };
+}
+

@@ -101,6 +101,7 @@ export function matchProduct(
     internalCode?: string | null;
     productCode?: string | null;
     brandName: string;
+    productName?: string | null;
     genericName?: string | null;
     strength?: string | null;
     dosageForm?: string | null;
@@ -110,6 +111,7 @@ export function matchProduct(
 ): MatchResult {
   const normCode = normalizeString(query.productCode || query.internalCode);
   const normBrand = normalizeString(query.brandName);
+  const normProduct = normalizeString(query.productName);
   const normGen = normalizeString(query.genericName);
   const normStrength = normalizeString(query.strength);
   const normForm = normalizeString(query.dosageForm || 'Tablet');
@@ -134,13 +136,14 @@ export function matchProduct(
     }
   }
 
-  // 2. Exact match on Brand Name + Strength + Dosage Form
+  // 2. Exact match on Brand Name / Product Name + Strength + Dosage Form
   for (const prod of catalogue) {
     const pBrand = normalizeString(prod.brandName);
     const pStrength = normalizeString(prod.strength);
     const pForm = normalizeString(prod.dosageForm);
 
-    if (pBrand === normBrand) {
+    const matchesName = (pBrand === normBrand) || (normProduct !== '' && pBrand === normProduct);
+    if (matchesName) {
       // Check if strengths or forms are materially incompatible
       if (normStrength && pStrength && !areStrengthsCompatible(normStrength, pStrength)) {
         // "Dolo 650" vs "Dolo 500" - INCOMPATIBLE DIFFERENCE!
@@ -173,7 +176,10 @@ export function matchProduct(
     const pStrength = normalizeString(prod.strength);
     const pForm = normalizeString(prod.dosageForm);
 
-    const brandSim = calculateSimilarity(normBrand, pBrand);
+    const brandSim = Math.max(
+      calculateSimilarity(normBrand, pBrand),
+      normProduct ? calculateSimilarity(normProduct, pBrand) : 0
+    );
     const sameStrength = !normStrength || !pStrength || normStrength === pStrength;
     const sameForm = !normForm || !pForm || normForm === pForm;
 
@@ -198,7 +204,10 @@ export function matchProduct(
     const pStrength = normalizeString(prod.strength);
     const pForm = normalizeString(prod.dosageForm);
 
-    const brandSim = calculateSimilarity(normBrand, pBrand);
+    const brandSim = Math.max(
+      calculateSimilarity(normBrand, pBrand),
+      normProduct ? calculateSimilarity(normProduct, pBrand) : 0
+    );
     const sameForm = !normForm || !pForm || normForm === pForm;
 
     if (brandSim >= 0.75 && sameForm) {

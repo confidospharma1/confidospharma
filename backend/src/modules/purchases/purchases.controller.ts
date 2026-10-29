@@ -10,6 +10,7 @@ import {
   parseExpiryDate,
   parseCleanNumber,
   parseCleanInt,
+  resolveProductAndBrandNames,
 } from '../imports/imports.mapper';
 import { matchProduct, CandidateProduct } from '../../utils/productMatcher';
 import { buildProductUnitConfig, convertToBaseQuantity } from '../../utils/unitConverter';
@@ -296,6 +297,9 @@ export const createPurchase = async (req: Request, res: Response) => {
                 defaultPurchaseRate: parseFloat(purchaseRate || 70),
                 defaultSellingRate: parseFloat(sellingRate || mrp || 100),
                 prescriptionType: newMedicine.prescriptionType || 'Schedule H',
+                storageNotes: newMedicine.storageNotes ? newMedicine.storageNotes.trim() : undefined,
+                packageUnit: newMedicine.packageUnit || 'Box',
+                conversionFactor: parseInt(newMedicine.conversionFactor || 10),
                 isActive: true,
               },
             });
@@ -514,7 +518,7 @@ export const createPurchase = async (req: Request, res: Response) => {
       });
 
       return purchaseInvoice;
-    });
+    }, { maxWait: 10000, timeout: 25000 });
 
     await logAuditEvent({
       userId: req.user.id,
@@ -1326,7 +1330,25 @@ export const previewPurchaseImport = async (req: Request, res: Response) => {
       const warnings: string[] = [];
       const mapped = extractMappedRow(row, headerMap);
 
-      const brandName = (mapped.brandName || '').toString().trim();
+      const rawProductName = (mapped.productName || '').toString().trim();
+      const rawBrandName = (mapped.brandName || '').toString().trim();
+
+      const {
+        effectiveBrandName,
+        effectiveProductName,
+        warning: nameWarning,
+        error: nameError,
+      } = resolveProductAndBrandNames(rawProductName, rawBrandName);
+
+      if (nameError) {
+        errors.push(nameError);
+      }
+      if (nameWarning) {
+        warnings.push(nameWarning);
+      }
+
+      const brandName = effectiveBrandName;
+      const productName = effectiveProductName;
       const genericName = (mapped.genericName || '').toString().trim();
       const strength = (mapped.strength || '').toString().trim();
       const dosageForm = (mapped.dosageForm || 'Tablet').toString().trim();
@@ -1346,7 +1368,7 @@ export const previewPurchaseImport = async (req: Request, res: Response) => {
       const discountPercent = parseCleanNumber(mapped.discountPercent, 0);
 
       // Validation
-      if (!brandName) {
+      if (!brandName && !productName) {
         errors.push('Product / Brand Name is required');
       }
       if (!batchNumber) {
@@ -1382,7 +1404,8 @@ export const previewPurchaseImport = async (req: Request, res: Response) => {
       // Phase 6 Product Matching
       const matchResult = matchProduct(
         {
-          brandName,
+          brandName: effectiveBrandName,
+          productName: effectiveProductName,
           genericName,
           strength,
           dosageForm,
@@ -1457,7 +1480,12 @@ export const previewPurchaseImport = async (req: Request, res: Response) => {
 
       validatedRows.push({
         rowIndex,
-        brandName,
+        rowNumber: rowIndex,
+        valid: errors.length === 0,
+        medicineId: matchedProd?.id || (isNewProd ? 'NEW' : null),
+        matchedProductId: matchedProd?.id || null,
+        productName: effectiveProductName,
+        brandName: effectiveBrandName,
         genericName: genericName || matchedProd?.genericName || '',
         strength: strength || matchedProd?.strength || '',
         dosageForm: dosageForm || matchedProd?.dosageForm || 'Tablet',
@@ -1465,10 +1493,12 @@ export const previewPurchaseImport = async (req: Request, res: Response) => {
         hsnCode: hsnCode || matchedProd?.hsnCode || '30049099',
         batchNumber,
         expiryDate: expDateIso || (expiryRaw ? String(expiryRaw) : ''),
+        unit: purchaseUnit,
         purchaseUnit,
         sellingUnit: matchedProd?.baseUnit || sellingUnit,
         quantity,
         freeQuantity,
+        unitsPerPack: conversionFactor,
         conversionFactor,
         totalUnits,
         purchaseRate,
@@ -1485,10 +1515,51 @@ export const previewPurchaseImport = async (req: Request, res: Response) => {
         warnings,
         isNewProduct: isNewProd,
         isNewBatch,
-        matchedProductId: matchedProd?.id || null,
         potentialCandidates: matchResult.potentialCandidates || [],
+        newMedicine: isNewProd
+          ? {
+              brandName: effectiveBrandName,
+              genericName: genericName || 'Generic Formulation',
+              strength: strength || 'Standard',
+              dosageForm: dosageForm || 'Tablet',
+              manufacturer: manufacturer || 'Standard Pharma',
+              hsnCode: hsnCode || '30049099',
+              gstRate,
+              mrp,
+              defaultPurchaseRate: purchaseRate,
+              defaultSellingRate: sellingRate,
+              baseUnit: sellingUnit,
+              packageUnit: purchaseUnit,
+              conversionFactor,
+              storageNotes:
+                rawProductName && rawBrandName && rawProductName !== rawBrandName
+                  ? `Imported Product Name: ${rawProductName} | Brand: ${rawBrandName}`
+                  : undefined,
+            }
+          : undefined,
       });
     });
+
+    const metrics = {
+      totalRows: rawRows.length,
+      validRows: validRowsCount,
+      errorRows: errorRowsCount,
+      warningRows: warningRowsCount,
+      newProducts: newProductsCount,
+      newProductsCount,
+      existingProducts: existingProductsCount,
+      existingProductsCount,
+      newBatches: newBatchesCount,
+      newBatchesCount,
+      existingBatches: existingBatchesCount,
+      existingBatchesCount,
+      totalQuantity,
+      estimatedGross: totalGrossDec.toDecimalPlaces(2).toNumber(),
+      estimatedDiscount: totalDiscountDec.toDecimalPlaces(2).toNumber(),
+      estimatedTaxable: totalTaxableDec.toDecimalPlaces(2).toNumber(),
+      estimatedTax: totalTaxDec.toDecimalPlaces(2).toNumber(),
+      estimatedGrandTotal: totalGrandDec.toDecimalPlaces(2).toNumber(),
+    };
 
     return res.json({
       fileName: req.file.originalname,
@@ -1496,22 +1567,9 @@ export const previewPurchaseImport = async (req: Request, res: Response) => {
       validRows: validRowsCount,
       errorRows: errorRowsCount,
       warningRows: warningRowsCount,
-      summary: {
-        totalRows: rawRows.length,
-        validRows: validRowsCount,
-        errorRows: errorRowsCount,
-        warningRows: warningRowsCount,
-        newProductsCount,
-        existingProductsCount,
-        newBatchesCount,
-        existingBatchesCount,
-        totalQuantity,
-        estimatedGross: totalGrossDec.toDecimalPlaces(2).toNumber(),
-        estimatedDiscount: totalDiscountDec.toDecimalPlaces(2).toNumber(),
-        estimatedTaxable: totalTaxableDec.toDecimalPlaces(2).toNumber(),
-        estimatedTax: totalTaxDec.toDecimalPlaces(2).toNumber(),
-        estimatedGrandTotal: totalGrandDec.toDecimalPlaces(2).toNumber(),
-      },
+      metrics,
+      summary: metrics,
+      items: validatedRows,
       rows: validatedRows,
     });
   } catch (error: any) {
