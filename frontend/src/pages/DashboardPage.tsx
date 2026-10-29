@@ -139,7 +139,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
           </div>
           <div className="mt-2 flex items-center justify-between text-[11px] text-slate-500">
             <span>Active Batches: <strong className="text-slate-800">{stockVal?.batchesCount || 0}</strong></span>
-            <button onClick={() => onNavigate('reports')} className="text-brand-600 hover:text-brand-800 hover:underline font-semibold">
+            <button onClick={() => onNavigate('stock-monitoring')} className="text-brand-600 hover:text-brand-800 hover:underline font-semibold">
               Inspect &rarr;
             </button>
           </div>
@@ -175,7 +175,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
           </div>
           <div className="mt-2 flex items-center justify-between text-[11px] text-slate-500">
             <span className="text-rose-600 font-semibold">Expired Batches: {expiryAlerts?.totalExpired || 0}</span>
-            <button onClick={() => onNavigate('reports')} className="text-amber-700 hover:underline font-semibold">
+            <button onClick={() => onNavigate('stock-monitoring')} className="text-amber-700 hover:underline font-semibold">
               Review &rarr;
             </button>
           </div>

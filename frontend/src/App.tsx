@@ -8,6 +8,7 @@ import { LoginPage } from './pages/LoginPage';
 import { POSBillingPage } from './pages/POSBillingPage';
 import { DashboardPage } from './pages/DashboardPage';
 import { InventoryPage } from './pages/InventoryPage';
+import { StockMonitoringPage } from './pages/StockMonitoringPage';
 import { ProductsPage } from './pages/ProductsPage';
 import { PurchasesPage } from './pages/PurchasesPage';
 import { IndentsPage } from './pages/IndentsPage';
@@ -57,6 +58,7 @@ const MainLayout: React.FC = () => {
         <main className="flex-1 overflow-y-auto">
           {activeTab === 'pos' && <POSBillingPage />}
           {activeTab === 'dashboard' && <DashboardPage onNavigate={setActiveTab} />}
+          {activeTab === 'stock-monitoring' && <StockMonitoringPage />}
           {activeTab === 'inventory' && <InventoryPage />}
           {activeTab === 'catalogue' && <ProductsPage />}
           {activeTab === 'purchases' && (

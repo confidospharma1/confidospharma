@@ -17,6 +17,7 @@ import auditRoutes from './modules/audit/audit.routes';
 import privacyRoutes from './modules/privacy/privacy.routes';
 import settingRoutes from './modules/settings/settings.routes';
 import indentRoutes from './modules/indents/indents.routes';
+import stockMonitoringRoutes from './modules/inventory/stockMonitoring.routes';
 
 const app = express();
 
@@ -90,6 +91,7 @@ app.use('/api/audit', auditRoutes);
 app.use('/api/privacy', privacyRoutes);
 app.use('/api/settings', settingRoutes);
 app.use('/api/indents', indentRoutes);
+app.use('/api/stock-monitoring', stockMonitoringRoutes);
 
 // Centralized 404 handler
 app.use((req: Request, res: Response) => {

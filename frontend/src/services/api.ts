@@ -144,6 +144,55 @@ export const api = {
   createTransfer: (data: any) => apiRequest('/inventory/transfers', { method: 'POST', body: JSON.stringify(data) }),
   receiveTransfer: (id: string) => apiRequest(`/inventory/transfers/${id}/receive`, { method: 'PUT' }),
 
+  // Dedicated Stock Monitoring (Read-Only)
+  getStockMonitoring: (params?: {
+    branchId?: string;
+    search?: string;
+    stockStatus?: string;
+    expiryStatus?: string;
+    dosageForm?: string;
+    manufacturer?: string;
+    genericName?: string;
+    supplierId?: string;
+    minQuantity?: string | number;
+    maxQuantity?: string | number;
+    batchNumber?: string;
+    sortBy?: string;
+    sortOrder?: string;
+    page?: number;
+    limit?: number;
+  }) => {
+    const q = new URLSearchParams();
+    if (params?.branchId) q.append('branchId', params.branchId);
+    if (params?.search) q.append('search', params.search);
+    if (params?.stockStatus && params.stockStatus !== 'ALL') q.append('stockStatus', params.stockStatus);
+    if (params?.expiryStatus && params.expiryStatus !== 'ALL') q.append('expiryStatus', params.expiryStatus);
+    if (params?.dosageForm) q.append('dosageForm', params.dosageForm);
+    if (params?.manufacturer) q.append('manufacturer', params.manufacturer);
+    if (params?.genericName) q.append('genericName', params.genericName);
+    if (params?.supplierId) q.append('supplierId', params.supplierId);
+    if (params?.minQuantity !== undefined && params.minQuantity !== '') q.append('minQuantity', params.minQuantity.toString());
+    if (params?.maxQuantity !== undefined && params.maxQuantity !== '') q.append('maxQuantity', params.maxQuantity.toString());
+    if (params?.batchNumber) q.append('batchNumber', params.batchNumber);
+    if (params?.sortBy) q.append('sortBy', params.sortBy);
+    if (params?.sortOrder) q.append('sortOrder', params.sortOrder);
+    if (params?.page) q.append('page', params.page.toString());
+    if (params?.limit) q.append('limit', params.limit.toString());
+    return apiRequest(`/stock-monitoring?${q.toString()}`);
+  },
+  getStockMonitoringBatches: (medicineId: string, branchId?: string) => {
+    const q = branchId ? `?branchId=${branchId}` : '';
+    return apiRequest(`/stock-monitoring/batches/${medicineId}${q}`);
+  },
+  getStockMonitoringFilterOptions: (branchId?: string) => {
+    const q = branchId ? `?branchId=${branchId}` : '';
+    return apiRequest(`/stock-monitoring/filter-options${q}`);
+  },
+  getStockMonitoringAlerts: (branchId?: string) => {
+    const q = branchId ? `?branchId=${branchId}` : '';
+    return apiRequest(`/stock-monitoring/alerts${q}`);
+  },
+
   // Billing & Invoices
   createInvoice: (data: any) => apiRequest('/billing/invoices', { method: 'POST', body: JSON.stringify(data) }),
   getInvoices: (params?: {

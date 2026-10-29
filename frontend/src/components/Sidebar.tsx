@@ -80,6 +80,13 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => 
                 <span>Branch Dashboard</span>
               </button>
               <button
+                onClick={() => setActiveTab('stock-monitoring')}
+                className={navItemClass('stock-monitoring')}
+              >
+                <Boxes className={iconClass('stock-monitoring')} />
+                <span>Stock Monitoring</span>
+              </button>
+              <button
                 onClick={() => setActiveTab('catalogue')}
                 className={navItemClass('catalogue')}
               >

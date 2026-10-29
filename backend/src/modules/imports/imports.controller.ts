@@ -412,11 +412,30 @@ export const commitImportJob = async (req: Request, res: Response) => {
       } else {
         // STOCK_RECEIPT COMMIT
         for (const row of validRows) {
+          // Verify medicine exists or resolve it
+          let targetMedId = row.medicineId;
+          const medExists = await tx.medicineProduct.findUnique({ where: { id: targetMedId } });
+          if (!medExists) {
+            const fallbackMed = await tx.medicineProduct.findFirst({
+              where: {
+                OR: [
+                  { internalCode: row.productCode || row.internalCode || '' },
+                  { brandName: { equals: row.brandName || row.productName || '', mode: 'insensitive' } },
+                ],
+              },
+            });
+            if (fallbackMed) {
+              targetMedId = fallbackMed.id;
+            } else {
+              throw new Error(`Medicine '${row.brandName || row.productName || targetMedId}' does not exist in catalogue.`);
+            }
+          }
+
           // Check if batch exists
           let batch = await tx.stockBatch.findFirst({
             where: {
               branchId: job.branchId,
-              medicineId: row.medicineId,
+              medicineId: targetMedId,
               batchNumber: row.batchNumber,
             },
           });
@@ -437,7 +456,7 @@ export const commitImportJob = async (req: Request, res: Response) => {
             batch = await tx.stockBatch.create({
               data: {
                 branchId: job.branchId,
-                medicineId: row.medicineId,
+                medicineId: targetMedId,
                 batchNumber: row.batchNumber,
                 expiryDate: new Date(row.expiryDate),
                 quantityReceived: row.quantity,
@@ -455,7 +474,7 @@ export const commitImportJob = async (req: Request, res: Response) => {
           await tx.stockMovement.create({
             data: {
               branchId: job.branchId,
-              medicineId: row.medicineId,
+              medicineId: targetMedId,
               batchId: batch.id,
               movementType: 'PURCHASE_RECEIPT',
               quantityDelta: row.quantity,

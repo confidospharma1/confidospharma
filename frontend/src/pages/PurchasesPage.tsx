@@ -54,6 +54,15 @@ interface PurchaseLineForm {
   gstRate: number;
   discountMode?: 'preset' | 'custom';
   customDiscount?: string;
+  newMedicine?: any;
+  isNewProduct?: boolean;
+  brandName?: string;
+  productName?: string;
+  genericName?: string;
+  strength?: string;
+  dosageForm?: string;
+  manufacturer?: string;
+  hsnCode?: string;
 }
 
 interface PurchasesPageProps {
@@ -588,7 +597,7 @@ export const PurchasesPage: React.FC<PurchasesPageProps> = ({ prefilledIndent, o
       expiryDate: it.expiryDate || '',
       quantity: Number(it.quantity) || 1,
       freeQuantity: Number(it.freeQuantity) || 0,
-      unit: it.unit || 'Box',
+      unit: it.unit || it.purchaseUnit || 'Box',
       conversionFactor: Number(it.conversionFactor) || 10,
       purchaseRate: Number(it.purchaseRate) || 0,
       sellingRate: Number(it.sellingRate) || Number(it.mrp) || 0,
@@ -596,6 +605,15 @@ export const PurchasesPage: React.FC<PurchasesPageProps> = ({ prefilledIndent, o
       discountPercent: Number(it.discountPercent) || 0,
       discountAmount: Number(it.discountAmount) || 0,
       gstRate: Number(it.gstRate) || 5.0,
+      newMedicine: it.newMedicine,
+      isNewProduct: it.isNewProduct || it.medicineId === 'NEW',
+      brandName: it.brandName || it.productName,
+      productName: it.productName,
+      genericName: it.genericName,
+      strength: it.strength,
+      dosageForm: it.dosageForm,
+      manufacturer: it.manufacturer,
+      hsnCode: it.hsnCode,
     }));
     setLines(newLines);
     setEntryMode('manual');
@@ -607,6 +625,7 @@ export const PurchasesPage: React.FC<PurchasesPageProps> = ({ prefilledIndent, o
 
   const handleConfirmImportPurchase = async () => {
     if (!importPreviewData || !importPreviewData.items) return;
+    if (isSubmittingImportPurchase) return; // Prevent double click submission
     if (!supplierId) {
       setImportError('Please select or create a supplier before confirming purchase.');
       return;
@@ -639,13 +658,37 @@ export const PurchasesPage: React.FC<PurchasesPageProps> = ({ prefilledIndent, o
         paymentMode,
         paidAmount: paidAmount !== '' ? parseFloat(paidAmount) : (paymentMode === 'CREDIT' ? 0 : importPreviewData.metrics.estimatedGrandTotal),
         notes: notes || 'Imported via Excel/CSV inward integration',
+        idempotencyKey: `import-${effectiveBranchId}-${supplierInvoiceNumber.trim()}-${Date.now()}`,
         lines: validItems.map((it: any) => ({
           medicineId: it.medicineId,
+          isNewProduct: it.isNewProduct || it.medicineId === 'NEW',
+          newMedicine: it.newMedicine || (it.isNewProduct || it.medicineId === 'NEW' ? {
+            brandName: it.brandName || it.productName,
+            genericName: it.genericName || 'Generic Formulation',
+            strength: it.strength || 'Standard',
+            dosageForm: it.dosageForm || 'Tablet',
+            manufacturer: it.manufacturer || 'Standard Pharma',
+            hsnCode: it.hsnCode || '30049099',
+            gstRate: Number(it.gstRate) || 5.0,
+            mrp: Number(it.mrp) || 0,
+            defaultPurchaseRate: Number(it.purchaseRate) || 0,
+            defaultSellingRate: Number(it.sellingRate) || Number(it.mrp) || 0,
+            baseUnit: it.sellingUnit || it.baseUnit || 'Strip',
+            packageUnit: it.purchaseUnit || it.packageUnit || it.unit || 'Box',
+            conversionFactor: Number(it.conversionFactor) || 10,
+          } : undefined),
+          productName: it.productName,
+          brandName: it.brandName,
+          genericName: it.genericName,
+          strength: it.strength,
+          dosageForm: it.dosageForm,
+          manufacturer: it.manufacturer,
+          hsnCode: it.hsnCode,
           batchNumber: it.batchNumber,
           expiryDate: it.expiryDate,
           quantity: Number(it.quantity),
           freeQuantity: Number(it.freeQuantity) || 0,
-          unit: it.unit || 'Box',
+          unit: it.unit || it.purchaseUnit || 'Box',
           conversionFactor: Number(it.conversionFactor) || 10,
           purchaseRate: Number(it.purchaseRate),
           sellingRate: Number(it.sellingRate) || Number(it.mrp),
@@ -840,6 +883,14 @@ export const PurchasesPage: React.FC<PurchasesPageProps> = ({ prefilledIndent, o
           discountPercent: Number(l.discountPercent) || 0,
           discountAmount: Number(l.discountAmount) || 0,
           gstRate: Number(l.gstRate),
+          newMedicine: l.newMedicine,
+          isNewProduct: l.isNewProduct,
+          brandName: l.brandName,
+          genericName: l.genericName,
+          strength: l.strength,
+          dosageForm: l.dosageForm,
+          manufacturer: l.manufacturer,
+          hsnCode: l.hsnCode,
         })),
       };
 

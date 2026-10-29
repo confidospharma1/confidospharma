@@ -12,7 +12,7 @@ import {
   parseCleanInt,
   resolveProductAndBrandNames,
 } from '../imports/imports.mapper';
-import { matchProduct, CandidateProduct } from '../../utils/productMatcher';
+import { matchProduct, CandidateProduct, areStrengthsCompatible, normalizeString } from '../../utils/productMatcher';
 import { buildProductUnitConfig, convertToBaseQuantity } from '../../utils/unitConverter';
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -129,6 +129,7 @@ export const getPurchaseById = async (req: Request, res: Response) => {
 };
 
 export const createPurchase = async (req: Request, res: Response) => {
+  let targetBranchId: string | null = null;
   try {
     if (!req.user) return res.status(401).json({ message: 'Unauthorized' });
 
@@ -151,7 +152,6 @@ export const createPurchase = async (req: Request, res: Response) => {
       notes,
     } = req.body;
 
-    let targetBranchId: string | null = null;
     if (req.user.role === 'SUPER_ADMIN') {
       targetBranchId = (branchId && typeof branchId === 'string' && branchId.trim()) ? branchId.trim() : (req.user.branchId || null);
     } else {
@@ -164,6 +164,7 @@ export const createPurchase = async (req: Request, res: Response) => {
     if (!targetBranchId) {
       return res.status(400).json({ message: 'Target branch is required.' });
     }
+    const validatedBranchId: string = targetBranchId;
 
     if (!supplierInvoiceNumber || !supplierInvoiceNumber.trim()) {
       return res.status(400).json({ message: 'Supplier invoice number is required.' });
@@ -173,7 +174,7 @@ export const createPurchase = async (req: Request, res: Response) => {
       return res.status(400).json({ message: 'At least one medicine line item is required.' });
     }
 
-    const branch = await prisma.branch.findUnique({ where: { id: targetBranchId } });
+    const branch = await prisma.branch.findUnique({ where: { id: validatedBranchId } });
     if (!branch) return res.status(404).json({ message: 'Branch not found' });
     if (!branch.isActive) return res.status(400).json({ message: 'Target branch is inactive' });
 
@@ -239,25 +240,44 @@ export const createPurchase = async (req: Request, res: Response) => {
         where: {
           supplierId: resolvedSupplierId,
           supplierInvoiceNumber: supplierInvoiceNumber.trim(),
-          branchId: targetBranchId,
+          branchId: validatedBranchId,
           status: { not: 'CANCELLED' },
         },
       });
 
       if (existing) {
-        throw new Error(`Duplicate invoice: Supplier Invoice '${supplierInvoiceNumber}' from this supplier has already been recorded (Invoice: ${existing.invoiceNumber}).`);
+        throw new Error(`This purchase has already been recorded: Supplier Invoice '${supplierInvoiceNumber}' from this supplier is already recorded as Invoice ${existing.invoiceNumber}.`);
+      }
+
+      // Check idempotency key if provided
+      const idempotencyKey = (req.headers['idempotency-key'] || (req.body && req.body.idempotencyKey) || '') as string;
+      if (idempotencyKey && typeof idempotencyKey === 'string' && idempotencyKey.trim()) {
+        const idempExisting = await tx.purchaseInvoice.findFirst({
+          where: {
+            branchId: validatedBranchId,
+            notes: { contains: `[IDEMPOTENCY:${idempotencyKey.trim()}]` },
+            status: { not: 'CANCELLED' },
+          },
+        });
+        if (idempExisting) {
+          throw new Error(`This purchase has already been recorded (Duplicate submission detected).`);
+        }
       }
 
       let subtotalDec = new Decimal(0);
       let taxTotalDec = new Decimal(0);
       let lineDiscountsTotalDec = new Decimal(0);
 
-      const count = await tx.purchaseInvoice.count({ where: { branchId: targetBranchId } });
+      const count = await tx.purchaseInvoice.count({ where: { branchId: validatedBranchId } });
       const invoiceNumber = `PUR-${branch.code.replace('B-', '')}-${new Date().getFullYear()}-${String(count + 1).padStart(5, '0')}`;
 
       const processedLines: any[] = [];
+      // In-transaction cache for newly created or resolved medicines to handle multiple lines with same new medicine
+      const resolvedMedicineMap = new Map<string, string>();
+      let lineIndex = 0;
 
       for (const line of lines) {
+        lineIndex++;
         let {
           medicineId,
           newMedicine,
@@ -273,51 +293,106 @@ export const createPurchase = async (req: Request, res: Response) => {
           gstRate,
         } = line;
 
-        // Inline Medicine Creation Support if medicineId not given or set to 'NEW'
-        if ((!medicineId || medicineId === 'NEW') && newMedicine) {
-          if (!newMedicine.brandName || !newMedicine.genericName) {
-            throw new Error('Brand name and generic name are required to register a new medicine.');
-          }
+        // Extract metadata if available directly on line or in newMedicine
+        const lineBrandName = (newMedicine?.brandName || line.brandName || line.productName || newMedicine?.productName || '').toString().trim();
+        const lineGenericName = (newMedicine?.genericName || line.genericName || '').toString().trim();
+        const lineStrength = (newMedicine?.strength || line.strength || '').toString().trim();
+        const lineDosageForm = (newMedicine?.dosageForm || line.dosageForm || 'Tablet').toString().trim();
+        const lineManufacturer = (newMedicine?.manufacturer || line.manufacturer || '').toString().trim();
+        const lineHsnCode = (newMedicine?.hsnCode || line.hsnCode || '30049099').toString().trim();
+        const lineBaseUnit = (newMedicine?.baseUnit || line.sellingUnit || line.baseUnit || 'Strip').toString().trim();
+        const linePackageUnit = (newMedicine?.packageUnit || line.purchaseUnit || line.unit || 'Box').toString().trim();
+        const lineConvFactor = parseInt(newMedicine?.conversionFactor || line.conversionFactor || line.unitsPerPack || 10, 10);
 
-          const existingMed = await tx.medicineProduct.findFirst({
+        let resolvedMed: any = null;
+
+        // Case A1: If medicineId is a non-placeholder UUID/ID, verify it exists in DB
+        if (medicineId && medicineId !== 'NEW' && typeof medicineId === 'string' && medicineId.trim() !== '') {
+          resolvedMed = await tx.medicineProduct.findUnique({
+            where: { id: medicineId.trim() },
+          });
+        }
+
+        // Case A2: If not resolved by ID, check if this medicine was already resolved/created in this invoice transaction
+        const medCacheKey = `${normalizeString(lineBrandName)}_${normalizeString(lineStrength)}_${normalizeString(lineDosageForm)}`;
+        if (!resolvedMed && lineBrandName && resolvedMedicineMap.has(medCacheKey)) {
+          const cachedId = resolvedMedicineMap.get(medCacheKey)!;
+          resolvedMed = await tx.medicineProduct.findUnique({ where: { id: cachedId } });
+        }
+
+        // Case A3: Check if existing medicine exists in catalogue by Brand Name + Strength + Dosage Form
+        if (!resolvedMed && lineBrandName) {
+          const candidates = await tx.medicineProduct.findMany({
             where: {
-              brandName: newMedicine.brandName.trim(),
-              strength: newMedicine.strength ? newMedicine.strength.trim() : '',
+              isActive: true,
+              brandName: {
+                equals: lineBrandName,
+                mode: 'insensitive',
+              },
             },
           });
 
-          if (existingMed) {
-            medicineId = existingMed.id;
-          } else {
-            const internalCode = await generateUniqueMedicineCode(tx);
-            const createdMed = await tx.medicineProduct.create({
-              data: {
-                internalCode,
-                brandName: newMedicine.brandName.trim(),
-                genericName: newMedicine.genericName.trim(),
-                strength: newMedicine.strength ? newMedicine.strength.trim() : 'Standard',
-                dosageForm: newMedicine.dosageForm || 'Tablet',
-                manufacturer: newMedicine.manufacturer ? newMedicine.manufacturer.trim() : 'Generic / Pharma',
-                packSize: newMedicine.packSize || '10 Strips',
-                baseUnit: newMedicine.baseUnit || 'Strip',
-                hsnCode: newMedicine.hsnCode ? newMedicine.hsnCode.trim() : '30049099',
-                gstRate: parseFloat(newMedicine.gstRate || gstRate || 5.0),
-                mrp: parseFloat(newMedicine.mrp || mrp || 100),
-                defaultPurchaseRate: parseFloat(purchaseRate || 70),
-                defaultSellingRate: parseFloat(sellingRate || mrp || 100),
-                prescriptionType: newMedicine.prescriptionType || 'Schedule H',
-                storageNotes: newMedicine.storageNotes ? newMedicine.storageNotes.trim() : undefined,
-                packageUnit: newMedicine.packageUnit || 'Box',
-                conversionFactor: parseInt(newMedicine.conversionFactor || 10),
-                isActive: true,
-              },
-            });
-            medicineId = createdMed.id;
+          if (candidates.length > 0) {
+            for (const cand of candidates) {
+              const strengthMatch = !lineStrength || areStrengthsCompatible(cand.strength, lineStrength);
+              const formMatch = !lineDosageForm || cand.dosageForm.toLowerCase() === lineDosageForm.toLowerCase();
+              if (strengthMatch && formMatch) {
+                resolvedMed = cand;
+                break;
+              }
+            }
+            if (!resolvedMed && candidates.length === 1 && !lineStrength) {
+              resolvedMed = candidates[0];
+            }
           }
         }
 
-        if (!medicineId) {
-          throw new Error('Valid medicine selection or new medicine creation is required for each line.');
+        // Case B: New medicine creation if not already in DB
+        if (!resolvedMed && (newMedicine || line.isNewProduct || medicineId === 'NEW' || lineBrandName)) {
+          if (!lineBrandName) {
+            throw new Error(`Line ${lineIndex}: Brand Name or Product Name is required to register a new medicine.`);
+          }
+
+          const internalCode = await generateUniqueMedicineCode(tx);
+          const parsedGst = parseFloat(newMedicine?.gstRate ?? gstRate ?? 5.0) || 5.0;
+          const parsedMrp = parseFloat(newMedicine?.mrp ?? mrp ?? 100) || 100;
+          const parsedPurchaseRate = parseFloat(newMedicine?.defaultPurchaseRate ?? purchaseRate ?? 70) || 70;
+          const parsedSellingRate = parseFloat(newMedicine?.defaultSellingRate ?? sellingRate ?? mrp ?? 100) || 100;
+
+          resolvedMed = await tx.medicineProduct.create({
+            data: {
+              internalCode,
+              brandName: lineBrandName,
+              genericName: lineGenericName || 'Generic Formulation',
+              strength: lineStrength || 'Standard',
+              dosageForm: lineDosageForm || 'Tablet',
+              manufacturer: lineManufacturer || 'Standard Pharma',
+              packSize: newMedicine?.packSize || `${!isNaN(lineConvFactor) && lineConvFactor > 0 ? lineConvFactor : 10} ${lineBaseUnit}s`,
+              baseUnit: lineBaseUnit,
+              hsnCode: lineHsnCode || '30049099',
+              gstRate: parsedGst,
+              mrp: parsedMrp,
+              defaultPurchaseRate: parsedPurchaseRate,
+              defaultSellingRate: parsedSellingRate,
+              prescriptionType: newMedicine?.prescriptionType || 'Schedule H',
+              storageNotes: newMedicine?.storageNotes ? newMedicine.storageNotes.trim() : (line.notes ? String(line.notes).trim() : undefined),
+              packageUnit: linePackageUnit,
+              conversionFactor: !isNaN(lineConvFactor) && lineConvFactor > 0 ? lineConvFactor : 10,
+              isActive: true,
+            },
+          });
+        }
+
+        if (!resolvedMed) {
+          throw new Error(
+            `The purchase could not be saved because a valid medicine record could not be resolved for line item ${lineIndex} ('${lineBrandName || medicineId || 'Unknown'}'). Please refresh product list or provide product details.`
+          );
+        }
+
+        // Ensure medicineId is the actual verified database ID
+        medicineId = resolvedMed.id;
+        if (lineBrandName) {
+          resolvedMedicineMap.set(medCacheKey, resolvedMed.id);
         }
 
         const qty = parseInt(quantity);
@@ -386,16 +461,18 @@ export const createPurchase = async (req: Request, res: Response) => {
           throw new Error(`Invalid expiry date format for batch ${batchNumber}`);
         }
 
+        let factor = 1;
         if (line.conversionFactor !== undefined && line.conversionFactor !== null && line.conversionFactor !== '') {
           const parsedFactor = parseInt(line.conversionFactor);
           if (isNaN(parsedFactor) || parsedFactor <= 0) {
             throw new Error(`Conversion factor (Units/Pk) for batch ${batchNumber} must be an integer greater than zero.`);
           }
+          factor = parsedFactor;
+        } else if (newMedicine?.conversionFactor && parseInt(newMedicine.conversionFactor) > 0) {
+          factor = parseInt(newMedicine.conversionFactor);
+        } else if (resolvedMed?.conversionFactor && resolvedMed.conversionFactor > 0 && line.unit && line.unit.toLowerCase() === (resolvedMed.packageUnit || '').toLowerCase()) {
+          factor = resolvedMed.conversionFactor;
         }
-
-        const factor = (line.conversionFactor && parseInt(line.conversionFactor) > 0)
-          ? parseInt(line.conversionFactor)
-          : 1;
         const lineUnit = line.unit || 'Strip';
         const totalBatchQty = (qty + freeQty) * factor;
 
@@ -407,7 +484,7 @@ export const createPurchase = async (req: Request, res: Response) => {
         // Check/create batch in branch
         let batch = await tx.stockBatch.findFirst({
           where: {
-            branchId: targetBranchId,
+            branchId: validatedBranchId,
             medicineId,
             batchNumber: batchNumber.trim(),
           },
@@ -428,7 +505,7 @@ export const createPurchase = async (req: Request, res: Response) => {
         } else {
           batch = await tx.stockBatch.create({
             data: {
-              branchId: targetBranchId,
+              branchId: validatedBranchId,
               medicineId,
               batchNumber: batchNumber.trim(),
               expiryDate: parsedExpiry,
@@ -447,7 +524,7 @@ export const createPurchase = async (req: Request, res: Response) => {
         // Record stock movement
         await tx.stockMovement.create({
           data: {
-            branchId: targetBranchId,
+            branchId: validatedBranchId,
             medicineId,
             batchId: batch.id,
             movementType: 'PURCHASE_RECEIPT',
@@ -514,7 +591,7 @@ export const createPurchase = async (req: Request, res: Response) => {
           invoiceNumber,
           supplierInvoiceNumber: supplierInvoiceNumber.trim(),
           supplierId: resolvedSupplierId,
-          branchId: targetBranchId,
+          branchId: validatedBranchId,
           invoiceDate: new Date(invoiceDate || Date.now()),
           subtotal: subtotalDec.toDecimalPlaces(2).toNumber(),
           discountTotal: totalDiscountDec.toDecimalPlaces(2).toNumber(),
@@ -547,7 +624,7 @@ export const createPurchase = async (req: Request, res: Response) => {
 
     await logAuditEvent({
       userId: req.user.id,
-      branchId: targetBranchId,
+      branchId: validatedBranchId,
       action: 'PURCHASE_RECEIVE',
       targetEntity: 'PURCHASE_INVOICE',
       entityId: result.id,
@@ -562,8 +639,31 @@ export const createPurchase = async (req: Request, res: Response) => {
 
     return res.status(201).json(result);
   } catch (error: any) {
-    console.error('Purchase error:', error);
-    return res.status(400).json({ message: error.message || 'Failed to record purchase' });
+    console.error('[PURCHASE_CONFIRM_ERROR]', {
+      message: error.message,
+      code: error.code,
+      stack: error.stack,
+      targetBranchId,
+      supplierInvoiceNumber: req.body?.supplierInvoiceNumber,
+    });
+
+    let userMessage = error.message || 'The purchase could not be completed. No stock changes were saved.';
+
+    if (
+      error.code === 'P2003' ||
+      String(error.message).includes('Foreign key constraint violated') ||
+      String(error.message).includes('StockBatch_medicineId_fkey')
+    ) {
+      userMessage = 'The purchase could not be saved because a medicine record is missing or invalid. No stock changes were saved.';
+    } else if (error.code === 'P2002' || String(error.message).includes('Unique constraint failed')) {
+      userMessage = 'This purchase has already been recorded. Duplicate invoice or batch constraint detected.';
+    } else if (String(error.message).includes('Foreign key')) {
+      userMessage = 'The purchase could not be saved because an associated branch, supplier, or medicine record could not be found.';
+    } else if (String(error.message).includes('already been recorded') || String(error.message).includes('Duplicate invoice')) {
+      userMessage = error.message;
+    }
+
+    return res.status(400).json({ message: userMessage });
   }
 };
 
@@ -830,10 +930,15 @@ export const updatePurchase = async (req: Request, res: Response) => {
           });
         } else {
           // Brand new batch added in edit
+          const verifiedMed = await tx.medicineProduct.findUnique({ where: { id: medicineId } });
+          if (!verifiedMed) {
+            throw new Error(`The purchase could not be updated because medicine ID '${medicineId}' was not found in the catalogue.`);
+          }
+
           batch = await tx.stockBatch.create({
             data: {
               branchId: targetBranchId,
-              medicineId,
+              medicineId: verifiedMed.id,
               batchNumber: batchNumber.trim(),
               expiryDate: parsedExpiry,
               quantityReceived: totalNewQty,
