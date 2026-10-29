@@ -294,71 +294,89 @@ export const bulkDeleteSuppliers = async (req: Request, res: Response) => {
       return res.status(403).json({ message: 'Forbidden: Super Admin only' });
     }
 
-    const { ids } = req.body;
-    if (!ids || !Array.isArray(ids) || ids.length === 0) {
+    const rawIds = req.body.ids || req.body.supplierIds;
+    if (!rawIds || !Array.isArray(rawIds) || rawIds.length === 0) {
       return res.status(400).json({ message: 'No supplier IDs provided' });
     }
 
-    const results = {
-      deleted: [] as string[],
-      archived: [] as string[],
-      failed: [] as { id: string; reason: string }[],
-    };
+    const uniqueIds = Array.from(
+      new Set(rawIds.filter((id): id is string => typeof id === 'string' && id.trim().length > 0))
+    );
 
-    for (const id of ids) {
-      const supplier = await prisma.supplier.findUnique({
-        where: { id },
-        include: {
-          _count: {
-            select: {
-              purchases: true,
-              batches: true,
-              purchaseReturns: true,
+    if (uniqueIds.length === 0) {
+      return res.status(400).json({ message: 'No valid supplier IDs provided' });
+    }
+
+    const outcome = await prisma.$transaction(async (tx) => {
+      const results = {
+        deleted: [] as string[],
+        archived: [] as string[],
+        failed: [] as { id: string; reason: string }[],
+      };
+
+      for (const id of uniqueIds) {
+        const supplier = await tx.supplier.findUnique({
+          where: { id },
+          include: {
+            _count: {
+              select: {
+                purchases: true,
+                batches: true,
+                purchaseReturns: true,
+                purchaseIndents: true,
+              },
             },
           },
-        },
-      });
-
-      if (!supplier) {
-        results.failed.push({ id, reason: 'Supplier not found' });
-        continue;
-      }
-
-      const totalReferences =
-        supplier._count.purchases +
-        supplier._count.batches +
-        supplier._count.purchaseReturns;
-
-      if (totalReferences > 0) {
-        // Safe archive
-        await prisma.supplier.update({
-          where: { id },
-          data: { isActive: false },
         });
-        results.archived.push(supplier.name);
-      } else {
-        // Permanent delete
-        await prisma.supplier.delete({ where: { id } });
-        results.deleted.push(supplier.name);
+
+        if (!supplier) {
+          results.failed.push({ id, reason: 'Supplier not found' });
+          continue;
+        }
+
+        const totalReferences =
+          supplier._count.purchases +
+          supplier._count.batches +
+          supplier._count.purchaseReturns +
+          supplier._count.purchaseIndents;
+
+        if (totalReferences > 0) {
+          // Safe archive to preserve ledger and audit trails
+          await tx.supplier.update({
+            where: { id },
+            data: { isActive: false },
+          });
+          results.archived.push(supplier.name);
+        } else {
+          // Permanent delete when completely unreferenced
+          await tx.supplier.delete({ where: { id } });
+          results.deleted.push(supplier.name);
+        }
       }
-    }
+
+      return results;
+    });
 
     await logAuditEvent({
       userId: req.user.id,
       action: 'SUPPLIER_BULK_DELETE',
       targetEntity: 'SUPPLIER',
       details: {
-        deletedCount: results.deleted.length,
-        archivedCount: results.archived.length,
+        totalRequested: uniqueIds.length,
+        deletedCount: outcome.deleted.length,
+        archivedCount: outcome.archived.length,
+        failedCount: outcome.failed.length,
       },
       req,
     });
 
+    const totalSuccess = outcome.deleted.length + outcome.archived.length;
     return res.json({
-      message: `Processed ${results.deleted.length + results.archived.length} suppliers (${results.deleted.length} deleted, ${results.archived.length} safely archived)`,
-      deleted: results.deleted,
-      archived: results.archived,
-      failed: results.failed,
+      message: `Processed ${totalSuccess} suppliers (${outcome.deleted.length} deleted, ${outcome.archived.length} safely archived)`,
+      deleted: outcome.deleted,
+      archived: outcome.archived,
+      failed: outcome.failed,
+      totalProcessed: totalSuccess,
     });
   } catch (error: any) {
     return res.status(500).json({ message: error.message || 'Bulk delete failed' });

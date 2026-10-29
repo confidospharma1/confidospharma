@@ -26,14 +26,14 @@ router.get('/template', downloadPurchaseTemplate);
 router.post('/import-preview', upload.single('file'), previewPurchaseImport);
 router.post('/bulk-delete', bulkDeletePurchases);
 
+router.get('/returns', getPurchaseReturns);
+router.post('/returns', createPurchaseReturn);
+
 router.get('/', getPurchases);
 router.get('/:id', getPurchaseById);
 router.post('/', createPurchase);
 router.put('/:id', updatePurchase);
 router.post('/:id/cancel', cancelPurchase);
 router.delete('/:id', cancelPurchase); // Also support DELETE as alias for cancel
-
-router.get('/returns', getPurchaseReturns);
-router.post('/returns', createPurchaseReturn);
 
 export default router;

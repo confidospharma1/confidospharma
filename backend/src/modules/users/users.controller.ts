@@ -187,17 +187,28 @@ export const deleteUser = async (req: Request, res: Response) => {
     const existingUser = await prisma.user.findUnique({ where: { id } });
     if (!existingUser) return res.status(404).json({ message: 'User not found' });
 
-    // Prevent self-deletion
+    // Prevent self-deactivation
     if (req.user.id === id) {
-      return res.status(400).json({ message: 'Cannot delete your own user account' });
+      return res.status(400).json({ message: 'Cannot deactivate your own user account' });
     }
 
+    // Role-based authorization & Branch isolation
     if (req.user.role === 'BRANCH_ADMIN') {
       if (existingUser.branchId !== req.user.branchId || existingUser.role !== 'BILLING_USER') {
-        return res.status(403).json({ message: 'Access denied: You can only remove billing users in your branch.' });
+        return res.status(403).json({ message: 'Access denied: Branch Admins can only deactivate billing staff within their assigned branch.' });
       }
     } else if (req.user.role !== 'SUPER_ADMIN') {
-      return res.status(403).json({ message: 'Forbidden' });
+      return res.status(403).json({ message: 'Forbidden: Insufficient privileges to deactivate user accounts.' });
+    }
+
+    // Mandatory safeguard: cannot deactivate the last remaining active Super Admin
+    if (existingUser.role === 'SUPER_ADMIN') {
+      const activeSuperAdminCount = await prisma.user.count({
+        where: { role: 'SUPER_ADMIN', isActive: true },
+      });
+      if (activeSuperAdminCount <= 1) {
+        return res.status(400).json({ message: 'Mandatory administrative safeguard: Cannot deactivate the last remaining active Super Administrator.' });
+      }
     }
 
     // Soft-deactivate to preserve historical billing, movements, and audit compliance
@@ -229,7 +240,7 @@ export const deleteUser = async (req: Request, res: Response) => {
       archived: true,
     });
   } catch (error: any) {
-    return res.status(500).json({ message: error.message || 'Failed to delete user' });
+    return res.status(500).json({ message: error.message || 'Failed to deactivate user' });
   }
 };
 
@@ -313,9 +324,17 @@ export const bulkDeleteUsers = async (req: Request, res: Response) => {
       return res.status(403).json({ message: 'Forbidden: Super Admin only' });
     }
 
-    const { ids } = req.body;
-    if (!ids || !Array.isArray(ids) || ids.length === 0) {
+    const rawIds = req.body.ids || req.body.userIds;
+    if (!rawIds || !Array.isArray(rawIds) || rawIds.length === 0) {
       return res.status(400).json({ message: 'No user IDs provided' });
+    }
+
+    const uniqueIds = Array.from(
+      new Set(rawIds.filter((id): id is string => typeof id === 'string' && id.trim().length > 0))
+    );
+
+    if (uniqueIds.length === 0) {
+      return res.status(400).json({ message: 'No valid user IDs provided' });
     }
 
     const results = {
@@ -323,7 +342,11 @@ export const bulkDeleteUsers = async (req: Request, res: Response) => {
       failed: [] as { id: string; reason: string }[],
     };
 
-    for (const id of ids) {
+    let activeSuperAdminCount = await prisma.user.count({
+      where: { role: 'SUPER_ADMIN', isActive: true },
+    });
+
+    for (const id of uniqueIds) {
       if (id === req.user.id) {
         results.failed.push({ id, reason: 'Cannot deactivate your own logged-in account' });
         continue;
@@ -335,6 +358,14 @@ export const bulkDeleteUsers = async (req: Request, res: Response) => {
         continue;
       }
 
+      if (targetUser.role === 'SUPER_ADMIN') {
+        if (activeSuperAdminCount <= 1) {
+          results.failed.push({ id, reason: `Cannot deactivate ${targetUser.username}: Last remaining active Super Administrator` });
+          continue;
+        }
+        activeSuperAdminCount--;
+      }
+
       await prisma.user.update({
         where: { id },
         data: { isActive: false },
@@ -342,10 +373,23 @@ export const bulkDeleteUsers = async (req: Request, res: Response) => {
       results.deactivated.push(targetUser.username);
     }
 
+    await logAuditEvent({
+      userId: req.user.id,
+      action: 'USER_BULK_DEACTIVATE',
+      targetEntity: 'USER',
+      details: {
+        totalRequested: uniqueIds.length,
+        deactivatedCount: results.deactivated.length,
+        failedCount: results.failed.length,
+      },
+      req,
+    });
+
     return res.json({
       message: `Deactivated ${results.deactivated.length} user accounts`,
       deactivated: results.deactivated,
       failed: results.failed,
+      totalProcessed: results.deactivated.length,
     });
   } catch (error: any) {
     return res.status(500).json({ message: error.message || 'Bulk user deactivation failed' });

@@ -93,7 +93,7 @@ export const api = {
   createUser: (data: any) => apiRequest('/users', { method: 'POST', body: JSON.stringify(data) }),
   updateUser: (id: string, data: any) => apiRequest(`/users/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   deleteUser: (id: string) => apiRequest(`/users/${id}`, { method: 'DELETE' }),
-  bulkDeleteUsers: (userIds: string[]) => apiRequest('/users/bulk-delete', { method: 'POST', body: JSON.stringify({ userIds }) }),
+  bulkDeleteUsers: (userIds: string[]) => apiRequest('/users/bulk-delete', { method: 'POST', body: JSON.stringify({ ids: userIds, userIds }) }),
   getProfile: () => apiRequest('/users/profile'),
   updateProfile: (data: any) => apiRequest('/users/profile', { method: 'PUT', body: JSON.stringify(data) }),
 
@@ -111,7 +111,7 @@ export const api = {
   createProduct: (data: any) => apiRequest('/products', { method: 'POST', body: JSON.stringify(data) }),
   updateProduct: (id: string, data: any) => apiRequest(`/products/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   deleteProduct: (id: string) => apiRequest(`/products/${id}`, { method: 'DELETE' }),
-  bulkDeleteProducts: (productIds: string[]) => apiRequest('/products/bulk-delete', { method: 'POST', body: JSON.stringify({ productIds }) }),
+  bulkDeleteProducts: (productIds: string[]) => apiRequest('/products/bulk-delete', { method: 'POST', body: JSON.stringify({ ids: productIds, productIds }) }),
 
   // Inventory
   getBatches: (params?: { branchId?: string; medicineId?: string; status?: string; nearExpiry?: boolean; expired?: boolean }) => {
@@ -181,7 +181,7 @@ export const api = {
   createSupplier: (data: any) => apiRequest('/suppliers', { method: 'POST', body: JSON.stringify(data) }),
   updateSupplier: (id: string, data: any) => apiRequest(`/suppliers/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   deleteSupplier: (id: string) => apiRequest(`/suppliers/${id}`, { method: 'DELETE' }),
-  bulkDeleteSuppliers: (supplierIds: string[]) => apiRequest('/suppliers/bulk-delete', { method: 'POST', body: JSON.stringify({ supplierIds }) }),
+  bulkDeleteSuppliers: (supplierIds: string[]) => apiRequest('/suppliers/bulk-delete', { method: 'POST', body: JSON.stringify({ ids: supplierIds, supplierIds }) }),
 
   getPurchases: (params?: { branchId?: string; search?: string; page?: number }) => {
     const q = new URLSearchParams();
@@ -196,7 +196,7 @@ export const api = {
   cancelPurchase: (id: string, reason: string) =>
     apiRequest(`/purchases/${id}/cancel`, { method: 'POST', body: JSON.stringify({ reason }) }),
   bulkDeletePurchases: (invoiceIds: string[], reason?: string) =>
-    apiRequest('/purchases/bulk-delete', { method: 'POST', body: JSON.stringify({ invoiceIds, reason }) }),
+    apiRequest('/purchases/bulk-delete', { method: 'POST', body: JSON.stringify({ ids: invoiceIds, invoiceIds, reason }) }),
   previewPurchaseImport: (formData: FormData) =>
     apiRequest('/purchases/import-preview', { method: 'POST', body: formData }),
   downloadPurchaseTemplateUrl: (format: 'xlsx' | 'csv' = 'xlsx') =>

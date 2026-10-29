@@ -132,6 +132,8 @@ export const createProduct = async (req: Request, res: Response) => {
       manufacturer,
       packSize,
       baseUnit = 'Strip',
+      packageUnit = 'Box',
+      conversionFactor = 10,
       hsnCode,
       gstRate,
       mrp,
@@ -193,6 +195,8 @@ export const createProduct = async (req: Request, res: Response) => {
             manufacturer: manufacturer.trim(),
             packSize: packSize ? packSize.trim() : '10 Tablets',
             baseUnit: baseUnit ? baseUnit.trim() : 'Strip',
+            packageUnit: packageUnit ? packageUnit.trim() : 'Box',
+            conversionFactor: conversionFactor !== undefined && conversionFactor !== null && !isNaN(parseInt(conversionFactor)) ? Math.max(1, parseInt(conversionFactor)) : 10,
             hsnCode: hsnCode ? hsnCode.trim() : null,
             gstRate: parseFloat(gstRate),
             mrp: parseFloat(mrp),
@@ -258,6 +262,8 @@ export const updateProduct = async (req: Request, res: Response) => {
       manufacturer,
       packSize,
       baseUnit,
+      packageUnit,
+      conversionFactor,
       hsnCode,
       gstRate,
       mrp,
@@ -280,6 +286,8 @@ export const updateProduct = async (req: Request, res: Response) => {
         ...(manufacturer && { manufacturer: manufacturer.trim() }),
         ...(packSize && { packSize: packSize.trim() }),
         ...(baseUnit && { baseUnit: baseUnit.trim() }),
+        ...(packageUnit !== undefined && { packageUnit: packageUnit ? packageUnit.trim() : null }),
+        ...(conversionFactor !== undefined && { conversionFactor: conversionFactor !== null && !isNaN(parseInt(conversionFactor)) ? Math.max(1, parseInt(conversionFactor)) : 10 }),
         ...(hsnCode !== undefined && { hsnCode: hsnCode ? hsnCode.trim() : null }),
         ...(gstRate !== undefined && { gstRate: parseFloat(gstRate) }),
         ...(mrp !== undefined && { mrp: parseFloat(mrp) }),
@@ -325,6 +333,10 @@ export const deleteProduct = async (req: Request, res: Response) => {
             batches: true,
             salesLines: true,
             purchaseLines: true,
+            movements: true,
+            adjustments: true,
+            purchaseReturnLines: true,
+            purchaseIndentItems: true,
           },
         },
       },
@@ -334,7 +346,14 @@ export const deleteProduct = async (req: Request, res: Response) => {
       return res.status(404).json({ message: 'Product not found' });
     }
 
-    const hasHistory = product._count.batches > 0 || product._count.salesLines > 0 || product._count.purchaseLines > 0;
+    const hasHistory =
+      product._count.batches > 0 ||
+      product._count.salesLines > 0 ||
+      product._count.purchaseLines > 0 ||
+      product._count.movements > 0 ||
+      product._count.adjustments > 0 ||
+      product._count.purchaseReturnLines > 0 ||
+      product._count.purchaseIndentItems > 0;
 
     if (hasHistory) {
       // Soft-delete to preserve inventory batches and billing ledger auditability
@@ -385,73 +404,96 @@ export const bulkDeleteProducts = async (req: Request, res: Response) => {
       return res.status(403).json({ message: 'Forbidden: Super Admin only' });
     }
 
-    const { ids } = req.body;
-    if (!ids || !Array.isArray(ids) || ids.length === 0) {
+    const rawIds = req.body.ids || req.body.productIds;
+    if (!rawIds || !Array.isArray(rawIds) || rawIds.length === 0) {
       return res.status(400).json({ message: 'No product IDs provided' });
     }
 
-    const results = {
-      deleted: [] as string[],
-      archived: [] as string[],
-      failed: [] as { id: string; reason: string }[],
-    };
+    // De-duplicate product IDs
+    const uniqueIds = Array.from(
+      new Set(rawIds.filter((id): id is string => typeof id === 'string' && id.trim().length > 0))
+    );
 
-    for (const id of ids) {
-      const product = await prisma.medicineProduct.findUnique({
-        where: { id },
-        include: {
-          _count: {
-            select: {
-              batches: true,
-              salesLines: true,
-              purchaseLines: true,
-              movements: true,
+    if (uniqueIds.length === 0) {
+      return res.status(400).json({ message: 'No valid product IDs provided' });
+    }
+
+    const outcome = await prisma.$transaction(async (tx) => {
+      const results = {
+        deleted: [] as string[],
+        archived: [] as string[],
+        failed: [] as { id: string; reason: string }[],
+      };
+
+      for (const id of uniqueIds) {
+        const product = await tx.medicineProduct.findUnique({
+          where: { id },
+          include: {
+            _count: {
+              select: {
+                batches: true,
+                salesLines: true,
+                purchaseLines: true,
+                movements: true,
+                adjustments: true,
+                purchaseReturnLines: true,
+                purchaseIndentItems: true,
+              },
             },
           },
-        },
-      });
-
-      if (!product) {
-        results.failed.push({ id, reason: 'Product not found' });
-        continue;
-      }
-
-      const totalReferences =
-        product._count.batches +
-        product._count.salesLines +
-        product._count.purchaseLines +
-        product._count.movements;
-
-      if (totalReferences > 0) {
-        // Safe archive
-        await prisma.medicineProduct.update({
-          where: { id },
-          data: { isActive: false },
         });
-        results.archived.push(product.brandName);
-      } else {
-        // Permanent delete
-        await prisma.medicineProduct.delete({ where: { id } });
-        results.deleted.push(product.brandName);
+
+        if (!product) {
+          results.failed.push({ id, reason: 'Product not found' });
+          continue;
+        }
+
+        const totalReferences =
+          product._count.batches +
+          product._count.salesLines +
+          product._count.purchaseLines +
+          product._count.movements +
+          product._count.adjustments +
+          product._count.purchaseReturnLines +
+          product._count.purchaseIndentItems;
+
+        if (totalReferences > 0) {
+          // Safe archive to preserve historical billing and inventory batch records
+          await tx.medicineProduct.update({
+            where: { id },
+            data: { isActive: false },
+          });
+          results.archived.push(product.brandName);
+        } else {
+          // Permanent delete when completely unreferenced
+          await tx.medicineProduct.delete({ where: { id } });
+          results.deleted.push(product.brandName);
+        }
       }
-    }
+
+      return results;
+    });
 
     await logAuditEvent({
       userId: req.user.id,
       action: 'PRODUCT_BULK_DELETE',
       targetEntity: 'MEDICINE_PRODUCT',
       details: {
-        deletedCount: results.deleted.length,
-        archivedCount: results.archived.length,
+        totalRequested: uniqueIds.length,
+        deletedCount: outcome.deleted.length,
+        archivedCount: outcome.archived.length,
+        failedCount: outcome.failed.length,
       },
       req,
     });
 
+    const totalSuccess = outcome.deleted.length + outcome.archived.length;
     return res.json({
-      message: `Processed ${results.deleted.length + results.archived.length} products (${results.deleted.length} deleted, ${results.archived.length} safely archived)`,
-      deleted: results.deleted,
-      archived: results.archived,
-      failed: results.failed,
+      message: `Processed ${totalSuccess} products (${outcome.deleted.length} permanently deleted, ${outcome.archived.length} safely archived to preserve ledger integrity)`,
+      deleted: outcome.deleted,
+      archived: outcome.archived,
+      failed: outcome.failed,
+      totalProcessed: totalSuccess,
     });
   } catch (error: any) {
     return res.status(500).json({ message: error.message || 'Bulk delete failed' });

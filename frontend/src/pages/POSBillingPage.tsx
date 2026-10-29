@@ -36,6 +36,9 @@ interface BillItem {
   unitMrp: number;
   discountPercent: number;
   availableBatches?: StockBatch[];
+  baseUnit?: string;
+  packageUnit?: string;
+  conversionFactor?: number;
 }
 
 export const POSBillingPage: React.FC = () => {
@@ -176,6 +179,9 @@ export const POSBillingPage: React.FC = () => {
         unitMrp: bestBatch.sellingPrice || bestBatch.mrp,
         discountPercent: 0,
         availableBatches: product.activeBatches || [bestBatch],
+        baseUnit: product.baseUnit,
+        packageUnit: product.packageUnit || undefined,
+        conversionFactor: product.conversionFactor || undefined,
       };
 
       setBillItems((prev) => [...prev, newItem]);
@@ -376,9 +382,16 @@ export const POSBillingPage: React.FC = () => {
                       </div>
                       <div className="mt-0.5">
                         {hasStock ? (
-                          <Badge variant="brandGreen" size="sm">
-                            {prod.totalAvailableStock} in stock
-                          </Badge>
+                          <div className="flex flex-col items-end">
+                            <Badge variant="brandGreen" size="sm">
+                              {prod.totalAvailableStock} {prod.baseUnit || 'Strips'} in stock
+                            </Badge>
+                            {prod.conversionFactor && prod.conversionFactor > 1 && (
+                              <span className="text-[10px] text-slate-500 font-mono mt-0.5">
+                                (~{((prod.totalAvailableStock || 0) / prod.conversionFactor).toFixed(1)} {prod.packageUnit || 'Box'}s)
+                              </span>
+                            )}
+                          </div>
                         ) : (
                           <Badge variant="danger" size="sm">
                             Out of stock
@@ -476,14 +489,14 @@ export const POSBillingPage: React.FC = () => {
                               >
                                 {item.availableBatches.map((b) => (
                                   <option key={b.id} value={b.id}>
-                                    {b.batchNumber} (Avail: {b.availableQuantity})
+                                    {b.batchNumber} (Avail: {b.availableQuantity} {item.baseUnit || 'Strips'})
                                   </option>
                                 ))}
                               </select>
                             </div>
                           ) : (
                             <p className="text-[11px] text-slate-500 font-mono mt-0.5">
-                              Batch: <span className="font-semibold text-slate-700">{item.batchNumber}</span> (Avail: {item.availableStock})
+                              Batch: <span className="font-semibold text-slate-700">{item.batchNumber}</span> (Avail: {item.availableStock} {item.baseUnit || 'Strips'})
                             </p>
                           )}
                         </td>

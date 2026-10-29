@@ -1620,60 +1620,77 @@ export const bulkDeletePurchases = async (req: Request, res: Response) => {
       return res.status(403).json({ message: 'Forbidden: Super Admin only' });
     }
 
-    const { ids } = req.body;
-    if (!ids || !Array.isArray(ids) || ids.length === 0) {
+    const rawIds = req.body.ids || req.body.invoiceIds;
+    if (!rawIds || !Array.isArray(rawIds) || rawIds.length === 0) {
       return res.status(400).json({ message: 'No invoice IDs provided' });
     }
 
-    const results = {
-      deleted: [] as string[],
-      failed: [] as { id: string; reason: string }[],
-    };
+    const uniqueIds = Array.from(
+      new Set(rawIds.filter((id): id is string => typeof id === 'string' && id.trim().length > 0))
+    );
 
-    for (const id of ids) {
-      const invoice = await prisma.purchaseInvoice.findUnique({
-        where: { id },
-        include: { returns: true },
-      });
-
-      if (!invoice) {
-        results.failed.push({ id, reason: 'Invoice not found' });
-        continue;
-      }
-
-      if (invoice.returns && invoice.returns.length > 0) {
-        results.failed.push({
-          id,
-          reason: `Invoice ${invoice.invoiceNumber} has associated purchase returns and cannot be deleted`,
-        });
-        continue;
-      }
-
-      if (invoice.status === 'RECEIVED') {
-        await prisma.purchaseInvoice.update({
-          where: { id },
-          data: { status: 'CANCELLED' },
-        });
-        results.deleted.push(invoice.invoiceNumber);
-      } else {
-        await prisma.purchaseInvoice.delete({ where: { id } });
-        results.deleted.push(invoice.invoiceNumber);
-      }
+    if (uniqueIds.length === 0) {
+      return res.status(400).json({ message: 'No valid invoice IDs provided' });
     }
+
+    const outcome = await prisma.$transaction(async (tx) => {
+      const results = {
+        deleted: [] as string[],
+        failed: [] as { id: string; reason: string }[],
+      };
+
+      for (const id of uniqueIds) {
+        const invoice = await tx.purchaseInvoice.findUnique({
+          where: { id },
+          include: { returns: true },
+        });
+
+        if (!invoice) {
+          results.failed.push({ id, reason: 'Invoice not found' });
+          continue;
+        }
+
+        if (invoice.returns && invoice.returns.length > 0) {
+          results.failed.push({
+            id,
+            reason: `Invoice ${invoice.invoiceNumber} has associated purchase returns and cannot be deleted`,
+          });
+          continue;
+        }
+
+        if (invoice.status === 'RECEIVED') {
+          await tx.purchaseInvoice.update({
+            where: { id },
+            data: { status: 'CANCELLED' },
+          });
+          results.deleted.push(invoice.invoiceNumber);
+        } else {
+          await tx.purchaseInvoice.delete({ where: { id } });
+          results.deleted.push(invoice.invoiceNumber);
+        }
+      }
+
+      return results;
+    });
 
     await logAuditEvent({
       userId: req.user.id,
       branchId: null,
       action: 'PURCHASE_BULK_DELETE',
       targetEntity: 'PURCHASE_INVOICE',
-      details: { count: results.deleted.length, invoices: results.deleted },
+      details: {
+        totalRequested: uniqueIds.length,
+        processedCount: outcome.deleted.length,
+        failedCount: outcome.failed.length,
+      },
       req,
     });
 
     return res.json({
-      message: `Processed ${results.deleted.length} purchase invoices`,
-      deleted: results.deleted,
-      failed: results.failed,
+      message: `Processed ${outcome.deleted.length} purchase invoices`,
+      deleted: outcome.deleted,
+      failed: outcome.failed,
+      totalProcessed: outcome.deleted.length,
     });
   } catch (error: any) {
     return res.status(500).json({ message: error.message || 'Bulk delete failed' });

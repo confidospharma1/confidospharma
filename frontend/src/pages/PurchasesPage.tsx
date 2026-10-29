@@ -166,6 +166,8 @@ export const PurchasesPage: React.FC<PurchasesPageProps> = ({ prefilledIndent, o
 
   // Modal: Inline Add New Supplier
   const [showInlineSupplierModal, setShowInlineSupplierModal] = useState(false);
+  const [isSavingInlineSupplier, setIsSavingInlineSupplier] = useState(false);
+  const [inlineSupplierError, setInlineSupplierError] = useState<string | null>(null);
   const [inlineSupplierForm, setInlineSupplierForm] = useState({
     name: '',
     contactPerson: '',
@@ -617,10 +619,12 @@ export const PurchasesPage: React.FC<PurchasesPageProps> = ({ prefilledIndent, o
   };
 
   const toggleSelectAllInvoices = (displayedInvoices: PurchaseInvoice[]) => {
-    if (selectedInvoiceIds.length === displayedInvoices.length) {
-      setSelectedInvoiceIds([]);
+    const displayedIds = displayedInvoices.map((p) => p.id);
+    const allSelected = displayedIds.length > 0 && displayedIds.every((id) => selectedInvoiceIds.includes(id));
+    if (allSelected) {
+      setSelectedInvoiceIds((prev) => prev.filter((id) => !displayedIds.includes(id)));
     } else {
-      setSelectedInvoiceIds(displayedInvoices.map((p) => p.id));
+      setSelectedInvoiceIds((prev) => Array.from(new Set([...prev, ...displayedIds])));
     }
   };
 
@@ -650,10 +654,12 @@ export const PurchasesPage: React.FC<PurchasesPageProps> = ({ prefilledIndent, o
   };
 
   const toggleSelectAllSuppliers = (displayedSuppliers: Supplier[]) => {
-    if (selectedSupplierIds.length === displayedSuppliers.length) {
-      setSelectedSupplierIds([]);
+    const displayedIds = displayedSuppliers.map((s) => s.id);
+    const allSelected = displayedIds.length > 0 && displayedIds.every((id) => selectedSupplierIds.includes(id));
+    if (allSelected) {
+      setSelectedSupplierIds((prev) => prev.filter((id) => !displayedIds.includes(id)));
     } else {
-      setSelectedSupplierIds(displayedSuppliers.map((s) => s.id));
+      setSelectedSupplierIds((prev) => Array.from(new Set([...prev, ...displayedIds])));
     }
   };
 
@@ -817,12 +823,27 @@ export const PurchasesPage: React.FC<PurchasesPageProps> = ({ prefilledIndent, o
   // Inline Quick Add Supplier
   const handleSaveInlineSupplier = async (e: React.FormEvent) => {
     e.preventDefault();
-    setMessage(null);
+    setInlineSupplierError(null);
+    setIsSavingInlineSupplier(true);
     try {
-      const created = await api.createSupplier(inlineSupplierForm);
-      setSuppliers((prev) => [...prev, created]);
+      const payload = {
+        name: inlineSupplierForm.name.trim(),
+        contactPerson: inlineSupplierForm.contactPerson.trim() || undefined,
+        phone: inlineSupplierForm.phone.trim(),
+        email: inlineSupplierForm.email.trim() || undefined,
+        gstin: inlineSupplierForm.gstin.trim() ? inlineSupplierForm.gstin.trim().toUpperCase() : undefined,
+        address: inlineSupplierForm.address.trim() || undefined,
+        dlNumber: inlineSupplierForm.dlNumber.trim() || undefined,
+      };
+
+      const created = await api.createSupplier(payload);
+      setSuppliers((prev) => {
+        const exists = prev.some((s) => s.id === created.id);
+        return exists ? prev : [...prev, created];
+      });
       setSupplierId(created.id);
       setSupplierSearchQuery(created.name);
+      setShowSupplierDropdown(false);
       setShowInlineSupplierModal(false);
       setInlineSupplierForm({
         name: '',
@@ -835,7 +856,9 @@ export const PurchasesPage: React.FC<PurchasesPageProps> = ({ prefilledIndent, o
       });
       setMessage({ text: `Supplier '${created.name}' created and selected.`, type: 'success' });
     } catch (err: any) {
-      setMessage({ text: err.message || 'Failed to create supplier.', type: 'error' });
+      setInlineSupplierError(err.message || 'Failed to create supplier.');
+    } finally {
+      setIsSavingInlineSupplier(false);
     }
   };
 
@@ -1309,7 +1332,7 @@ export const PurchasesPage: React.FC<PurchasesPageProps> = ({ prefilledIndent, o
                           type="checkbox"
                           checked={
                             purchases.length > 0 &&
-                            selectedInvoiceIds.length === purchases.length
+                            purchases.every((p) => selectedInvoiceIds.includes(p.id))
                           }
                           onChange={() => toggleSelectAllInvoices(purchases)}
                           className="rounded text-brand-600 focus:ring-brand-500 cursor-pointer"
@@ -1590,7 +1613,7 @@ export const PurchasesPage: React.FC<PurchasesPageProps> = ({ prefilledIndent, o
                           type="checkbox"
                           checked={
                             suppliers.length > 0 &&
-                            selectedSupplierIds.length === suppliers.length
+                            suppliers.every((s) => selectedSupplierIds.includes(s.id))
                           }
                           onChange={() => toggleSelectAllSuppliers(suppliers)}
                           className="rounded text-brand-600 focus:ring-brand-500 cursor-pointer"
@@ -2652,8 +2675,24 @@ export const PurchasesPage: React.FC<PurchasesPageProps> = ({ prefilledIndent, o
       </Modal>
 
       {/* Inline Quick Add Supplier Modal */}
-      <Modal isOpen={showInlineSupplierModal} onClose={() => setShowInlineSupplierModal(false)} title="Quick Add New Supplier" maxWidth="md">
+      <Modal
+        isOpen={showInlineSupplierModal}
+        onClose={() => {
+          if (!isSavingInlineSupplier) {
+            setShowInlineSupplierModal(false);
+            setInlineSupplierError(null);
+          }
+        }}
+        title="Quick Add New Supplier"
+        maxWidth="md"
+      >
         <form onSubmit={handleSaveInlineSupplier} className="space-y-3 text-xs">
+          {inlineSupplierError && (
+            <div className="p-2.5 bg-rose-50 border border-rose-200 text-rose-800 rounded-lg text-xs font-medium flex items-center gap-2">
+              <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+              <span>{inlineSupplierError}</span>
+            </div>
+          )}
           <div>
             <label className="font-bold text-slate-700 block mb-1">Supplier / Agency Name *</label>
             <input
@@ -2695,8 +2734,8 @@ export const PurchasesPage: React.FC<PurchasesPageProps> = ({ prefilledIndent, o
                 type="text"
                 placeholder="15-digit GSTIN"
                 value={inlineSupplierForm.gstin}
-                onChange={(e) => setInlineSupplierForm({ ...inlineSupplierForm, gstin: e.target.value })}
-                className="w-full px-3 py-1.5 bg-slate-50 border border-slate-300 rounded-lg focus:bg-white font-mono"
+                onChange={(e) => setInlineSupplierForm({ ...inlineSupplierForm, gstin: e.target.value.toUpperCase() })}
+                className="w-full px-3 py-1.5 bg-slate-50 border border-slate-300 rounded-lg focus:bg-white font-mono uppercase"
               />
             </div>
             <div>
@@ -2713,16 +2752,21 @@ export const PurchasesPage: React.FC<PurchasesPageProps> = ({ prefilledIndent, o
           <div className="flex justify-end gap-2 pt-3 border-t border-slate-200">
             <button
               type="button"
-              onClick={() => setShowInlineSupplierModal(false)}
-              className="px-3 py-1.5 border border-slate-300 rounded-lg text-slate-600"
+              disabled={isSavingInlineSupplier}
+              onClick={() => {
+                setShowInlineSupplierModal(false);
+                setInlineSupplierError(null);
+              }}
+              className="px-3 py-1.5 border border-slate-300 rounded-lg text-slate-600 disabled:opacity-50"
             >
               Cancel
             </button>
             <button
               type="submit"
-              className="px-4 py-1.5 bg-brand-500 hover:bg-brand-600 active:bg-brand-700 text-white rounded-lg font-bold transition-colors"
+              disabled={isSavingInlineSupplier}
+              className="px-4 py-1.5 bg-brand-500 hover:bg-brand-600 active:bg-brand-700 text-white rounded-lg font-bold transition-colors disabled:opacity-50 flex items-center gap-1.5"
             >
-              Create & Select Supplier
+              {isSavingInlineSupplier ? 'Creating & Selecting...' : 'Create & Select Supplier'}
             </button>
           </div>
         </form>

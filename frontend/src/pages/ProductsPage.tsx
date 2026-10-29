@@ -52,8 +52,10 @@ export const ProductsPage: React.FC = () => {
     strength: '',
     dosageForm: 'Tablet',
     manufacturer: '',
-    packSize: '10 Tablets',
+    packSize: '10 Strips',
     baseUnit: 'Strip',
+    packageUnit: 'Box',
+    conversionFactor: '10',
     hsnCode: '',
     gstRate: '5',
     mrp: '',
@@ -74,8 +76,10 @@ export const ProductsPage: React.FC = () => {
     strength: '',
     dosageForm: 'Tablet',
     manufacturer: '',
-    packSize: '10 Tablets',
+    packSize: '10 Strips',
     baseUnit: 'Strip',
+    packageUnit: 'Box',
+    conversionFactor: '10',
     hsnCode: '',
     gstRate: '5',
     mrp: '',
@@ -104,10 +108,13 @@ export const ProductsPage: React.FC = () => {
   };
 
   const toggleSelectAllProducts = (displayed: MedicineProduct[]) => {
-    if (selectedProductIds.length === displayed.length) {
-      setSelectedProductIds([]);
+    const displayedIds = displayed.map((p) => p.id);
+    const isAllDisplayedSelected =
+      displayedIds.length > 0 && displayedIds.every((id) => selectedProductIds.includes(id));
+    if (isAllDisplayedSelected) {
+      setSelectedProductIds((prev) => prev.filter((id) => !displayedIds.includes(id)));
     } else {
-      setSelectedProductIds(displayed.map((p) => p.id));
+      setSelectedProductIds((prev) => Array.from(new Set([...prev, ...displayedIds])));
     }
   };
 
@@ -157,6 +164,7 @@ export const ProductsPage: React.FC = () => {
     try {
       await api.createProduct({
         ...addForm,
+        conversionFactor: parseInt(addForm.conversionFactor) || 10,
         hsnCode: addForm.hsnCode.trim() || undefined,
         defaultPurchaseRate: addForm.defaultPurchaseRate ? parseFloat(addForm.defaultPurchaseRate) : undefined,
         defaultSellingRate: addForm.defaultSellingRate ? parseFloat(addForm.defaultSellingRate) : undefined,
@@ -171,8 +179,10 @@ export const ProductsPage: React.FC = () => {
         strength: '',
         dosageForm: 'Tablet',
         manufacturer: '',
-        packSize: '10 Tablets',
+        packSize: '10 Strips',
         baseUnit: 'Strip',
+        packageUnit: 'Box',
+        conversionFactor: '10',
         hsnCode: '',
         gstRate: '5',
         mrp: '',
@@ -201,8 +211,10 @@ export const ProductsPage: React.FC = () => {
       strength: p.strength,
       dosageForm: p.dosageForm,
       manufacturer: p.manufacturer,
-      packSize: p.packSize || '10 Tablets',
+      packSize: p.packSize || '10 Strips',
       baseUnit: p.baseUnit || 'Strip',
+      packageUnit: p.packageUnit || 'Box',
+      conversionFactor: String(p.conversionFactor || 10),
       hsnCode: p.hsnCode || '',
       gstRate: String(p.gstRate ?? 5),
       mrp: String(p.mrp ?? 0),
@@ -224,6 +236,7 @@ export const ProductsPage: React.FC = () => {
     try {
       await api.updateProduct(editingProduct.id, {
         ...editForm,
+        conversionFactor: parseInt(editForm.conversionFactor) || 10,
         hsnCode: editForm.hsnCode.trim() || undefined,
         defaultPurchaseRate: editForm.defaultPurchaseRate ? parseFloat(editForm.defaultPurchaseRate) : null,
         defaultSellingRate: editForm.defaultSellingRate ? parseFloat(editForm.defaultSellingRate) : null,
@@ -499,7 +512,7 @@ export const ProductsPage: React.FC = () => {
                       type="checkbox"
                       checked={
                         filteredProducts.length > 0 &&
-                        selectedProductIds.length === filteredProducts.length
+                        filteredProducts.every((p) => selectedProductIds.includes(p.id))
                       }
                       onChange={() => toggleSelectAllProducts(filteredProducts)}
                       className="rounded text-brand-600 focus:ring-brand-500 cursor-pointer"
@@ -510,6 +523,8 @@ export const ProductsPage: React.FC = () => {
                 <th className="py-3 px-4">Brand & Generic Name</th>
                 <th className="py-3 px-3">Strength & Form</th>
                 <th className="py-3 px-3">Manufacturer</th>
+                <th className="py-3 px-3 text-center">Packaging & Units</th>
+                <th className="py-3 px-3 text-center bg-emerald-50/50 text-emerald-900">Branch Stock</th>
                 <th className="py-3 px-3 text-center">HSN Code</th>
                 <th className="py-3 px-3 text-center">GST</th>
                 <th className="py-3 px-3 text-right bg-blue-50/50 text-blue-900">Default Pur Rate</th>
@@ -523,13 +538,13 @@ export const ProductsPage: React.FC = () => {
             <tbody className="divide-y divide-slate-100 font-medium">
               {loading ? (
                 <tr>
-                  <td colSpan={isSuperAdmin ? (isBillingUser ? 12 : 13) : (isBillingUser ? 11 : 12)} className="py-8 text-center text-slate-400">
+                  <td colSpan={isSuperAdmin ? (isBillingUser ? 14 : 15) : (isBillingUser ? 13 : 14)} className="py-8 text-center text-slate-400">
                     Loading medicines catalogue...
                   </td>
                 </tr>
               ) : filteredProducts.length === 0 ? (
                 <tr>
-                  <td colSpan={isSuperAdmin ? (isBillingUser ? 12 : 13) : (isBillingUser ? 11 : 12)} className="py-12 text-center text-slate-500">
+                  <td colSpan={isSuperAdmin ? (isBillingUser ? 14 : 15) : (isBillingUser ? 13 : 14)} className="py-12 text-center text-slate-500">
                     <p className="text-sm font-bold text-slate-800">No medicines found.</p>
                     <p className="text-xs text-slate-500 mt-1">Add a medicine to begin managing your inventory catalogue.</p>
                     {!isBillingUser && (
@@ -566,6 +581,28 @@ export const ProductsPage: React.FC = () => {
                       <span className="text-[10px] text-slate-500 font-sans">{p.dosageForm}</span>
                     </td>
                     <td className="py-3 px-3 text-slate-600 truncate max-w-[140px]">{p.manufacturer}</td>
+                    <td className="py-3 px-3 text-center">
+                      <span className="font-semibold text-slate-800 block">{p.packageUnit || 'Box'}</span>
+                      <span className="text-[10px] text-slate-500 font-mono">
+                        1 {p.packageUnit || 'Box'} = {p.conversionFactor || 10} {p.baseUnit || 'Strip'}s
+                      </span>
+                    </td>
+                    <td className="py-3 px-3 text-center bg-emerald-50/10">
+                      {(p.totalAvailableStock || 0) > 0 ? (
+                        <div>
+                          <Badge variant="brandGreen" size="sm">
+                            {p.totalAvailableStock} {p.baseUnit || 'Strips'}
+                          </Badge>
+                          {p.conversionFactor && p.conversionFactor > 1 && (
+                            <span className="text-[10px] text-slate-500 block font-mono mt-0.5">
+                              (~{((p.totalAvailableStock || 0) / p.conversionFactor).toFixed(1)} {p.packageUnit || 'Box'}s)
+                            </span>
+                          )}
+                        </div>
+                      ) : (
+                        <span className="text-slate-400 font-mono text-[11px]">0 {p.baseUnit || 'Strips'}</span>
+                      )}
+                    </td>
                     <td className="py-3 px-3 text-center font-mono text-slate-600">
                       {p.hsnCode || <span className="text-slate-400 italic">None</span>}
                     </td>
@@ -746,6 +783,63 @@ export const ProductsPage: React.FC = () => {
                   className="w-full px-3 py-2 text-xs bg-white border border-amber-300 rounded-lg font-mono font-bold text-slate-900 focus:ring-2 focus:ring-amber-500"
                 />
                 <span className="text-[10px] text-slate-500 block mt-0.5 leading-tight">The maximum retail price printed on the medicine packaging for the specified pack or unit.</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-slate-50 p-3 rounded-lg border border-slate-200">
+            <h4 className="text-xs font-bold text-slate-800 mb-2 flex items-center gap-1.5">
+              <Pill className="w-3.5 h-3.5 text-brand-600" />
+              Packaging & Unit Conversion (FEFO / POS / Inventory)
+            </h4>
+            <div className="grid grid-cols-3 gap-3">
+              <div>
+                <label className="text-xs font-bold text-slate-700 block mb-1">Package Unit (Purchased As)</label>
+                <select
+                  value={addForm.packageUnit}
+                  onChange={(e) => setAddForm({ ...addForm, packageUnit: e.target.value })}
+                  className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-lg font-medium"
+                >
+                  <option value="Box">Box</option>
+                  <option value="Strip">Strip</option>
+                  <option value="Bottle">Bottle</option>
+                  <option value="Carton">Carton</option>
+                  <option value="Pack">Pack</option>
+                  <option value="Vial">Vial</option>
+                  <option value="Ampoule">Ampoule</option>
+                </select>
+                <span className="text-[10px] text-slate-500 block mt-0.5">Bulk purchase container</span>
+              </div>
+              <div>
+                <label className="text-xs font-bold text-slate-700 block mb-1">Base Unit (Sold / Dispensed As)</label>
+                <select
+                  value={addForm.baseUnit}
+                  onChange={(e) => setAddForm({ ...addForm, baseUnit: e.target.value })}
+                  className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-lg font-medium"
+                >
+                  <option value="Strip">Strip</option>
+                  <option value="Tablet">Tablet</option>
+                  <option value="Capsule">Capsule</option>
+                  <option value="Bottle">Bottle</option>
+                  <option value="Vial">Vial</option>
+                  <option value="Ampoule">Ampoule</option>
+                  <option value="Piece">Piece</option>
+                  <option value="Sachet">Sachet</option>
+                </select>
+                <span className="text-[10px] text-slate-500 block mt-0.5">Base dispensing unit</span>
+              </div>
+              <div>
+                <label className="text-xs font-bold text-slate-700 block mb-1">Units per Package (Factor) *</label>
+                <input
+                  type="number"
+                  min="1"
+                  step="1"
+                  placeholder="10"
+                  value={addForm.conversionFactor}
+                  onChange={(e) => setAddForm({ ...addForm, conversionFactor: e.target.value })}
+                  className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-lg font-mono font-bold"
+                />
+                <span className="text-[10px] text-slate-500 block mt-0.5">1 {addForm.packageUnit || 'Box'} = {addForm.conversionFactor || 10} {addForm.baseUnit || 'Strips'}</span>
               </div>
             </div>
           </div>
@@ -956,6 +1050,63 @@ export const ProductsPage: React.FC = () => {
             </div>
           </div>
 
+          <div className="bg-slate-50 p-3 rounded-lg border border-slate-200">
+            <h4 className="text-xs font-bold text-slate-800 mb-2 flex items-center gap-1.5">
+              <Pill className="w-3.5 h-3.5 text-brand-600" />
+              Packaging & Unit Conversion (FEFO / POS / Inventory)
+            </h4>
+            <div className="grid grid-cols-3 gap-3">
+              <div>
+                <label className="text-xs font-bold text-slate-700 block mb-1">Package Unit (Purchased As)</label>
+                <select
+                  value={editForm.packageUnit}
+                  onChange={(e) => setEditForm({ ...editForm, packageUnit: e.target.value })}
+                  className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-lg font-medium"
+                >
+                  <option value="Box">Box</option>
+                  <option value="Strip">Strip</option>
+                  <option value="Bottle">Bottle</option>
+                  <option value="Carton">Carton</option>
+                  <option value="Pack">Pack</option>
+                  <option value="Vial">Vial</option>
+                  <option value="Ampoule">Ampoule</option>
+                </select>
+                <span className="text-[10px] text-slate-500 block mt-0.5">Bulk purchase container</span>
+              </div>
+              <div>
+                <label className="text-xs font-bold text-slate-700 block mb-1">Base Unit (Sold / Dispensed As)</label>
+                <select
+                  value={editForm.baseUnit}
+                  onChange={(e) => setEditForm({ ...editForm, baseUnit: e.target.value })}
+                  className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-lg font-medium"
+                >
+                  <option value="Strip">Strip</option>
+                  <option value="Tablet">Tablet</option>
+                  <option value="Capsule">Capsule</option>
+                  <option value="Bottle">Bottle</option>
+                  <option value="Vial">Vial</option>
+                  <option value="Ampoule">Ampoule</option>
+                  <option value="Piece">Piece</option>
+                  <option value="Sachet">Sachet</option>
+                </select>
+                <span className="text-[10px] text-slate-500 block mt-0.5">Base dispensing unit</span>
+              </div>
+              <div>
+                <label className="text-xs font-bold text-slate-700 block mb-1">Units per Package (Factor) *</label>
+                <input
+                  type="number"
+                  min="1"
+                  step="1"
+                  placeholder="10"
+                  value={editForm.conversionFactor}
+                  onChange={(e) => setEditForm({ ...editForm, conversionFactor: e.target.value })}
+                  className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-lg font-mono font-bold"
+                />
+                <span className="text-[10px] text-slate-500 block mt-0.5">1 {editForm.packageUnit || 'Box'} = {editForm.conversionFactor || 10} {editForm.baseUnit || 'Strips'}</span>
+              </div>
+            </div>
+          </div>
+
           <div className="grid grid-cols-4 gap-3">
             <div>
               <label className="text-xs font-bold text-slate-700 block mb-1">Pack Size *</label>
@@ -1097,6 +1248,25 @@ export const ProductsPage: React.FC = () => {
               <p className="text-[11px]">
                 You are about to delete <strong>{selectedProductIds.length}</strong> catalogue medicine products. Products with existing stock batches or historical purchase/sales lines will be archived instead of purged to preserve ledger consistency.
               </p>
+            </div>
+            <div className="bg-slate-50 border border-slate-200 rounded-lg p-2.5 max-h-36 overflow-y-auto space-y-1">
+              <span className="text-[10px] uppercase font-bold text-slate-500 tracking-wider block mb-1">
+                Selected Medicines Preview ({selectedProductIds.length})
+              </span>
+              {products
+                .filter(p => selectedProductIds.includes(p.id))
+                .slice(0, 8)
+                .map(p => (
+                  <div key={p.id} className="flex items-center justify-between text-[11px] py-0.5 border-b border-slate-200/60 last:border-0">
+                    <span className="font-semibold text-slate-800 truncate mr-2">{p.brandName}</span>
+                    <span className="font-mono text-slate-500 text-[10px] shrink-0">{p.internalCode}</span>
+                  </div>
+                ))}
+              {selectedProductIds.length > 8 && (
+                <div className="text-[10px] text-slate-500 text-center pt-1 font-medium">
+                  + {selectedProductIds.length - 8} more medicines selected
+                </div>
+              )}
             </div>
             <p className="text-slate-600">
               Are you sure you want to proceed with deleting the selected medicines?

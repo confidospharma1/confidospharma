@@ -58,6 +58,8 @@ export const UsersPage: React.FC = () => {
   // Delete/Deactivate Confirmation Modal
   const [deleteTarget, setDeleteTarget] = useState<User | null>(null);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [isDeactivatingUser, setIsDeactivatingUser] = useState(false);
+  const [deactivateError, setDeactivateError] = useState<string | null>(null);
 
   // Super Admin Bulk Operations
   const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
@@ -71,10 +73,12 @@ export const UsersPage: React.FC = () => {
   };
 
   const toggleSelectAllUsers = (displayed: User[]) => {
-    if (selectedUserIds.length === displayed.length) {
-      setSelectedUserIds([]);
+    const displayedIds = displayed.map((u) => u.id);
+    const allSelected = displayedIds.length > 0 && displayedIds.every((id) => selectedUserIds.includes(id));
+    if (allSelected) {
+      setSelectedUserIds((prev) => prev.filter((id) => !displayedIds.includes(id)));
     } else {
-      setSelectedUserIds(displayed.map((u) => u.id));
+      setSelectedUserIds((prev) => Array.from(new Set([...prev, ...displayedIds])));
     }
   };
 
@@ -172,7 +176,8 @@ export const UsersPage: React.FC = () => {
 
   const handleDeleteUser = async () => {
     if (!deleteTarget) return;
-    setMessage(null);
+    setDeactivateError(null);
+    setIsDeactivatingUser(true);
     try {
       const res = await api.deleteUser(deleteTarget.id);
       setMessage({ text: res.message || `User account '${deleteTarget.fullName}' deactivated.`, type: 'success' });
@@ -180,7 +185,9 @@ export const UsersPage: React.FC = () => {
       setDeleteTarget(null);
       loadUsers();
     } catch (err: any) {
-      setMessage({ text: err.message || 'Failed to deactivate user.', type: 'error' });
+      setDeactivateError(err.message || 'Failed to deactivate user.');
+    } finally {
+      setIsDeactivatingUser(false);
     }
   };
 
@@ -398,7 +405,7 @@ export const UsersPage: React.FC = () => {
                   <th className="py-3 px-3 text-center w-10">
                     <input
                       type="checkbox"
-                      checked={filteredUsers.length > 0 && selectedUserIds.length === filteredUsers.length}
+                      checked={filteredUsers.length > 0 && filteredUsers.every((u) => selectedUserIds.includes(u.id))}
                       onChange={() => toggleSelectAllUsers(filteredUsers)}
                       className="rounded border-slate-300 text-brand-600 focus:ring-brand-500"
                     />
@@ -498,6 +505,7 @@ export const UsersPage: React.FC = () => {
                             type="button"
                             onClick={() => {
                               setDeleteTarget(u);
+                              setDeactivateError(null);
                               setShowDeleteModal(true);
                             }}
                             title="Deactivate / Remove User"
@@ -727,8 +735,25 @@ export const UsersPage: React.FC = () => {
       </Modal>
 
       {/* Modal: Delete/Deactivate Confirmation */}
-      <Modal isOpen={showDeleteModal} onClose={() => setShowDeleteModal(false)} title="Confirm User Account Deactivation" maxWidth="md">
+      <Modal
+        isOpen={showDeleteModal}
+        onClose={() => {
+          if (!isDeactivatingUser) {
+            setShowDeleteModal(false);
+            setDeactivateError(null);
+          }
+        }}
+        title="Confirm User Account Deactivation"
+        maxWidth="md"
+      >
         <div className="space-y-4">
+          {deactivateError && (
+            <div className="p-3 bg-rose-50 border border-rose-200 rounded-lg text-rose-800 text-xs font-semibold flex items-center gap-2">
+              <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+              <span>{deactivateError}</span>
+            </div>
+          )}
+
           <div className="flex items-start gap-3 p-3 bg-rose-50 border border-rose-200 rounded-lg text-rose-800 text-xs">
             <AlertCircle className="w-5 h-5 flex-shrink-0 text-rose-600 mt-0.5" />
             <div>
@@ -745,17 +770,22 @@ export const UsersPage: React.FC = () => {
           <div className="flex justify-end gap-2 pt-2 border-t border-slate-200">
             <button
               type="button"
-              onClick={() => setShowDeleteModal(false)}
-              className="px-4 py-2 border border-slate-300 rounded-lg text-xs font-semibold text-slate-600"
+              disabled={isDeactivatingUser}
+              onClick={() => {
+                setShowDeleteModal(false);
+                setDeactivateError(null);
+              }}
+              className="px-4 py-2 border border-slate-300 rounded-lg text-xs font-semibold text-slate-600 disabled:opacity-50"
             >
               Cancel
             </button>
             <button
               type="button"
+              disabled={isDeactivatingUser}
               onClick={handleDeleteUser}
-              className="px-5 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-xs font-bold shadow-xs"
+              className="px-5 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-xs font-bold shadow-xs disabled:opacity-50 flex items-center gap-1.5"
             >
-              Confirm Deactivation
+              {isDeactivatingUser ? 'Deactivating...' : 'Confirm Deactivation'}
             </button>
           </div>
         </div>
@@ -781,11 +811,32 @@ export const UsersPage: React.FC = () => {
             </div>
           </div>
 
+          <div className="bg-slate-50 border border-slate-200 rounded-lg p-2.5 max-h-36 overflow-y-auto space-y-1 text-xs">
+            <span className="text-[10px] uppercase font-bold text-slate-500 tracking-wider block mb-1">
+              Selected Staff Accounts ({selectedUserIds.length})
+            </span>
+            {users
+              .filter(u => selectedUserIds.includes(u.id))
+              .slice(0, 8)
+              .map(u => (
+                <div key={u.id} className="flex items-center justify-between text-[11px] py-0.5 border-b border-slate-200/60 last:border-0">
+                  <span className="font-semibold text-slate-800 truncate mr-2">{u.fullName} ({u.role})</span>
+                  <span className="font-mono text-slate-500 text-[10px] shrink-0">{u.username}</span>
+                </div>
+              ))}
+            {selectedUserIds.length > 8 && (
+              <div className="text-[10px] text-slate-500 text-center pt-1 font-medium">
+                + {selectedUserIds.length - 8} more staff accounts
+              </div>
+            )}
+          </div>
+
           <div className="flex justify-end gap-2 pt-2 border-t border-slate-200">
             <button
               type="button"
+              disabled={isBulkDeletingUsers}
               onClick={() => setShowBulkDeleteUsersModal(false)}
-              className="px-4 py-2 border border-slate-300 rounded-lg text-xs font-semibold text-slate-600"
+              className="px-4 py-2 border border-slate-300 rounded-lg text-xs font-semibold text-slate-600 disabled:opacity-50"
             >
               Cancel
             </button>
@@ -793,7 +844,7 @@ export const UsersPage: React.FC = () => {
               type="button"
               onClick={handleBulkDeleteUsers}
               disabled={isBulkDeletingUsers}
-              className="px-5 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-xs font-bold shadow-xs flex items-center gap-1.5"
+              className="px-5 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-xs font-bold shadow-xs flex items-center gap-1.5 disabled:opacity-50"
             >
               <Trash2 className="w-3.5 h-3.5" />
               {isBulkDeletingUsers ? 'Processing Deactivations...' : `Deactivate ${selectedUserIds.length} Accounts`}
