@@ -7,7 +7,6 @@ import {
   Boxes,
   Pill,
   Truck,
-  ClipboardList,
   ArrowLeftRight,
   BarChart3,
   TrendingUp,
@@ -99,13 +98,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => 
               >
                 <Truck className={iconClass('purchases')} />
                 <span>Purchases & Suppliers</span>
-              </button>
-              <button
-                onClick={() => setActiveTab('indents')}
-                className={navItemClass('indents')}
-              >
-                <ClipboardList className={iconClass('indents')} />
-                <span>Indent Management</span>
               </button>
               <button
                 onClick={() => setActiveTab('transfers')}

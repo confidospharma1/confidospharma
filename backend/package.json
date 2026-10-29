@@ -13,7 +13,7 @@
     "prisma:push": "prisma db push",
     "prisma:seed": "ts-node-dev --transpile-only prisma/seed.ts",
     "prisma:reset-empty": "ts-node-dev --transpile-only prisma/reset_empty.ts",
-    "test": "vitest run tests/"
+    "test": "vitest run tests/ --fileParallelism=false"
   },
   "engines": {
     "node": ">=20.0.0"

@@ -11,7 +11,6 @@ import { InventoryPage } from './pages/InventoryPage';
 import { StockMonitoringPage } from './pages/StockMonitoringPage';
 import { ProductsPage } from './pages/ProductsPage';
 import { PurchasesPage } from './pages/PurchasesPage';
-import { IndentsPage } from './pages/IndentsPage';
 import { TransfersPage } from './pages/TransfersPage';
 import { BulkImportPage } from './pages/BulkImportPage';
 import { ReportsPage } from './pages/ReportsPage';
@@ -65,14 +64,6 @@ const MainLayout: React.FC = () => {
             <PurchasesPage
               prefilledIndent={prefilledPurchaseData}
               onClearPrefill={() => setPrefilledPurchaseData(null)}
-            />
-          )}
-          {activeTab === 'indents' && (
-            <IndentsPage
-              onNavigateToPurchase={(indent) => {
-                setPrefilledPurchaseData(indent);
-                setActiveTab('purchases');
-              }}
             />
           )}
           {activeTab === 'transfers' && <TransfersPage />}

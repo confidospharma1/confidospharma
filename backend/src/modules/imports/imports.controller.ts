@@ -9,6 +9,7 @@ import {
   parseCleanNumber,
   parseCleanInt,
 } from './imports.mapper';
+import { extractOrPreserveStrength } from '../../utils/productMatcher';
 
 export const uploadAndPreviewImport = async (req: Request, res: Response) => {
   try {
@@ -102,8 +103,9 @@ export const uploadAndPreviewImport = async (req: Request, res: Response) => {
 
       if (importType === 'CATALOGUE') {
         const brandName = (mapped.brandName || mapped.productName || '').toString().trim();
-        const genericName = (mapped.genericName || '').toString().trim();
-        const strength = (mapped.strength || '').toString().trim();
+        const genericNameRaw = (mapped.genericName || '').toString().trim();
+        const rawStrength = (mapped.strength || '').toString().trim();
+        const { genericName, strength } = extractOrPreserveStrength(genericNameRaw, rawStrength);
         const dosageForm = (mapped.dosageForm || 'Tablet').toString().trim();
         const manufacturer = (mapped.manufacturer || 'Standard Pharma').toString().trim();
         const packSize = (mapped.packSize || '10 Tablets').toString().trim();
@@ -118,7 +120,7 @@ export const uploadAndPreviewImport = async (req: Request, res: Response) => {
         const prescriptionType = (mapped.prescriptionType || 'Schedule H').toString().trim();
 
         if (!brandName) errors.push('Brand Name is required');
-        if (!genericName) errors.push('Generic Name is required');
+        if (!genericName) errors.push('Generic / Active ingredient is required');
         if (!strength) errors.push('Strength is required');
         if (isNaN(mrp) || mrp <= 0) errors.push('Valid positive MRP is required');
         if (isNaN(gstRate) || gstRate < 0) errors.push('Valid GST Rate is required');

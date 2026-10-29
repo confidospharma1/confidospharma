@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { api } from '../services/api';
 import { MedicineProduct } from '../types';
-import { Pill, Plus, Search, Filter, AlertCircle, CheckCircle, Barcode, DollarSign, Edit2, Trash2, X, CheckSquare } from 'lucide-react';
+import { Pill, Plus, Search, Filter, AlertCircle, CheckCircle, Barcode, DollarSign, Edit2, Trash2, X, CheckSquare, Boxes } from 'lucide-react';
 import { Badge } from '../components/Badge';
 import { Modal } from '../components/Modal';
 import { FilterButton } from '../components/FilterButton';
@@ -43,13 +43,24 @@ export const ProductsPage: React.FC = () => {
     setHsnStatus('');
   };
 
+  // Branches for Super Admin initial stock allocation
+  const [branches, setBranches] = useState<any[]>([]);
+
+  useEffect(() => {
+    if (isSuperAdmin) {
+      api.getBranches().then((res) => {
+        if (Array.isArray(res)) setBranches(res);
+        else if (res?.data && Array.isArray(res.data)) setBranches(res.data);
+      }).catch(console.error);
+    }
+  }, [isSuperAdmin]);
+
   // Add Product Modal
   const [showAddModal, setShowAddModal] = useState(false);
-  const [addForm, setAddForm] = useState({
+  const initialAddForm = {
     internalCode: '',
     brandName: '',
     genericName: '',
-    strength: '',
     dosageForm: 'Tablet',
     manufacturer: '',
     packSize: '10 Strips',
@@ -65,7 +76,14 @@ export const ProductsPage: React.FC = () => {
     barcode: '',
     prescriptionType: 'Schedule H',
     storageNotes: '',
-  });
+    // Initial Stock fields
+    initialQuantity: '',
+    quantityUnit: 'Box',
+    batchNumber: '',
+    expiryDate: '',
+    targetBranchId: '',
+  };
+  const [addForm, setAddForm] = useState(initialAddForm);
 
   // Edit Product Modal
   const [showEditModal, setShowEditModal] = useState(false);
@@ -73,7 +91,6 @@ export const ProductsPage: React.FC = () => {
   const [editForm, setEditForm] = useState({
     brandName: '',
     genericName: '',
-    strength: '',
     dosageForm: 'Tablet',
     manufacturer: '',
     packSize: '10 Strips',
@@ -162,37 +179,25 @@ export const ProductsPage: React.FC = () => {
     e.preventDefault();
     setMessage(null);
     try {
-      await api.createProduct({
+      const res = await api.createProduct({
         ...addForm,
         conversionFactor: parseInt(addForm.conversionFactor) || 10,
         hsnCode: addForm.hsnCode.trim() || undefined,
         defaultPurchaseRate: addForm.defaultPurchaseRate ? parseFloat(addForm.defaultPurchaseRate) : undefined,
         defaultSellingRate: addForm.defaultSellingRate ? parseFloat(addForm.defaultSellingRate) : undefined,
         reorderLevel: addForm.reorderLevel ? parseInt(addForm.reorderLevel) : 10,
+        initialQuantity: addForm.initialQuantity ? parseInt(addForm.initialQuantity) : 0,
+        quantityUnit: addForm.quantityUnit || addForm.packageUnit || 'Box',
+        batchNumber: addForm.batchNumber.trim() || undefined,
+        expiryDate: addForm.expiryDate || undefined,
+        branchId: addForm.targetBranchId || undefined,
       });
-      setMessage({ text: `Medicine '${addForm.brandName}' added to master catalogue.`, type: 'success' });
+      const stockMsg = (res?.totalAvailableStock || 0) > 0
+        ? ` with ${res.totalAvailableStock} ${addForm.baseUnit || 'units'} opening stock.`
+        : ' (Out of Stock).';
+      setMessage({ text: `Medicine '${addForm.brandName}' added to master catalogue${stockMsg}`, type: 'success' });
       setShowAddModal(false);
-      setAddForm({
-        internalCode: '',
-        brandName: '',
-        genericName: '',
-        strength: '',
-        dosageForm: 'Tablet',
-        manufacturer: '',
-        packSize: '10 Strips',
-        baseUnit: 'Strip',
-        packageUnit: 'Box',
-        conversionFactor: '10',
-        hsnCode: '',
-        gstRate: '5',
-        mrp: '',
-        defaultPurchaseRate: '',
-        defaultSellingRate: '',
-        reorderLevel: '10',
-        barcode: '',
-        prescriptionType: 'Schedule H',
-        storageNotes: '',
-      });
+      setAddForm(initialAddForm);
       loadProducts();
     } catch (err: any) {
       setMessage({ text: err.message || 'Failed to create medicine.', type: 'error' });
@@ -204,11 +209,13 @@ export const ProductsPage: React.FC = () => {
       setShowPermissionModal(true);
       return;
     }
+    const combinedGeneric = p.strength && p.strength !== 'Standard' && !p.genericName?.toLowerCase().includes(p.strength.toLowerCase())
+      ? `${p.genericName} ${p.strength}`
+      : p.genericName;
     setEditingProduct(p);
     setEditForm({
       brandName: p.brandName,
-      genericName: p.genericName,
-      strength: p.strength,
+      genericName: combinedGeneric,
       dosageForm: p.dosageForm,
       manufacturer: p.manufacturer,
       packSize: p.packSize || '10 Strips',
@@ -574,11 +581,16 @@ export const ProductsPage: React.FC = () => {
                     <td className="py-3 px-4 font-mono font-bold text-slate-800">{p.internalCode}</td>
                     <td className="py-3 px-4">
                       <span className="font-bold text-slate-900 block">{p.brandName}</span>
-                      <span className="text-[11px] text-slate-500">{p.genericName}</span>
+                      <span className="text-[11px] text-slate-500">
+                        {p.genericName}
+                        {p.strength && p.strength !== 'Standard' && !p.genericName?.toLowerCase().includes(p.strength.toLowerCase()) ? ` (${p.strength})` : ''}
+                      </span>
                     </td>
                     <td className="py-3 px-3 font-mono text-slate-700">
-                      <div>{p.strength}</div>
-                      <span className="text-[10px] text-slate-500 font-sans">{p.dosageForm}</span>
+                      <div>{p.dosageForm}</div>
+                      {p.strength && p.strength !== 'Standard' && !p.genericName?.toLowerCase().includes(p.strength.toLowerCase()) && (
+                        <span className="text-[10px] text-slate-500 font-sans">{p.strength}</span>
+                      )}
                     </td>
                     <td className="py-3 px-3 text-slate-600 truncate max-w-[140px]">{p.manufacturer}</td>
                     <td className="py-3 px-3 text-center">
@@ -690,7 +702,7 @@ export const ProductsPage: React.FC = () => {
               <input
                 type="text"
                 required
-                placeholder="e.g. Paracetamol"
+                placeholder="e.g. Paracetamol 650 mg"
                 value={addForm.genericName}
                 onChange={(e) => setAddForm({ ...addForm, genericName: e.target.value })}
                 className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-300 rounded-lg focus:bg-white focus:ring-2 focus:ring-emerald-500"
@@ -698,18 +710,7 @@ export const ProductsPage: React.FC = () => {
             </div>
           </div>
 
-          <div className="grid grid-cols-3 gap-3">
-            <div>
-              <label className="text-xs font-bold text-slate-700 block mb-1">Strength *</label>
-              <input
-                type="text"
-                required
-                placeholder="e.g. 650 mg"
-                value={addForm.strength}
-                onChange={(e) => setAddForm({ ...addForm, strength: e.target.value })}
-                className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-300 rounded-lg focus:bg-white focus:ring-2 focus:ring-emerald-500 font-mono"
-              />
-            </div>
+          <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="text-xs font-bold text-slate-700 block mb-1">Dosage Form *</label>
               <select
@@ -844,6 +845,109 @@ export const ProductsPage: React.FC = () => {
             </div>
           </div>
 
+          {/* Initial Stock / Opening Inventory Section */}
+          <div className="p-3.5 bg-emerald-50/40 rounded-xl border border-emerald-200/70 space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-1.5">
+                <Boxes className="w-4 h-4 text-emerald-700" />
+                <span className="text-xs font-bold text-emerald-900 uppercase tracking-wider">
+                  Initial Stock / Opening Inventory (Optional)
+                </span>
+              </div>
+              <span className="text-[10px] text-emerald-700 font-medium bg-emerald-100/70 px-2 py-0.5 rounded-full">
+                Live Inventory Inward
+              </span>
+            </div>
+
+            <p className="text-[11px] text-slate-600 leading-relaxed">
+              Enter initial physical quantity to record opening stock for your pharmacy immediately, or leave blank / 0 to create catalogue record only (Out of Stock).
+            </p>
+
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <div>
+                <label className="text-xs font-bold text-slate-700 block mb-1">Initial Quantity</label>
+                <input
+                  type="number"
+                  min="0"
+                  step="1"
+                  placeholder="0 (Out of Stock)"
+                  value={addForm.initialQuantity}
+                  onChange={(e) => setAddForm({ ...addForm, initialQuantity: e.target.value })}
+                  className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-lg font-mono font-bold text-slate-900 focus:ring-2 focus:ring-emerald-500"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-slate-700 block mb-1">Quantity Unit</label>
+                <select
+                  value={addForm.quantityUnit}
+                  onChange={(e) => setAddForm({ ...addForm, quantityUnit: e.target.value })}
+                  className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-lg font-medium"
+                >
+                  <option value={addForm.packageUnit || 'Box'}>Package ({addForm.packageUnit || 'Box'})</option>
+                  <option value={addForm.baseUnit || 'Strip'}>Base Unit ({addForm.baseUnit || 'Strip'})</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-slate-700 block mb-1">Batch Number</label>
+                <input
+                  type="text"
+                  placeholder="e.g. OPN-001 (Auto if empty)"
+                  value={addForm.batchNumber}
+                  onChange={(e) => setAddForm({ ...addForm, batchNumber: e.target.value })}
+                  className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-lg font-mono"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-slate-700 block mb-1">Batch Expiry Date</label>
+                <input
+                  type="date"
+                  value={addForm.expiryDate}
+                  onChange={(e) => setAddForm({ ...addForm, expiryDate: e.target.value })}
+                  className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-lg font-mono"
+                />
+              </div>
+            </div>
+
+            {isSuperAdmin && branches.length > 0 && (
+              <div>
+                <label className="text-xs font-bold text-slate-700 block mb-1">Target Branch for Initial Stock</label>
+                <select
+                  value={addForm.targetBranchId}
+                  onChange={(e) => setAddForm({ ...addForm, targetBranchId: e.target.value })}
+                  className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-lg font-medium"
+                >
+                  <option value="">Default Branch ({branches[0]?.name || 'Primary Branch'})</option>
+                  {branches.map((b) => (
+                    <option key={b.id} value={b.id}>{b.name} ({b.code})</option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            {parseInt(addForm.initialQuantity) > 0 && (
+              <div className="p-2.5 bg-emerald-100/60 rounded-lg border border-emerald-300/60 text-xs text-emerald-900 flex items-center justify-between">
+                <div>
+                  <span className="font-bold">Opening Stock Conversion: </span>
+                  {addForm.quantityUnit === (addForm.packageUnit || 'Box') ? (
+                    <span>
+                      {parseInt(addForm.initialQuantity)} {addForm.packageUnit || 'Box'}(s) × {parseInt(addForm.conversionFactor) || 10} = <strong className="font-mono">{parseInt(addForm.initialQuantity) * (parseInt(addForm.conversionFactor) || 10)} {addForm.baseUnit || 'Strip'}s</strong>
+                    </span>
+                  ) : (
+                    <span>
+                      <strong className="font-mono">{parseInt(addForm.initialQuantity)} {addForm.baseUnit || 'Strip'}s</strong> in base dispensing units
+                    </span>
+                  )}
+                </div>
+                <span className="text-[11px] font-mono text-emerald-800">
+                  Batch: {addForm.batchNumber.trim() || 'Auto-generated'}
+                </span>
+              </div>
+            )}
+          </div>
+
           <div className="grid grid-cols-4 gap-3">
             <div>
               <label className="text-xs font-bold text-slate-700 block mb-1">Pack Size *</label>
@@ -956,6 +1060,7 @@ export const ProductsPage: React.FC = () => {
               <input
                 type="text"
                 required
+                placeholder="e.g. Paracetamol 650 mg"
                 value={editForm.genericName}
                 onChange={(e) => setEditForm({ ...editForm, genericName: e.target.value })}
                 className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-300 rounded-lg focus:bg-white focus:ring-2 focus:ring-emerald-500"
@@ -963,17 +1068,7 @@ export const ProductsPage: React.FC = () => {
             </div>
           </div>
 
-          <div className="grid grid-cols-3 gap-3">
-            <div>
-              <label className="text-xs font-bold text-slate-700 block mb-1">Strength *</label>
-              <input
-                type="text"
-                required
-                value={editForm.strength}
-                onChange={(e) => setEditForm({ ...editForm, strength: e.target.value })}
-                className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-300 rounded-lg focus:bg-white focus:ring-2 focus:ring-emerald-500 font-mono"
-              />
-            </div>
+          <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="text-xs font-bold text-slate-700 block mb-1">Dosage Form *</label>
               <select

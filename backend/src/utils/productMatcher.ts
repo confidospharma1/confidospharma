@@ -49,6 +49,44 @@ export function areStrengthsCompatible(s1?: string | null, s2?: string | null): 
   return clean1 === clean2;
 }
 
+/**
+ * Safely extracts or preserves strength from a combined Generic / Active Ingredient input
+ * while ensuring full user-entered generic formulation is preserved and the database
+ * strength column is non-empty.
+ */
+export function extractOrPreserveStrength(
+  genericName?: string | null,
+  explicitStrength?: string | null
+): { genericName: string; strength: string } {
+  const cleanGeneric = genericName ? genericName.trim() : '';
+
+  // 1. If an explicit strength was supplied (e.g. from legacy payload, CSV column, or test), prioritize it
+  if (explicitStrength && explicitStrength.trim()) {
+    return { genericName: cleanGeneric, strength: explicitStrength.trim() };
+  }
+
+  // 2. Look for standard pharmaceutical potency patterns at the end of the generic string
+  // Matches e.g. "650 mg", "650mg", "500 mcg", "10 ml", "5 %", "200 IU", "500mg/5ml", "1g", "0.5mg"
+  const potencyRegex = /(?:[\s,/(-]+)(\d+(?:\.\d+)?\s*(?:mg|g|mcg|µg|ml|l|iu|ui|%|w\/v|w\/w|v\/v)(?:\s*(?:\/|\+)\s*\d+(?:\.\d+)?\s*(?:mg|g|mcg|µg|ml|l|iu|ui|%|w\/v|w\/w|v\/v)*)*\)?)$/i;
+  const match = cleanGeneric.match(potencyRegex);
+
+  if (match && match[1]) {
+    const extracted = match[1].replace(/[()]/g, '').trim();
+    if (extracted) {
+      return {
+        genericName: cleanGeneric,
+        strength: extracted,
+      };
+    }
+  }
+
+  // 3. Fallback: If no distinct strength pattern could be isolated, use 'Standard'
+  return {
+    genericName: cleanGeneric,
+    strength: 'Standard',
+  };
+}
+
 export function normalizeString(str?: string | null): string {
   if (!str) return '';
   return str

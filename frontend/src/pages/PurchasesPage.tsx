@@ -990,7 +990,7 @@ export const PurchasesPage: React.FC<PurchasesPageProps> = ({ prefilledIndent, o
       const created = await api.createProduct({
         brandName: inlineMedicineForm.brandName.trim(),
         genericName: inlineMedicineForm.genericName.trim(),
-        strength: inlineMedicineForm.strength.trim(),
+        strength: inlineMedicineForm.strength ? inlineMedicineForm.strength.trim() : undefined,
         dosageForm: inlineMedicineForm.dosageForm.trim(),
         manufacturer: inlineMedicineForm.manufacturer.trim(),
         hsnCode: inlineMedicineForm.hsnCode.trim() || undefined,
@@ -3022,28 +3022,18 @@ export const PurchasesPage: React.FC<PurchasesPageProps> = ({ prefilledIndent, o
               />
             </div>
             <div>
-              <label className="font-bold text-slate-700 block mb-1">Generic Name *</label>
+              <label className="font-bold text-slate-700 block mb-1">Generic / Active Ingredient *</label>
               <input
                 type="text"
                 required
-                placeholder="e.g. Paracetamol"
+                placeholder="e.g. Paracetamol 650 mg"
                 value={inlineMedicineForm.genericName}
                 onChange={(e) => setInlineMedicineForm({ ...inlineMedicineForm, genericName: e.target.value })}
                 className="w-full px-3 py-1.5 bg-slate-50 border border-slate-300 rounded-lg focus:bg-white"
               />
             </div>
           </div>
-          <div className="grid grid-cols-3 gap-2">
-            <div>
-              <label className="font-bold text-slate-700 block mb-1">Strength *</label>
-              <input
-                type="text"
-                required
-                value={inlineMedicineForm.strength}
-                onChange={(e) => setInlineMedicineForm({ ...inlineMedicineForm, strength: e.target.value })}
-                className="w-full px-3 py-1.5 bg-slate-50 border border-slate-300 rounded-lg focus:bg-white font-mono"
-              />
-            </div>
+          <div className="grid grid-cols-2 gap-2">
             <div>
               <label className="font-bold text-slate-700 block mb-1">Dosage Form *</label>
               <select

@@ -307,7 +307,9 @@ export const getStockMonitoring = async (req: Request, res: Response) => {
     };
 
     // 4. Apply Filters (Part 5)
-    let filtered = uniqueMedicinesWithRecords;
+    // If a search query is provided, search across all catalogue medicines so users can monitor any product
+    const hasSearchQuery = Boolean(search && typeof search === 'string' && search.trim());
+    let filtered = hasSearchQuery ? aggregatedMedicines : uniqueMedicinesWithRecords;
 
     // Search query
     if (search && typeof search === 'string' && search.trim()) {

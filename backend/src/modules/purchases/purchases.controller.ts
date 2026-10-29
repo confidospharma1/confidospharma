@@ -12,7 +12,7 @@ import {
   parseCleanInt,
   resolveProductAndBrandNames,
 } from '../imports/imports.mapper';
-import { matchProduct, CandidateProduct, areStrengthsCompatible, normalizeString } from '../../utils/productMatcher';
+import { matchProduct, CandidateProduct, areStrengthsCompatible, normalizeString, extractOrPreserveStrength } from '../../utils/productMatcher';
 import { buildProductUnitConfig, convertToBaseQuantity } from '../../utils/unitConverter';
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -359,12 +359,13 @@ export const createPurchase = async (req: Request, res: Response) => {
           const parsedPurchaseRate = parseFloat(newMedicine?.defaultPurchaseRate ?? purchaseRate ?? 70) || 70;
           const parsedSellingRate = parseFloat(newMedicine?.defaultSellingRate ?? sellingRate ?? mrp ?? 100) || 100;
 
+          const resolvedStrObj = extractOrPreserveStrength(lineGenericName || 'Generic Formulation', lineStrength);
           resolvedMed = await tx.medicineProduct.create({
             data: {
               internalCode,
               brandName: lineBrandName,
-              genericName: lineGenericName || 'Generic Formulation',
-              strength: lineStrength || 'Standard',
+              genericName: resolvedStrObj.genericName,
+              strength: resolvedStrObj.strength,
               dosageForm: lineDosageForm || 'Tablet',
               manufacturer: lineManufacturer || 'Standard Pharma',
               packSize: newMedicine?.packSize || `${!isNaN(lineConvFactor) && lineConvFactor > 0 ? lineConvFactor : 10} ${lineBaseUnit}s`,
