@@ -27,24 +27,25 @@ export interface ProductUnitConfig {
 }
 
 /**
- * Standard unit configuration builder based on product dosage form and configuration
+ * Standard unit configuration builder based on product dosage form, packaging, and configuration
  */
 export function buildProductUnitConfig(
   baseUnitInput?: string | null,
   packageUnitInput?: string | null,
   conversionFactorInput?: number | null,
   dosageForm?: string | null,
-  customConfigJson?: string | null
+  customConfigJson?: string | null,
+  packSizeInput?: string | null
 ): ProductUnitConfig {
   if (customConfigJson) {
     try {
       const parsed = JSON.parse(customConfigJson);
       if (Array.isArray(parsed) && parsed.length > 0) {
-        const base = parsed.find((u: any) => u.isBaseUnit) || parsed[parsed.length - 1];
+        const base = parsed.find((u: any) => u.isBaseUnit) || parsed[0];
         return {
           baseUnit: base.unit,
-          packageUnit: parsed[0]?.unit || 'Box',
-          conversionFactor: parsed[0]?.multiplierToBase || 10,
+          packageUnit: parsed[parsed.length - 1]?.unit || 'Box',
+          conversionFactor: parsed[parsed.length - 1]?.multiplierToBase || 10,
           supportedUnits: parsed,
         };
       }
@@ -54,68 +55,268 @@ export function buildProductUnitConfig(
   }
 
   const form = (dosageForm || '').toLowerCase();
-  let baseUnit = baseUnitInput?.trim() || 'Tablet';
+  const pkgUnit = (packageUnitInput || 'Box').trim();
   const factor = conversionFactorInput && conversionFactorInput > 0 ? conversionFactorInput : 10;
-  const pkgUnit = packageUnitInput?.trim() || 'Box';
+  const rawBase = (baseUnitInput || '').trim();
+  const packSizeStr = (packSizeInput || '').toLowerCase();
 
-  if (form.includes('syrup') || form.includes('suspension') || form.includes('liquid') || form.includes('drop')) {
-    baseUnit = 'Bottle';
+  // 1. Syrups, Suspensions, Liquids, Drops, Solutions
+  if (
+    form.includes('syrup') ||
+    form.includes('suspension') ||
+    form.includes('liquid') ||
+    form.includes('drop') ||
+    form.includes('solution') ||
+    form.includes('elixir') ||
+    form.includes('lotion') ||
+    form.includes('oil')
+  ) {
+    if (rawBase.toLowerCase() === 'ml' || packSizeStr.includes('ml')) {
+      let bottleMultiplier = factor > 1 ? factor : 100;
+      const mlMatch = packSizeStr.match(/(\d+)\s*ml/i);
+      if (mlMatch) {
+        const parsed = parseInt(mlMatch[1], 10);
+        if (parsed > 0) bottleMultiplier = parsed;
+      }
+
+      const units: UnitDefinition[] = [
+        { unit: 'ml', multiplierToBase: 1, isBaseUnit: true },
+        { unit: 'Bottle', multiplierToBase: bottleMultiplier },
+      ];
+      if (pkgUnit.toLowerCase() === 'box' && factor > 1) {
+        units.push({ unit: 'Box', multiplierToBase: factor * bottleMultiplier });
+      }
+      return {
+        baseUnit: 'ml',
+        packageUnit: pkgUnit,
+        conversionFactor: bottleMultiplier,
+        supportedUnits: units,
+      };
+    }
+
+    // Default liquid: Bottle is base unit
+    const units: UnitDefinition[] = [
+      { unit: 'Bottle', multiplierToBase: 1, isBaseUnit: true },
+    ];
+    if (pkgUnit.toLowerCase() === 'box' && factor > 1) {
+      units.push({ unit: 'Box', multiplierToBase: factor });
+    }
     return {
       baseUnit: 'Bottle',
-      packageUnit: 'Box',
+      packageUnit: pkgUnit,
       conversionFactor: factor > 1 ? factor : 1,
-      supportedUnits: [
-        { unit: 'Box', multiplierToBase: factor > 1 ? factor : 1 },
-        { unit: 'Bottle', multiplierToBase: 1, isBaseUnit: true },
-      ],
+      supportedUnits: units,
     };
   }
 
+  // 2. Sachets / Powders
   if (form.includes('sachet') || form.includes('powder')) {
-    baseUnit = 'Sachet';
+    const units: UnitDefinition[] = [
+      { unit: 'Sachet', multiplierToBase: 1, isBaseUnit: true },
+    ];
+    if (pkgUnit.toLowerCase() === 'box' || factor > 1) {
+      units.push({ unit: 'Box', multiplierToBase: factor > 1 ? factor : 10 });
+    }
     return {
       baseUnit: 'Sachet',
-      packageUnit: 'Box',
-      conversionFactor: factor > 1 ? factor : 10,
-      supportedUnits: [
-        { unit: 'Box', multiplierToBase: factor > 1 ? factor : 10 },
-        { unit: 'Sachet', multiplierToBase: 1, isBaseUnit: true },
-      ],
-    };
-  }
-
-  if (form.includes('capsule')) {
-    baseUnit = 'Capsule';
-    const isBox = pkgUnit.toLowerCase() === 'box' || pkgUnit.toLowerCase() === 'pack';
-    const boxMultiplier = isBox ? factor : factor * 10;
-    const stripMultiplier = isBox ? (factor >= 10 ? 10 : 1) : factor;
-    return {
-      baseUnit: 'Capsule',
       packageUnit: pkgUnit,
-      conversionFactor: factor,
-      supportedUnits: [
-        { unit: 'Box', multiplierToBase: boxMultiplier },
-        { unit: 'Strip', multiplierToBase: stripMultiplier },
-        { unit: 'Capsule', multiplierToBase: 1, isBaseUnit: true },
-      ],
+      conversionFactor: factor > 1 ? factor : 10,
+      supportedUnits: units,
     };
   }
 
-  // Default: Tablet / Strip / Box
-  baseUnit = baseUnitInput?.toLowerCase() === 'strip' ? 'Tablet' : (baseUnitInput || 'Tablet');
-  const isBox = pkgUnit.toLowerCase() === 'box' || pkgUnit.toLowerCase() === 'pack';
-  const boxMultiplier = isBox ? factor : factor * 10;
-  const stripMultiplier = isBox ? (factor >= 10 ? 10 : 1) : factor;
+  // 3. Injections / Infusions
+  if (form.includes('injection') || form.includes('infusion')) {
+    const singleUnit = rawBase.toLowerCase() === 'ampoule' ? 'Ampoule' : 'Vial';
+    const units: UnitDefinition[] = [
+      { unit: singleUnit, multiplierToBase: 1, isBaseUnit: true },
+    ];
+    if (pkgUnit.toLowerCase() === 'box' || factor > 1) {
+      units.push({ unit: 'Box', multiplierToBase: factor > 1 ? factor : 10 });
+    }
+    return {
+      baseUnit: singleUnit,
+      packageUnit: pkgUnit,
+      conversionFactor: factor > 1 ? factor : 10,
+      supportedUnits: units,
+    };
+  }
+
+  // 4. Creams, Ointments, Gels
+  if (form.includes('cream') || form.includes('ointment') || form.includes('gel')) {
+    const units: UnitDefinition[] = [
+      { unit: 'Tube', multiplierToBase: 1, isBaseUnit: true },
+    ];
+    if (pkgUnit.toLowerCase() === 'box' || factor > 1) {
+      units.push({ unit: 'Box', multiplierToBase: factor > 1 ? factor : 10 });
+    }
+    return {
+      baseUnit: 'Tube',
+      packageUnit: pkgUnit,
+      conversionFactor: factor > 1 ? factor : 10,
+      supportedUnits: units,
+    };
+  }
+
+  // 5. Tablets, Capsules, and general solid oral dosage forms
+  const isCapsule = form.includes('capsule') || rawBase.toLowerCase() === 'capsule';
+  const singleUnit = isCapsule ? 'Capsule' : 'Tablet';
+
+  // Check if Bottle packaging is supported for this medicine
+  const isBottlePackage = pkgUnit.toLowerCase() === 'bottle';
+  const isBottleBase = rawBase.toLowerCase() === 'bottle';
+  const hasBottleInPack = packSizeStr.includes('bottle');
+  const supportsBottle = isBottlePackage || isBottleBase || hasBottleInPack;
+
+  let bottleMultiplier = 0;
+  if (supportsBottle) {
+    if (isBottlePackage && factor > 0) {
+      bottleMultiplier = factor;
+    } else {
+      // Try to extract tablet count per bottle from packSize, e.g. "60 Tablets Bottle" or "100 Tablets"
+      const bottleMatch = packSizeStr.match(/(\d+)\s*(tablets?|capsules?|tabs?|caps?|units?)?/i);
+      if (bottleMatch) {
+        const parsed = parseInt(bottleMatch[1], 10);
+        if (parsed > 0) bottleMultiplier = parsed;
+      }
+      if (bottleMultiplier <= 0 && factor > 0) {
+        bottleMultiplier = factor;
+      }
+    }
+  }
+
+  // Check if Strip packaging is supported
+  const hasStripInPack = packSizeStr.includes('strip');
+  const isStripBase = rawBase.toLowerCase() === 'strip';
+  const isStripPackage = pkgUnit.toLowerCase() === 'strip';
+  // Standard tablet medicines support Strip unless exclusively packaged in a bottle without strips
+  const supportsStrip =
+    hasStripInPack ||
+    isStripBase ||
+    isStripPackage ||
+    (!supportsBottle && pkgUnit.toLowerCase() !== 'bottle');
+
+  let stripMultiplier = 0;
+  if (supportsStrip) {
+    // If packSize has e.g. "15 Tablets", use 15. Else if factor is configured:
+    const tabMatch = packSizeStr.match(/(\d+)\s*(tablets?|capsules?|tabs?|caps?)/i);
+    if (tabMatch && !hasStripInPack) {
+      const parsed = parseInt(tabMatch[1], 10);
+      if (parsed > 1) stripMultiplier = parsed;
+    }
+    if (stripMultiplier <= 0) {
+      if (pkgUnit.toLowerCase() === 'box' && factor >= 10) {
+        stripMultiplier = factor % 10 === 0 ? 10 : factor;
+      } else {
+        stripMultiplier = factor > 1 ? factor : 10;
+      }
+    }
+  }
+
+  // Check if Box packaging is supported
+  const isBox =
+    pkgUnit.toLowerCase() === 'box' ||
+    pkgUnit.toLowerCase() === 'pack' ||
+    pkgUnit.toLowerCase() === 'carton' ||
+    packSizeStr.includes('box');
+
+  let boxMultiplier = 0;
+  if (isBox) {
+    if (stripMultiplier > 1) {
+      boxMultiplier = factor >= stripMultiplier ? factor : factor * stripMultiplier;
+    } else if (bottleMultiplier > 0) {
+      boxMultiplier = factor > bottleMultiplier ? factor : factor * bottleMultiplier;
+    } else {
+      boxMultiplier = factor > 1 ? factor : 100;
+    }
+  }
+
+  const supportedUnits: UnitDefinition[] = [
+    { unit: singleUnit, multiplierToBase: 1, isBaseUnit: true },
+  ];
+
+  if (supportsStrip && stripMultiplier > 1) {
+    supportedUnits.push({ unit: 'Strip', multiplierToBase: stripMultiplier });
+  }
+
+  if (supportsBottle && bottleMultiplier > 0) {
+    supportedUnits.push({ unit: 'Bottle', multiplierToBase: bottleMultiplier });
+  }
+
+  if (isBox && boxMultiplier > 1 && boxMultiplier !== stripMultiplier && boxMultiplier !== bottleMultiplier) {
+    supportedUnits.push({ unit: 'Box', multiplierToBase: boxMultiplier });
+  }
+
   return {
-    baseUnit,
+    baseUnit: singleUnit,
     packageUnit: pkgUnit,
     conversionFactor: factor,
-    supportedUnits: [
-      { unit: 'Box', multiplierToBase: boxMultiplier },
-      { unit: 'Strip', multiplierToBase: stripMultiplier },
-      { unit: baseUnit, multiplierToBase: 1, isBaseUnit: true },
-    ],
+    supportedUnits,
   };
+}
+
+/**
+ * Predictable default-unit selection function respecting product dosage form and supported units
+ */
+export function determineDefaultSellingUnit(
+  supportedUnits: UnitDefinition[],
+  product: {
+    dosageForm?: string | null;
+    baseUnit?: string | null;
+    packageUnit?: string | null;
+    packSize?: string | null;
+  }
+): string {
+  if (!supportedUnits || supportedUnits.length === 0) return 'Unit';
+
+  const form = (product.dosageForm || '').toLowerCase();
+  const base = (product.baseUnit || '').toLowerCase();
+
+  // 1. Tablet medicines -> default to Tablet
+  if (form.includes('tablet') || base === 'tablet') {
+    const tabletUnit = supportedUnits.find((u) => u.unit.toLowerCase() === 'tablet');
+    if (tabletUnit) return tabletUnit.unit;
+  }
+
+  // 2. Capsule medicines -> default to Capsule
+  if (form.includes('capsule') || base === 'capsule') {
+    const capsuleUnit = supportedUnits.find((u) => u.unit.toLowerCase() === 'capsule');
+    if (capsuleUnit) return capsuleUnit.unit;
+  }
+
+  // 3. Liquid / Syrup medicines -> default to ml if ml base, otherwise Bottle
+  if (
+    form.includes('syrup') ||
+    form.includes('suspension') ||
+    form.includes('liquid') ||
+    form.includes('drop') ||
+    form.includes('solution') ||
+    form.includes('elixir') ||
+    form.includes('lotion') ||
+    form.includes('oil')
+  ) {
+    if (base === 'ml') {
+      const mlUnit = supportedUnits.find((u) => u.unit.toLowerCase() === 'ml');
+      if (mlUnit) return mlUnit.unit;
+    }
+    const bottleUnit = supportedUnits.find((u) => u.unit.toLowerCase() === 'bottle');
+    if (bottleUnit) return bottleUnit.unit;
+  }
+
+  // 4. Match explicitly configured baseUnit if present in supportedUnits
+  if (product.baseUnit) {
+    const matchedBase = supportedUnits.find(
+      (u) => u.unit.toLowerCase() === product.baseUnit!.trim().toLowerCase()
+    );
+    if (matchedBase) return matchedBase.unit;
+  }
+
+  // 5. Look for unit flagged as base unit (multiplier === 1)
+  const baseUnitDef = supportedUnits.find((u) => u.isBaseUnit || u.multiplierToBase === 1);
+  if (baseUnitDef) return baseUnitDef.unit;
+
+  // 6. Fallback to first supported unit
+  return supportedUnits[0].unit;
 }
 
 /**

@@ -72,37 +72,227 @@ export const POSBillingPage: React.FC = () => {
 
   const deriveUnitsForProduct = (prod: MedicineProduct) => {
     const form = (prod.dosageForm || '').toLowerCase();
-    const baseUnit = prod.baseUnit || 'Strip';
-    const pkgUnit = prod.packageUnit || 'Box';
+    const pkgUnit = (prod.packageUnit || 'Box').trim();
     const factor = prod.conversionFactor && prod.conversionFactor > 0 ? prod.conversionFactor : 10;
+    const rawBase = (prod.baseUnit || '').trim();
+    const packSizeStr = (prod.packSize || '').toLowerCase();
 
-    if (form.includes('syrup') || form.includes('suspension') || form.includes('liquid') || form.includes('drop')) {
-      return [
+    // 1. Syrups, Suspensions, Liquids, Drops, Solutions
+    if (
+      form.includes('syrup') ||
+      form.includes('suspension') ||
+      form.includes('liquid') ||
+      form.includes('drop') ||
+      form.includes('solution') ||
+      form.includes('elixir') ||
+      form.includes('lotion') ||
+      form.includes('oil')
+    ) {
+      if (rawBase.toLowerCase() === 'ml' || packSizeStr.includes('ml')) {
+        let bottleMultiplier = factor > 1 ? factor : 100;
+        const mlMatch = packSizeStr.match(/(\d+)\s*ml/i);
+        if (mlMatch) {
+          const parsed = parseInt(mlMatch[1], 10);
+          if (parsed > 0) bottleMultiplier = parsed;
+        }
+
+        const units: { unit: string; multiplierToBase: number }[] = [
+          { unit: 'ml', multiplierToBase: 1 },
+          { unit: 'Bottle', multiplierToBase: bottleMultiplier },
+        ];
+        if (pkgUnit.toLowerCase() === 'box' && factor > 1) {
+          units.push({ unit: 'Box', multiplierToBase: factor * bottleMultiplier });
+        }
+        return units;
+      }
+
+      // Default liquid: Bottle is base unit
+      const units: { unit: string; multiplierToBase: number }[] = [
         { unit: 'Bottle', multiplierToBase: 1 },
-        ...(factor > 1 ? [{ unit: 'Box', multiplierToBase: factor }] : [])
       ];
+      if (pkgUnit.toLowerCase() === 'box' && factor > 1) {
+        units.push({ unit: 'Box', multiplierToBase: factor });
+      }
+      return units;
     }
+
+    // 2. Sachets / Powders
     if (form.includes('sachet') || form.includes('powder')) {
-      return [
+      const units: { unit: string; multiplierToBase: number }[] = [
         { unit: 'Sachet', multiplierToBase: 1 },
-        ...(factor > 1 ? [{ unit: 'Box', multiplierToBase: factor }] : [])
       ];
+      if (pkgUnit.toLowerCase() === 'box' || factor > 1) {
+        units.push({ unit: 'Box', multiplierToBase: factor > 1 ? factor : 10 });
+      }
+      return units;
     }
 
-    const isBox = pkgUnit.toLowerCase() === 'box' || pkgUnit.toLowerCase() === 'pack';
-    const stripMultiplier = isBox ? (factor >= 10 ? 10 : 1) : factor;
-    const boxMultiplier = isBox ? factor : factor * 10;
-    const singleUnit = form.includes('capsule') ? 'Capsule' : (baseUnit.toLowerCase() === 'strip' ? 'Tablet' : baseUnit);
+    // 3. Injections / Infusions
+    if (form.includes('injection') || form.includes('infusion')) {
+      const singleUnit = rawBase.toLowerCase() === 'ampoule' ? 'Ampoule' : 'Vial';
+      const units: { unit: string; multiplierToBase: number }[] = [
+        { unit: singleUnit, multiplierToBase: 1 },
+      ];
+      if (pkgUnit.toLowerCase() === 'box' || factor > 1) {
+        units.push({ unit: 'Box', multiplierToBase: factor > 1 ? factor : 10 });
+      }
+      return units;
+    }
 
-    const units: { unit: string; multiplierToBase: number }[] = [];
-    if (stripMultiplier > 1) {
+    // 4. Creams, Ointments, Gels
+    if (form.includes('cream') || form.includes('ointment') || form.includes('gel')) {
+      const units: { unit: string; multiplierToBase: number }[] = [
+        { unit: 'Tube', multiplierToBase: 1 },
+      ];
+      if (pkgUnit.toLowerCase() === 'box' || factor > 1) {
+        units.push({ unit: 'Box', multiplierToBase: factor > 1 ? factor : 10 });
+      }
+      return units;
+    }
+
+    // 5. Tablets, Capsules, and general solid oral dosage forms
+    const isCapsule = form.includes('capsule') || rawBase.toLowerCase() === 'capsule';
+    const singleUnit = isCapsule ? 'Capsule' : 'Tablet';
+
+    // Check if Bottle packaging is configured for this medicine
+    const isBottlePackage = pkgUnit.toLowerCase() === 'bottle';
+    const isBottleBase = rawBase.toLowerCase() === 'bottle';
+    const hasBottleInPack = packSizeStr.includes('bottle');
+    const supportsBottle = isBottlePackage || isBottleBase || hasBottleInPack;
+
+    let bottleMultiplier = 0;
+    if (supportsBottle) {
+      if (isBottlePackage && factor > 0) {
+        bottleMultiplier = factor;
+      } else {
+        const bottleMatch = packSizeStr.match(/(\d+)\s*(tablets?|capsules?|tabs?|caps?|units?)?/i);
+        if (bottleMatch) {
+          const parsed = parseInt(bottleMatch[1], 10);
+          if (parsed > 0) bottleMultiplier = parsed;
+        }
+        if (bottleMultiplier <= 0 && factor > 0) {
+          bottleMultiplier = factor;
+        }
+      }
+    }
+
+    // Check if Strip packaging is supported
+    const hasStripInPack = packSizeStr.includes('strip');
+    const isStripBase = rawBase.toLowerCase() === 'strip';
+    const isStripPackage = pkgUnit.toLowerCase() === 'strip';
+    const supportsStrip =
+      hasStripInPack ||
+      isStripBase ||
+      isStripPackage ||
+      (!supportsBottle && pkgUnit.toLowerCase() !== 'bottle');
+
+    let stripMultiplier = 0;
+    if (supportsStrip) {
+      const tabMatch = packSizeStr.match(/(\d+)\s*(tablets?|capsules?|tabs?|caps?)/i);
+      if (tabMatch && !hasStripInPack) {
+        const parsed = parseInt(tabMatch[1], 10);
+        if (parsed > 1) stripMultiplier = parsed;
+      }
+      if (stripMultiplier <= 0) {
+        if (pkgUnit.toLowerCase() === 'box' && factor >= 10) {
+          stripMultiplier = factor % 10 === 0 ? 10 : factor;
+        } else {
+          stripMultiplier = factor > 1 ? factor : 10;
+        }
+      }
+    }
+
+    // Check if Box packaging is supported
+    const isBox =
+      pkgUnit.toLowerCase() === 'box' ||
+      pkgUnit.toLowerCase() === 'pack' ||
+      pkgUnit.toLowerCase() === 'carton' ||
+      packSizeStr.includes('box');
+
+    let boxMultiplier = 0;
+    if (isBox) {
+      if (stripMultiplier > 1) {
+        boxMultiplier = factor >= stripMultiplier ? factor : factor * stripMultiplier;
+      } else if (bottleMultiplier > 0) {
+        boxMultiplier = factor > bottleMultiplier ? factor : factor * bottleMultiplier;
+      } else {
+        boxMultiplier = factor > 1 ? factor : 100;
+      }
+    }
+
+    const units: { unit: string; multiplierToBase: number }[] = [
+      { unit: singleUnit, multiplierToBase: 1 },
+    ];
+
+    if (supportsStrip && stripMultiplier > 1) {
       units.push({ unit: 'Strip', multiplierToBase: stripMultiplier });
     }
-    units.push({ unit: singleUnit, multiplierToBase: 1 });
-    if (boxMultiplier > stripMultiplier) {
+
+    if (supportsBottle && bottleMultiplier > 0) {
+      units.push({ unit: 'Bottle', multiplierToBase: bottleMultiplier });
+    }
+
+    if (isBox && boxMultiplier > 1 && boxMultiplier !== stripMultiplier && boxMultiplier !== bottleMultiplier) {
       units.push({ unit: 'Box', multiplierToBase: boxMultiplier });
     }
+
     return units;
+  };
+
+  const determineDefaultSellingUnit = (
+    supportedUnits: { unit: string; multiplierToBase: number }[],
+    prod: MedicineProduct
+  ): string => {
+    if (!supportedUnits || supportedUnits.length === 0) return 'Unit';
+
+    const form = (prod.dosageForm || '').toLowerCase();
+    const base = (prod.baseUnit || '').toLowerCase();
+
+    // 1. Tablet medicines -> default to Tablet
+    if (form.includes('tablet') || base === 'tablet') {
+      const tabletUnit = supportedUnits.find((u) => u.unit.toLowerCase() === 'tablet');
+      if (tabletUnit) return tabletUnit.unit;
+    }
+
+    // 2. Capsule medicines -> default to Capsule
+    if (form.includes('capsule') || base === 'capsule') {
+      const capsuleUnit = supportedUnits.find((u) => u.unit.toLowerCase() === 'capsule');
+      if (capsuleUnit) return capsuleUnit.unit;
+    }
+
+    // 3. Liquid / Syrup medicines -> default to ml if ml base, otherwise Bottle
+    if (
+      form.includes('syrup') ||
+      form.includes('suspension') ||
+      form.includes('liquid') ||
+      form.includes('drop') ||
+      form.includes('solution') ||
+      form.includes('elixir') ||
+      form.includes('lotion') ||
+      form.includes('oil')
+    ) {
+      if (base === 'ml') {
+        const mlUnit = supportedUnits.find((u) => u.unit.toLowerCase() === 'ml');
+        if (mlUnit) return mlUnit.unit;
+      }
+      const bottleUnit = supportedUnits.find((u) => u.unit.toLowerCase() === 'bottle');
+      if (bottleUnit) return bottleUnit.unit;
+    }
+
+    // 4. Configured baseUnit if supported
+    if (prod.baseUnit) {
+      const matchedBase = supportedUnits.find(
+        (u) => u.unit.toLowerCase() === prod.baseUnit.trim().toLowerCase()
+      );
+      if (matchedBase) return matchedBase.unit;
+    }
+
+    // 5. Unit with multiplier 1
+    const baseUnitDef = supportedUnits.find((u) => u.multiplierToBase === 1);
+    if (baseUnitDef) return baseUnitDef.unit;
+
+    // 6. Fallback
+    return supportedUnits[0].unit;
   };
 
   // Focus search input on mount and F2 key press
@@ -186,9 +376,21 @@ export const POSBillingPage: React.FC = () => {
     // Default FEFO batch: first active non-expired batch
     const bestBatch = product.activeBatches[0];
     const supportedUnits = deriveUnitsForProduct(product);
-    const initialUnitObj = supportedUnits[0] || { unit: product.baseUnit || 'Strip', multiplierToBase: 1 };
-    const basePrice = bestBatch.sellingPrice || bestBatch.mrp;
+    const defaultUnitName = determineDefaultSellingUnit(supportedUnits, product);
+    const initialUnitObj = supportedUnits.find((u) => u.unit === defaultUnitName) || supportedUnits[0] || { unit: product.baseUnit || 'Tablet', multiplierToBase: 1 };
+
+    // Resolve base price per base-unit without multiplying pack MRP
+    const rawBatchRate = bestBatch.sellingPrice || bestBatch.mrp;
+    const isAlreadyBaseRate = (product.mrp || 0) > 0 && rawBatchRate < (product.mrp || 0);
+    const quotedUnit = supportedUnits.find(
+      (u) => u.unit.toLowerCase() === (product.baseUnit || 'Strip').toLowerCase()
+    );
+    const quotedMultiplier = (!isAlreadyBaseRate && quotedUnit && quotedUnit.multiplierToBase > 1)
+      ? quotedUnit.multiplierToBase
+      : 1;
+    const effectiveBasePrice = rawBatchRate / quotedMultiplier;
     const initialMultiplier = initialUnitObj.multiplierToBase;
+    const computedUnitMrp = Number((effectiveBasePrice * initialMultiplier).toFixed(2));
 
     // Check if medicine with this batch and unit is already in draft
     const existingIndex = billItems.findIndex(
@@ -220,8 +422,8 @@ export const POSBillingPage: React.FC = () => {
         expiryDate: bestBatch.expiryDate,
         availableStock: bestBatch.availableQuantity,
         quantity: 1,
-        unitMrp: basePrice * initialMultiplier,
-        baseSellingPrice: basePrice,
+        unitMrp: computedUnitMrp,
+        baseSellingPrice: effectiveBasePrice,
         selectedUnit: initialUnitObj.unit,
         unitMultiplier: initialMultiplier,
         supportedUnits,
@@ -243,7 +445,15 @@ export const POSBillingPage: React.FC = () => {
     const targetBatch = item.availableBatches?.find((b) => b.id === newBatchId);
     if (!targetBatch) return;
 
-    const basePrice = targetBatch.sellingPrice || targetBatch.mrp;
+    const rawBatchRate = targetBatch.sellingPrice || targetBatch.mrp;
+    const quotedUnit = item.supportedUnits?.find(
+      (u) => u.unit.toLowerCase() === (item.baseUnit || 'Strip').toLowerCase()
+    );
+    const isAlreadyBaseRate = item.unitMrp > 0 && rawBatchRate < item.unitMrp;
+    const quotedMultiplier = (!isAlreadyBaseRate && quotedUnit && quotedUnit.multiplierToBase > 1)
+      ? quotedUnit.multiplierToBase
+      : 1;
+    const effectiveBasePrice = rawBatchRate / quotedMultiplier;
     const multiplier = item.unitMultiplier || 1;
     const maxAllowedInUnit = Math.floor(targetBatch.availableQuantity / multiplier);
 
@@ -254,8 +464,8 @@ export const POSBillingPage: React.FC = () => {
       batchNumber: targetBatch.batchNumber,
       expiryDate: targetBatch.expiryDate,
       availableStock: targetBatch.availableQuantity,
-      baseSellingPrice: basePrice,
-      unitMrp: basePrice * multiplier,
+      baseSellingPrice: effectiveBasePrice,
+      unitMrp: Number((effectiveBasePrice * multiplier).toFixed(2)),
       quantity: Math.min(item.quantity, Math.max(1, maxAllowedInUnit)),
     };
     setBillItems(updated);
@@ -266,17 +476,30 @@ export const POSBillingPage: React.FC = () => {
     const matched = item.supportedUnits?.find((u) => u.unit === newUnit);
     if (!matched) return;
 
+    const oldMultiplier = item.unitMultiplier || 1;
     const newMultiplier = matched.multiplierToBase;
-    const basePrice = item.baseSellingPrice || item.unitMrp;
+    const effectiveBasePrice = item.baseSellingPrice || (item.unitMrp / oldMultiplier);
+
+    // Predictable physical base-quantity preservation rule:
+    // 1. Calculate total base units currently in cart line (e.g. 2 strips * 10 = 20 tablets)
+    // 2. Divide by new unit multiplier to get equivalent count (20 tablets / 1 = 20 tablets)
+    // 3. Minimum quantity of 1 to prevent accidental empty line
+    // 4. Clamp to available batch stock in new unit to prevent overselling
+    const currentBaseQty = item.quantity * oldMultiplier;
+    let newQty = Math.floor(currentBaseQty / newMultiplier);
+    if (newQty <= 0) newQty = 1;
+
     const maxAllowedInUnit = Math.floor(item.availableStock / newMultiplier);
+    newQty = Math.min(newQty, Math.max(1, maxAllowedInUnit));
 
     const updated = [...billItems];
     updated[index] = {
       ...item,
       selectedUnit: newUnit,
       unitMultiplier: newMultiplier,
-      unitMrp: basePrice * newMultiplier,
-      quantity: Math.min(item.quantity, Math.max(1, maxAllowedInUnit)),
+      baseSellingPrice: effectiveBasePrice,
+      unitMrp: Number((effectiveBasePrice * newMultiplier).toFixed(2)),
+      quantity: newQty,
     };
     setBillItems(updated);
   };
@@ -565,14 +788,14 @@ export const POSBillingPage: React.FC = () => {
                               >
                                 {item.availableBatches.map((b) => (
                                   <option key={b.id} value={b.id}>
-                                    {b.batchNumber} (Avail: {b.availableQuantity} {item.baseUnit || 'Strips'})
+                                    {b.batchNumber} (Avail: {Math.floor(b.availableQuantity / (item.unitMultiplier || 1))} {item.selectedUnit || 'units'})
                                   </option>
                                 ))}
                               </select>
                             </div>
                           ) : (
                             <p className="text-[11px] text-slate-500 font-mono mt-0.5">
-                              Batch: <span className="font-semibold text-slate-700">{item.batchNumber}</span> (Avail: {Math.floor(item.availableStock / (item.unitMultiplier || 1))} {item.selectedUnit || item.baseUnit || 'units'})
+                              Batch: <span className="font-semibold text-slate-700">{item.batchNumber}</span> (Avail: {Math.floor(item.availableStock / (item.unitMultiplier || 1))} {item.selectedUnit || 'units'})
                             </p>
                           )}
                         </td>
@@ -614,7 +837,7 @@ export const POSBillingPage: React.FC = () => {
                                 value={item.selectedUnit}
                                 onChange={(e) => changeItemUnit(idx, e.target.value)}
                                 className="text-[10px] font-semibold bg-white border border-slate-300 rounded px-1.5 py-0.5 text-brand-700 shadow-2xs"
-                                title="Select retail unit (Strip / Tablet / Box)"
+                                title="Select retail unit (Tablet / Strip / Bottle / Box)"
                               >
                                 {item.supportedUnits.map((u) => (
                                   <option key={u.unit} value={u.unit}>

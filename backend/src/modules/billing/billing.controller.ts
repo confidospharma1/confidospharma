@@ -2,7 +2,7 @@ import { Request, Response } from 'express';
 import Decimal from 'decimal.js';
 import prisma from '../../database/prisma';
 import { logAuditEvent } from '../../utils/audit';
-import { buildProductUnitConfig } from '../../utils/unitConverter';
+import { buildProductUnitConfig, determineDefaultSellingUnit } from '../../utils/unitConverter';
 
 export const createInvoice = async (req: Request, res: Response) => {
   try {
@@ -67,17 +67,22 @@ export const createInvoice = async (req: Request, res: Response) => {
           medicine.packageUnit,
           medicine.conversionFactor,
           medicine.dosageForm,
-          medicine.unitConfig
+          medicine.unitConfig,
+          medicine.packSize
         );
 
+        const defaultUnit = determineDefaultSellingUnit(unitConfig.supportedUnits, medicine);
         const selectedUnit = (unit && typeof unit === 'string' && unit.trim())
           ? unit.trim()
-          : (medicine.baseUnit || 'Strip');
+          : defaultUnit;
 
         const matchedUnit = unitConfig.supportedUnits.find(
           (u) => u.unit.toLowerCase() === selectedUnit.toLowerCase()
         );
-        const multiplier = matchedUnit ? matchedUnit.multiplierToBase : 1;
+        if (!matchedUnit) {
+          throw new Error(`Unit '${selectedUnit}' is not a supported selling unit for ${medicine.brandName}.`);
+        }
+        const multiplier = matchedUnit.multiplierToBase;
         const baseQtyToDeduct = qty * multiplier;
 
         // Fetch batch
@@ -119,9 +124,22 @@ export const createInvoice = async (req: Request, res: Response) => {
         }
 
         // Decimal financial calculations
-        // Unit MRP and Selling Rate scaled to the requested selling unit
-        const baseRate = new Decimal(batch.sellingPrice || batch.mrp);
-        const unitMrpDec = baseRate.times(multiplier);
+        // Determine the true price per base unit:
+        // If the batch rate was stored normalized to base unit (e.g. batch.sellingPrice < medicine.mrp),
+        // or if medicine.baseUnit is the base unit (multiplier 1), basePrice = batch.sellingPrice.
+        // If batch.sellingPrice was quoted for a pack (e.g. medicine.baseUnit was 'Strip' with multiplier > 1),
+        // divide by that pack's multiplier so we never multiply a strip rate by 10.
+        const rawBatchRate = new Decimal(batch.sellingPrice || batch.mrp);
+        const quotedUnit = unitConfig.supportedUnits.find(
+          (u) => u.unit.toLowerCase() === (medicine.baseUnit || 'Strip').toLowerCase()
+        );
+        const isAlreadyBaseRate = medicine.mrp > 0 && rawBatchRate.lessThan(new Decimal(medicine.mrp));
+        const quotedMultiplier = (!isAlreadyBaseRate && quotedUnit && quotedUnit.multiplierToBase > 1)
+          ? quotedUnit.multiplierToBase
+          : 1;
+        const trueBasePrice = rawBatchRate.dividedBy(quotedMultiplier);
+
+        const unitMrpDec = trueBasePrice.times(multiplier).toDecimalPlaces(2);
         const grossAmount = unitMrpDec.times(qty);
 
         // Discount
@@ -173,7 +191,7 @@ export const createInvoice = async (req: Request, res: Response) => {
           cgstAmount: lineCgst.toDecimalPlaces(2).toNumber(),
           sgstAmount: lineSgst.toDecimalPlaces(2).toNumber(),
           lineTotal: netAfterDiscount.toDecimalPlaces(2).toNumber(),
-          purchaseRate: new Decimal(batch.purchaseRate).times(multiplier).toNumber(),
+          purchaseRate: new Decimal(batch.purchaseRate).dividedBy(quotedMultiplier).times(multiplier).toDecimalPlaces(2).toNumber(),
         });
       }
 
