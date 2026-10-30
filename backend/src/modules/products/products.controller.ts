@@ -561,7 +561,9 @@ export const deleteProduct = async (req: Request, res: Response) => {
 export const bulkDeleteProducts = async (req: Request, res: Response) => {
   try {
     if (!req.user || req.user.role !== 'SUPER_ADMIN') {
-      return res.status(403).json({ message: 'Forbidden: Super Admin only' });
+      return res.status(403).json({
+        message: 'You do not have permission to delete these records. Please contact the Super Admin for assistance.',
+      });
     }
 
     const rawIds = req.body.ids || req.body.productIds;

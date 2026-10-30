@@ -14,6 +14,7 @@ import {
   Building,
   Scale,
   ShieldCheck,
+  FileSpreadsheet,
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -107,6 +108,13 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => 
                 <span>Branch Transfers</span>
               </button>
               <button
+                onClick={() => setActiveTab('imports')}
+                className={navItemClass('imports')}
+              >
+                <FileSpreadsheet className={iconClass('imports')} />
+                <span>Bulk Inward Import</span>
+              </button>
+              <button
                 onClick={() => setActiveTab('reports')}
                 className={navItemClass('reports')}
               >
@@ -146,6 +154,13 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => 
                   >
                     <Building className={iconClass('branches')} />
                     <span>Branches Setup</span>
+                  </button>
+                  <button
+                    onClick={() => setActiveTab('audit')}
+                    className={navItemClass('audit')}
+                  >
+                    <ShieldCheck className={iconClass('audit')} />
+                    <span>Security & Audit Logs</span>
                   </button>
                 </>
               )}

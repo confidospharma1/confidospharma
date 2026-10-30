@@ -53,8 +53,8 @@ export async function apiRequest<T = any>(
   if (response.status === 401) {
     // If expired token
     removeAuthToken();
-    if (!window.location.pathname.includes('/login')) {
-      window.location.href = '/login';
+    if (window.location.pathname !== '/' && !window.location.pathname.includes('/login')) {
+      window.location.href = '/';
     }
   }
 

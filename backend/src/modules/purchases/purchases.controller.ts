@@ -1114,7 +1114,9 @@ export const cancelPurchase = async (req: Request, res: Response) => {
           },
         });
 
-        const totalLineQty = line.quantity + line.freeQuantity;
+        const totalLineQty = (line.baseQuantity && line.baseQuantity > 0)
+          ? line.baseQuantity
+          : ((line.quantity + line.freeQuantity) * (line.conversionFactor || 1));
         if (batch) {
           if (batch.availableQuantity < totalLineQty) {
             throw new Error(
@@ -1134,7 +1136,9 @@ export const cancelPurchase = async (req: Request, res: Response) => {
           },
         });
 
-        const totalLineQty = line.quantity + line.freeQuantity;
+        const totalLineQty = (line.baseQuantity && line.baseQuantity > 0)
+          ? line.baseQuantity
+          : ((line.quantity + line.freeQuantity) * (line.conversionFactor || 1));
         if (batch) {
           const newAvailable = batch.availableQuantity - totalLineQty;
           const newReceived = Math.max(0, batch.quantityReceived - totalLineQty);
@@ -1148,6 +1152,10 @@ export const cancelPurchase = async (req: Request, res: Response) => {
             },
           });
 
+          const baseRate = (line.conversionFactor && line.conversionFactor > 1)
+            ? line.purchaseRate / line.conversionFactor
+            : line.purchaseRate;
+
           await tx.stockMovement.create({
             data: {
               branchId: invoice.branchId,
@@ -1155,7 +1163,7 @@ export const cancelPurchase = async (req: Request, res: Response) => {
               batchId: batch.id,
               movementType: 'STOCK_CORRECTION',
               quantityDelta: -totalLineQty,
-              unitPrice: line.purchaseRate,
+              unitPrice: baseRate,
               referenceDocType: 'PURCHASE_INVOICE',
               referenceDocId: invoice.invoiceNumber,
               reason: `Purchase invoice cancelled: ${reason.trim()}`,

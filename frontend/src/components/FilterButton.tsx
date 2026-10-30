@@ -121,7 +121,7 @@ export const FilterButton: React.FC<FilterButtonProps> = ({
               <h4 className="text-xs font-bold text-slate-800 tracking-tight">{title}</h4>
               {hasActive && (
                 <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-brand-50 text-brand-700 border border-brand-200">
-                  {activeCount} active
+                  {resolvedCount} active
                 </span>
               )}
             </div>
