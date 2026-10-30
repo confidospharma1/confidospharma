@@ -482,13 +482,22 @@ export const createPurchase = async (req: Request, res: Response) => {
         const baseSellingPrice = sellingRateDec.dividedBy(factor).toDecimalPlaces(4).toNumber();
         const baseMrp = mrpDec.dividedBy(factor).toDecimalPlaces(4).toNumber();
 
-        // Check/create batch in branch
-        let batch = await tx.stockBatch.findFirst({
+        // Check/create batch in branch matching required attributes:
+        // Medicine, Branch, BatchNumber, Supplier, and Expiry Date.
+        const existingBatches = await tx.stockBatch.findMany({
           where: {
             branchId: validatedBranchId,
             medicineId,
             batchNumber: batchNumber.trim(),
           },
+        });
+
+        // Exact match rule: same supplier and same expiry date (YYYY-MM-DD)
+        let batch = existingBatches.find((b) => {
+          const supplierMatches = (!b.supplierId && !resolvedSupplierId) || (b.supplierId === resolvedSupplierId);
+          const bDateStr = b.expiryDate.toISOString().slice(0, 10);
+          const pDateStr = parsedExpiry.toISOString().slice(0, 10);
+          return supplierMatches && bDateStr === pDateStr;
         });
 
         if (batch) {

@@ -133,13 +133,20 @@ export const receiveStockBatch = async (req: Request, res: Response) => {
 
     // Atomic transaction for batch creation & movement record
     const result = await prisma.$transaction(async (tx) => {
-      // Check if batch already exists in this branch
-      let batch = await tx.stockBatch.findFirst({
+      // Check if matching batch already exists in this branch (same supplier and expiry)
+      const existingBatches = await tx.stockBatch.findMany({
         where: {
           branchId: targetBranchId,
           medicineId,
           batchNumber: batchNumber.trim(),
         },
+      });
+
+      let batch = existingBatches.find((b) => {
+        const supplierMatches = (!b.supplierId && !supplierId) || (b.supplierId === supplierId);
+        const bDateStr = b.expiryDate.toISOString().slice(0, 10);
+        const pDateStr = parsedExpiry.toISOString().slice(0, 10);
+        return supplierMatches && bDateStr === pDateStr;
       });
 
       if (batch) {
@@ -838,3 +845,502 @@ export const bulkBatchAction = async (req: Request, res: Response) => {
     return res.status(500).json({ message: error.message || 'Failed to execute bulk batch action' });
   }
 };
+
+/**
+ * Helper to compute precise date ranges for ledger queries
+ */
+function parseDateRange(
+  period?: string,
+  startDate?: string,
+  endDate?: string
+): { startDateTime: Date; endDateTime: Date; label: string } {
+  const now = new Date();
+
+  if (period === 'today') {
+    const start = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+    const end = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+    return { startDateTime: start, endDateTime: end, label: 'Today' };
+  }
+
+  if (period === 'last7days') {
+    const start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 6, 0, 0, 0, 0);
+    const end = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+    return { startDateTime: start, endDateTime: end, label: 'Last 7 Days' };
+  }
+
+  if (period === 'last30days') {
+    const start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 29, 0, 0, 0, 0);
+    const end = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+    return { startDateTime: start, endDateTime: end, label: 'Last 30 Days' };
+  }
+
+  if (period === 'custom' && (startDate || endDate)) {
+    const start = startDate
+      ? new Date(startDate)
+      : new Date(now.getFullYear(), now.getMonth(), now.getDate() - 29, 0, 0, 0, 0);
+    const end = endDate ? new Date(endDate) : new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+
+    if (endDate && endDate.length <= 10) {
+      end.setHours(23, 59, 59, 999);
+    }
+    if (startDate && startDate.length <= 10) {
+      start.setHours(0, 0, 0, 0);
+    }
+    return {
+      startDateTime: start,
+      endDateTime: end,
+      label: `${start.toISOString().slice(0, 10)} to ${end.toISOString().slice(0, 10)}`,
+    };
+  }
+
+  // Default: Today
+  const start = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+  const end = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+  return { startDateTime: start, endDateTime: end, label: 'Today' };
+}
+
+/**
+ * GET /api/inventory/ledger/summary
+ * Provides date-filtered KPI summaries:
+ * 1. Opening Stock (Qty & Valuation before period)
+ * 2. Stock Inward (Qty & Cost received during period)
+ * 3. Stock Outward (Qty & Cost valuation issued during period)
+ * 4. Current Available Stock (Live total remaining in pharmacy now)
+ * 5. Inward Cost
+ * 6. Outward Value (Valuation basis)
+ * 7. Gross Profit/Loss (Eligible sales revenue minus COGS)
+ * 8. Stock Adjustments (Damaged, expired, corrections, returns)
+ */
+export const getLedgerSummary = async (req: Request, res: Response) => {
+  try {
+    if (!req.user) return res.status(401).json({ message: 'Unauthorized' });
+
+    const { branchId, period, startDate, endDate, medicineId } = req.query;
+
+    const targetBranchId =
+      req.user.role === 'SUPER_ADMIN' ? (branchId as string) || req.user.branchId : req.user.branchId;
+
+    if (req.user.role !== 'SUPER_ADMIN' && branchId && branchId !== req.user.branchId) {
+      return res.status(403).json({ message: 'Access denied to other branch inventory ledger' });
+    }
+
+    const { startDateTime, endDateTime, label } = parseDateRange(
+      period as string,
+      startDate as string,
+      endDate as string
+    );
+
+    const branchFilter = targetBranchId ? { branchId: targetBranchId } : {};
+    const medicineFilter = medicineId ? { medicineId: medicineId as string } : {};
+
+    // 1. Opening Stock (All movements strictly prior to startDateTime)
+    const priorMovements = await prisma.stockMovement.findMany({
+      where: {
+        ...branchFilter,
+        ...medicineFilter,
+        createdAt: { lt: startDateTime },
+      },
+      select: {
+        quantityDelta: true,
+        unitPrice: true,
+      },
+    });
+
+    let openingQuantity = 0;
+    let openingValue = 0;
+    for (const m of priorMovements) {
+      openingQuantity += m.quantityDelta;
+      openingValue += m.quantityDelta * (m.unitPrice || 0);
+    }
+    if (openingQuantity < 0) openingQuantity = 0;
+    if (openingValue < 0) openingValue = 0;
+
+    // 2. Inward Movements during period (quantityDelta > 0)
+    const periodInward = await prisma.stockMovement.findMany({
+      where: {
+        ...branchFilter,
+        ...medicineFilter,
+        createdAt: { gte: startDateTime, lte: endDateTime },
+        quantityDelta: { gt: 0 },
+        movementType: { in: ['PURCHASE_RECEIPT', 'TRANSFER_IN', 'CUSTOMER_RETURN'] },
+      },
+      select: {
+        quantityDelta: true,
+        unitPrice: true,
+      },
+    });
+
+    let inwardQuantity = 0;
+    let inwardCost = 0;
+    for (const m of periodInward) {
+      inwardQuantity += m.quantityDelta;
+      inwardCost += m.quantityDelta * (m.unitPrice || 0);
+    }
+
+    // 3. Outward Movements during period (quantityDelta < 0)
+    const periodOutward = await prisma.stockMovement.findMany({
+      where: {
+        ...branchFilter,
+        ...medicineFilter,
+        createdAt: { gte: startDateTime, lte: endDateTime },
+        quantityDelta: { lt: 0 },
+        movementType: { in: ['SALE', 'TRANSFER_OUT', 'SUPPLIER_RETURN', 'DAMAGE_EXPIRY', 'CANCELLATION'] },
+      },
+      select: {
+        quantityDelta: true,
+        unitPrice: true,
+      },
+    });
+
+    let outwardQuantity = 0;
+    let outwardValue = 0; // Cost basis of issued stock
+    for (const m of periodOutward) {
+      const absQty = Math.abs(m.quantityDelta);
+      outwardQuantity += absQty;
+      outwardValue += absQty * (m.unitPrice || 0);
+    }
+
+    // 4. Current Available Stock (Live snapshot of actual stock remaining in pharmacy right now)
+    const activeBatches = await prisma.stockBatch.findMany({
+      where: {
+        ...branchFilter,
+        ...medicineFilter,
+        status: 'ACTIVE',
+        availableQuantity: { gt: 0 },
+      },
+      select: {
+        availableQuantity: true,
+        purchaseRate: true,
+      },
+    });
+
+    let currentAvailableStock = 0;
+    let currentStockValue = 0;
+    for (const b of activeBatches) {
+      currentAvailableStock += b.availableQuantity;
+      currentStockValue += b.availableQuantity * b.purchaseRate;
+    }
+
+    // 5. Sales Revenue and COGS (Cost of Goods Sold)
+    const completedSales = await prisma.salesInvoice.findMany({
+      where: {
+        ...branchFilter,
+        status: 'COMPLETED',
+        createdAt: { gte: startDateTime, lte: endDateTime },
+      },
+      include: {
+        lines: {
+          where: medicineFilter,
+          select: {
+            quantity: true,
+            baseQuantity: true,
+            lineTotal: true,
+            purchaseRate: true,
+          },
+        },
+      },
+    });
+
+    let salesRevenue = 0;
+    let cogs = 0;
+    for (const inv of completedSales) {
+      for (const line of inv.lines) {
+        salesRevenue += line.lineTotal;
+        const units = line.baseQuantity && line.baseQuantity > 0 ? line.baseQuantity : line.quantity;
+        cogs += units * (line.purchaseRate || 0);
+      }
+    }
+
+    const grossProfit = salesRevenue - cogs;
+    const grossProfitMargin = salesRevenue > 0 ? (grossProfit / salesRevenue) * 100 : 0;
+
+    // 6. Stock Adjustments Breakdown
+    const periodAdjustments = await prisma.stockMovement.findMany({
+      where: {
+        ...branchFilter,
+        ...medicineFilter,
+        createdAt: { gte: startDateTime, lte: endDateTime },
+        movementType: { in: ['STOCK_CORRECTION', 'DAMAGE_EXPIRY', 'SUPPLIER_RETURN', 'CUSTOMER_RETURN'] },
+      },
+      select: {
+        movementType: true,
+        quantityDelta: true,
+        unitPrice: true,
+        reason: true,
+      },
+    });
+
+    let netAdjustmentQuantity = 0;
+    let netAdjustmentValue = 0;
+    let damagedQty = 0;
+    let damagedVal = 0;
+    let expiredQty = 0;
+    let expiredVal = 0;
+    let correctionQty = 0;
+    let correctionVal = 0;
+    let supplierReturnQty = 0;
+    let supplierReturnVal = 0;
+    let customerReturnQty = 0;
+    let customerReturnVal = 0;
+
+    for (const m of periodAdjustments) {
+      const val = m.quantityDelta * (m.unitPrice || 0);
+      netAdjustmentQuantity += m.quantityDelta;
+      netAdjustmentValue += val;
+
+      if (m.movementType === 'DAMAGE_EXPIRY') {
+        const isExpired = m.reason?.toLowerCase().includes('expire');
+        if (isExpired) {
+          expiredQty += Math.abs(m.quantityDelta);
+          expiredVal += Math.abs(val);
+        } else {
+          damagedQty += Math.abs(m.quantityDelta);
+          damagedVal += Math.abs(val);
+        }
+      } else if (m.movementType === 'STOCK_CORRECTION') {
+        correctionQty += m.quantityDelta;
+        correctionVal += val;
+      } else if (m.movementType === 'SUPPLIER_RETURN') {
+        supplierReturnQty += Math.abs(m.quantityDelta);
+        supplierReturnVal += Math.abs(val);
+      } else if (m.movementType === 'CUSTOMER_RETURN') {
+        customerReturnQty += Math.abs(m.quantityDelta);
+        customerReturnVal += Math.abs(val);
+      }
+    }
+
+    return res.json({
+      period: {
+        label,
+        startDate: startDateTime.toISOString(),
+        endDate: endDateTime.toISOString(),
+      },
+      openingStock: {
+        quantity: openingQuantity,
+        value: parseFloat(openingValue.toFixed(2)),
+      },
+      inward: {
+        quantity: inwardQuantity,
+        cost: parseFloat(inwardCost.toFixed(2)),
+      },
+      outward: {
+        quantity: outwardQuantity,
+        value: parseFloat(outwardValue.toFixed(2)),
+      },
+      currentStock: {
+        quantity: currentAvailableStock,
+        value: parseFloat(currentStockValue.toFixed(2)),
+      },
+      inwardCost: parseFloat(inwardCost.toFixed(2)),
+      outwardValue: parseFloat(outwardValue.toFixed(2)),
+      salesRevenue: parseFloat(salesRevenue.toFixed(2)),
+      cogs: parseFloat(cogs.toFixed(2)),
+      grossProfit: parseFloat(grossProfit.toFixed(2)),
+      grossProfitMargin: parseFloat(grossProfitMargin.toFixed(2)),
+      adjustments: {
+        netQuantity: netAdjustmentQuantity,
+        netValue: parseFloat(netAdjustmentValue.toFixed(2)),
+        damaged: { quantity: damagedQty, value: parseFloat(damagedVal.toFixed(2)) },
+        expired: { quantity: expiredQty, value: parseFloat(expiredVal.toFixed(2)) },
+        corrections: { quantity: correctionQty, value: parseFloat(correctionVal.toFixed(2)) },
+        supplierReturns: { quantity: supplierReturnQty, value: parseFloat(supplierReturnVal.toFixed(2)) },
+        customerReturns: { quantity: customerReturnQty, value: parseFloat(customerReturnVal.toFixed(2)) },
+      },
+      valuationMethod: 'Batch-Specific Acquisition Cost (FIFO-deterministic)',
+    });
+  } catch (error: any) {
+    console.error('Error fetching ledger summary:', error);
+    return res.status(500).json({ message: error.message || 'Failed to fetch inventory ledger summary' });
+  }
+};
+
+/**
+ * GET /api/inventory/ledger/movements
+ * Filterable, paginated stock movement ledger table:
+ * - Date, Medicine, Dosage Form, Canonical Base Unit
+ * - Batch, Expiry, Supplier
+ * - Movement Type (Inward/Outward/Return/Adjustment)
+ * - Inward Qty, Outward Qty, Unit Cost, Movement Value
+ * - Current Available Batch Quantity
+ * - Source Reference & Performed By User
+ */
+export const getLedgerMovements = async (req: Request, res: Response) => {
+  try {
+    if (!req.user) return res.status(401).json({ message: 'Unauthorized' });
+
+    const {
+      branchId,
+      period,
+      startDate,
+      endDate,
+      medicineId,
+      batchNumber,
+      supplierId,
+      movementType,
+      search,
+      page = '1',
+      limit = '25',
+    } = req.query;
+
+    const targetBranchId =
+      req.user.role === 'SUPER_ADMIN' ? (branchId as string) || req.user.branchId : req.user.branchId;
+
+    if (req.user.role !== 'SUPER_ADMIN' && branchId && branchId !== req.user.branchId) {
+      return res.status(403).json({ message: 'Access denied to other branch inventory movements' });
+    }
+
+    const { startDateTime, endDateTime } = parseDateRange(
+      period as string,
+      startDate as string,
+      endDate as string
+    );
+
+    const whereClause: any = {
+      createdAt: { gte: startDateTime, lte: endDateTime },
+    };
+
+    if (targetBranchId) whereClause.branchId = targetBranchId;
+    if (medicineId) whereClause.medicineId = medicineId as string;
+    if (movementType && movementType !== 'ALL') whereClause.movementType = movementType as string;
+
+    if (batchNumber) {
+      whereClause.batch = { batchNumber: { contains: (batchNumber as string).trim(), mode: 'insensitive' } };
+    }
+
+    if (supplierId) {
+      whereClause.batch = {
+        ...whereClause.batch,
+        supplierId: supplierId as string,
+      };
+    }
+
+    if (search && (search as string).trim()) {
+      const q = (search as string).trim();
+      whereClause.OR = [
+        { medicine: { brandName: { contains: q, mode: 'insensitive' } } },
+        { medicine: { genericName: { contains: q, mode: 'insensitive' } } },
+        { medicine: { internalCode: { contains: q, mode: 'insensitive' } } },
+        { batch: { batchNumber: { contains: q, mode: 'insensitive' } } },
+        { referenceDocId: { contains: q, mode: 'insensitive' } },
+        { reason: { contains: q, mode: 'insensitive' } },
+      ];
+    }
+
+    const take = Math.min(100, Math.max(1, parseInt(limit as string) || 25));
+    const skip = (Math.max(1, parseInt(page as string) || 1) - 1) * take;
+
+    const [total, rawMovements] = await Promise.all([
+      prisma.stockMovement.count({ where: whereClause }),
+      prisma.stockMovement.findMany({
+        where: whereClause,
+        include: {
+          branch: { select: { id: true, code: true, name: true } },
+          medicine: {
+            select: {
+              id: true,
+              internalCode: true,
+              brandName: true,
+              genericName: true,
+              strength: true,
+              dosageForm: true,
+              baseUnit: true,
+              packageUnit: true,
+              conversionFactor: true,
+            },
+          },
+          batch: {
+            select: {
+              id: true,
+              batchNumber: true,
+              expiryDate: true,
+              availableQuantity: true,
+              purchaseRate: true,
+              supplier: { select: { id: true, name: true } },
+            },
+          },
+        },
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take,
+      }),
+    ]);
+
+    // Resolve performedBy user names
+    const userIds = Array.from(new Set(rawMovements.map((m) => m.performedByUserId).filter(Boolean)));
+    const users = await prisma.user.findMany({
+      where: { id: { in: userIds } },
+      select: { id: true, username: true, fullName: true, role: true },
+    });
+    const userMap = new Map(users.map((u) => [u.id, u]));
+
+    const movementTypeLabels: Record<string, string> = {
+      PURCHASE_RECEIPT: 'Purchase / Inward',
+      SALE: 'Retail Sale / Outward',
+      CUSTOMER_RETURN: 'Customer Return',
+      SUPPLIER_RETURN: 'Supplier Return',
+      DAMAGE_EXPIRY: 'Damage / Expiry',
+      STOCK_CORRECTION: 'Stock Correction',
+      TRANSFER_OUT: 'Transfer Out',
+      TRANSFER_IN: 'Transfer In',
+      CANCELLATION: 'Cancellation',
+    };
+
+    const movements = rawMovements.map((m) => {
+      const user = userMap.get(m.performedByUserId);
+      const isPositive = m.quantityDelta > 0;
+      const absDelta = Math.abs(m.quantityDelta);
+      const unitCost = m.unitPrice !== null && m.unitPrice !== undefined ? m.unitPrice : m.batch?.purchaseRate || 0;
+      const movementValue = absDelta * unitCost;
+
+      return {
+        id: m.id,
+        transactionDate: m.createdAt,
+        movementType: m.movementType,
+        movementTypeLabel: movementTypeLabels[m.movementType] || m.movementType,
+        quantityDelta: m.quantityDelta,
+        quantityInward: isPositive ? m.quantityDelta : 0,
+        quantityOutward: !isPositive ? absDelta : 0,
+        unitPurchaseCost: parseFloat(unitCost.toFixed(4)),
+        totalMovementValue: parseFloat(movementValue.toFixed(2)),
+        referenceDocType: m.referenceDocType,
+        referenceDocId: m.referenceDocId,
+        reason: m.reason,
+        medicine: {
+          id: m.medicine.id,
+          brandName: m.medicine.brandName,
+          genericName: m.medicine.genericName,
+          strength: m.medicine.strength,
+          dosageForm: m.medicine.dosageForm,
+          baseUnit: m.medicine.baseUnit,
+          packageUnit: m.medicine.packageUnit,
+          conversionFactor: m.medicine.conversionFactor,
+        },
+        batch: m.batch
+          ? {
+              id: m.batch.id,
+              batchNumber: m.batch.batchNumber,
+              expiryDate: m.batch.expiryDate,
+              availableQuantity: m.batch.availableQuantity,
+              supplier: m.batch.supplier ? { id: m.batch.supplier.id, name: m.batch.supplier.name } : null,
+            }
+          : null,
+        branch: m.branch,
+        performedBy: user
+          ? { id: user.id, username: user.username, fullName: user.fullName, role: user.role }
+          : { id: m.performedByUserId, username: 'system', fullName: 'System Operation', role: '' },
+      };
+    });
+
+    return res.json({
+      total,
+      page: Math.max(1, parseInt(page as string) || 1),
+      limit: take,
+      totalPages: Math.ceil(total / take),
+      movements,
+    });
+  } catch (error: any) {
+    console.error('Error fetching ledger movements:', error);
+    return res.status(500).json({ message: error.message || 'Failed to fetch stock movements' });
+  }
+};
+

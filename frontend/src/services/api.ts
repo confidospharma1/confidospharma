@@ -144,6 +144,51 @@ export const api = {
   createTransfer: (data: any) => apiRequest('/inventory/transfers', { method: 'POST', body: JSON.stringify(data) }),
   receiveTransfer: (id: string) => apiRequest(`/inventory/transfers/${id}/receive`, { method: 'PUT' }),
 
+  // Dedicated Ledger-Based Inventory Management
+  getInventoryLedgerSummary: (params?: {
+    branchId?: string;
+    period?: 'today' | 'last7days' | 'last30days' | 'custom';
+    startDate?: string;
+    endDate?: string;
+    medicineId?: string;
+  }) => {
+    const q = new URLSearchParams();
+    if (params?.branchId) q.append('branchId', params.branchId);
+    if (params?.period) q.append('period', params.period);
+    if (params?.startDate) q.append('startDate', params.startDate);
+    if (params?.endDate) q.append('endDate', params.endDate);
+    if (params?.medicineId) q.append('medicineId', params.medicineId);
+    return apiRequest(`/inventory/ledger/summary?${q.toString()}`);
+  },
+
+  getInventoryLedgerMovements: (params?: {
+    branchId?: string;
+    period?: 'today' | 'last7days' | 'last30days' | 'custom';
+    startDate?: string;
+    endDate?: string;
+    medicineId?: string;
+    batchNumber?: string;
+    supplierId?: string;
+    movementType?: string;
+    search?: string;
+    page?: number;
+    limit?: number;
+  }) => {
+    const q = new URLSearchParams();
+    if (params?.branchId) q.append('branchId', params.branchId);
+    if (params?.period) q.append('period', params.period);
+    if (params?.startDate) q.append('startDate', params.startDate);
+    if (params?.endDate) q.append('endDate', params.endDate);
+    if (params?.medicineId) q.append('medicineId', params.medicineId);
+    if (params?.batchNumber) q.append('batchNumber', params.batchNumber);
+    if (params?.supplierId) q.append('supplierId', params.supplierId);
+    if (params?.movementType) q.append('movementType', params.movementType);
+    if (params?.search) q.append('search', params.search);
+    if (params?.page) q.append('page', params.page.toString());
+    if (params?.limit) q.append('limit', params.limit.toString());
+    return apiRequest(`/inventory/ledger/movements?${q.toString()}`);
+  },
+
   // Dedicated Stock Monitoring (Read-Only)
   getStockMonitoring: (params?: {
     branchId?: string;

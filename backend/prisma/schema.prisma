@@ -145,6 +145,11 @@ model StockBatch {
   supplier    Supplier?       @relation(fields: [supplierId], references: [id])
   movements   StockMovement[]
   adjustments StockAdjustment[]
+
+  @@index([branchId, medicineId])
+  @@index([batchNumber])
+  @@index([expiryDate])
+  @@index([status])
 }
 
 model StockMovement {
@@ -164,6 +169,11 @@ model StockMovement {
   branch   Branch          @relation(fields: [branchId], references: [id])
   medicine MedicineProduct @relation(fields: [medicineId], references: [id])
   batch    StockBatch?     @relation(fields: [batchId], references: [id])
+
+  @@index([branchId, createdAt])
+  @@index([medicineId])
+  @@index([batchId])
+  @@index([movementType])
 }
 
 model StockTransfer {

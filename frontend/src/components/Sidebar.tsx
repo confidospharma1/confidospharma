@@ -15,6 +15,7 @@ import {
   Scale,
   ShieldCheck,
   FileSpreadsheet,
+  Layers,
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -78,6 +79,13 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => 
               >
                 <LayoutDashboard className={iconClass('dashboard')} />
                 <span>Branch Dashboard</span>
+              </button>
+              <button
+                onClick={() => setActiveTab('inventory')}
+                className={navItemClass('inventory')}
+              >
+                <Layers className={iconClass('inventory')} />
+                <span>Inventory Management</span>
               </button>
               <button
                 onClick={() => setActiveTab('stock-monitoring')}

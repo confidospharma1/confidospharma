@@ -11,6 +11,8 @@ import {
   updateBatch,
   deleteBatch,
   bulkBatchAction,
+  getLedgerSummary,
+  getLedgerMovements,
 } from './inventory.controller';
 import {
   getStockMonitoring,
@@ -29,6 +31,10 @@ router.get('/monitoring', getStockMonitoring);
 router.get('/monitoring/alerts', getStockMonitoringAlerts);
 router.get('/monitoring/filter-options', getStockMonitoringFilterOptions);
 router.get('/monitoring/batches/:medicineId', getMedicineBatches);
+
+// Dedicated Ledger-Based Inventory Management Routes
+router.get('/ledger/summary', getLedgerSummary);
+router.get('/ledger/movements', getLedgerMovements);
 
 router.get('/batches', getBatches);
 router.get('/fefo/:medicineId', getFEFOBatch);

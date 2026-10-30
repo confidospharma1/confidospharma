@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { api } from '../services/api';
 import { StockBatch, MedicineProduct, Supplier } from '../types';
@@ -20,6 +20,21 @@ import {
   Eye,
   CheckSquare,
   Square,
+  Download,
+  RefreshCw,
+  TrendingUp,
+  TrendingDown,
+  ArrowDownRight,
+  ArrowUpRight,
+  Scale,
+  Receipt,
+  Package,
+  Clock,
+  ArrowLeftRight,
+  ChevronLeft,
+  ChevronRight,
+  Info,
+  DollarSign,
 } from 'lucide-react';
 import { Badge } from '../components/Badge';
 import { Modal } from '../components/Modal';
@@ -27,15 +42,119 @@ import { FilterButton } from '../components/FilterButton';
 import { FilterField, FilterSelect, FilterInput } from '../components/FilterControls';
 import { PermissionDeniedModal } from '../components/PermissionDeniedModal';
 
+interface LedgerSummaryData {
+  period: {
+    label: string;
+    startDate: string;
+    endDate: string;
+  };
+  openingStock: {
+    quantity: number;
+    value: number;
+  };
+  inward: {
+    quantity: number;
+    cost: number;
+  };
+  outward: {
+    quantity: number;
+    value: number;
+  };
+  currentStock: {
+    quantity: number;
+    value: number;
+  };
+  inwardCost: number;
+  outwardValue: number;
+  salesRevenue: number;
+  cogs: number;
+  grossProfit: number;
+  grossProfitMargin: number;
+  adjustments: {
+    netQuantity: number;
+    netValue: number;
+    damaged: { quantity: number; value: number };
+    expired: { quantity: number; value: number };
+    corrections: { quantity: number; value: number };
+    supplierReturns: { quantity: number; value: number };
+    customerReturns: { quantity: number; value: number };
+  };
+  valuationMethod: string;
+}
+
+interface LedgerMovementItem {
+  id: string;
+  transactionDate: string;
+  movementType: string;
+  movementTypeLabel: string;
+  quantityDelta: number;
+  quantityInward: number;
+  quantityOutward: number;
+  unitPurchaseCost: number;
+  totalMovementValue: number;
+  referenceDocType?: string;
+  referenceDocId?: string;
+  reason?: string;
+  medicine: {
+    id: string;
+    brandName: string;
+    genericName: string;
+    strength: string;
+    dosageForm: string;
+    baseUnit: string;
+    packageUnit?: string;
+    conversionFactor?: number;
+  };
+  batch: {
+    id: string;
+    batchNumber: string;
+    expiryDate: string;
+    availableQuantity: number;
+    supplier?: { id: string; name: string } | null;
+  } | null;
+  branch: {
+    id: string;
+    code: string;
+    name: string;
+  };
+  performedBy: {
+    id: string;
+    username: string;
+    fullName: string;
+    role: string;
+  };
+}
+
 export const InventoryPage: React.FC = () => {
   const { currentBranch, selectedBranchId, isSuperAdmin, isBillingUser } = useAuth();
 
-  const [batches, setBatches] = useState<StockBatch[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [filterTab, setFilterTab] = useState<'ALL' | 'ACTIVE' | 'NEAR_EXPIRY' | 'EXPIRED'>('ACTIVE');
-  const [searchQuery, setSearchQuery] = useState('');
+  // Top Section Mode: 'ledger' (Dashboard & Movements) vs 'batches' (Batch Balances & Operations)
+  const [activeViewMode, setActiveViewMode] = useState<'ledger' | 'batches'>('ledger');
 
-  // Bulk Selection State
+  // Ledger Filter State
+  const [period, setPeriod] = useState<'today' | 'last7days' | 'last30days' | 'custom'>('last7days');
+  const [customStartDate, setCustomStartDate] = useState('');
+  const [customEndDate, setCustomEndDate] = useState('');
+  const [movementTypeFilter, setMovementTypeFilter] = useState('ALL');
+  const [movementSearchQuery, setMovementSearchQuery] = useState('');
+  const [movementPage, setMovementPage] = useState(1);
+  const [movementLimit, setMovementLimit] = useState(25);
+
+  // Ledger Data State
+  const [ledgerSummary, setLedgerSummary] = useState<LedgerSummaryData | null>(null);
+  const [ledgerMovements, setLedgerMovements] = useState<LedgerMovementItem[]>([]);
+  const [movementTotal, setMovementTotal] = useState(0);
+  const [movementTotalPages, setMovementTotalPages] = useState(1);
+  const [isLedgerLoading, setIsLedgerLoading] = useState(true);
+  const [isExportingCSV, setIsExportingCSV] = useState(false);
+
+  // Batches View State (Preserved from existing inventory page)
+  const [batches, setBatches] = useState<StockBatch[]>([]);
+  const [batchesLoading, setBatchesLoading] = useState(false);
+  const [filterTab, setFilterTab] = useState<'ALL' | 'ACTIVE' | 'NEAR_EXPIRY' | 'EXPIRED'>('ACTIVE');
+  const [batchSearchQuery, setBatchSearchQuery] = useState('');
+
+  // Bulk Selection State for Batches View
   const [selectedBatchIds, setSelectedBatchIds] = useState<string[]>([]);
   const [showBulkModal, setShowBulkModal] = useState(false);
   const [bulkActionType, setBulkActionType] = useState<'QUARANTINE' | 'ACTIVE' | 'DEPLETED' | 'DELETE' | null>(null);
@@ -63,39 +182,12 @@ export const InventoryPage: React.FC = () => {
   // Permission Restriction Modal for Branch Admin
   const [showPermissionModal, setShowPermissionModal] = useState(false);
 
-  // Detailed Filter State
-  const [dosageFilter, setDosageFilter] = useState('');
-  const [stockLevelFilter, setStockLevelFilter] = useState('');
-  const [supplierFilter, setSupplierFilter] = useState('');
-  const [minPrice, setMinPrice] = useState('');
-  const [maxPrice, setMaxPrice] = useState('');
-
-  const activeFilterCount = [
-    dosageFilter,
-    stockLevelFilter,
-    supplierFilter,
-    minPrice,
-    maxPrice,
-  ].filter(Boolean).length;
-
-  const resetFilters = () => {
-    setDosageFilter('');
-    setStockLevelFilter('');
-    setSupplierFilter('');
-    setMinPrice('');
-    setMaxPrice('');
-  };
-
-  // Modals
-  const [showReceiveModal, setShowReceiveModal] = useState(false);
-  const [showAdjustModal, setShowAdjustModal] = useState(false);
-  const [showMovementsModal, setShowMovementsModal] = useState(false);
-
   // Reference lists for forms
   const [products, setProducts] = useState<MedicineProduct[]>([]);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
 
   // Receive Batch Form
+  const [showReceiveModal, setShowReceiveModal] = useState(false);
   const [receiveForm, setReceiveForm] = useState({
     medicineId: '',
     batchNumber: '',
@@ -109,6 +201,7 @@ export const InventoryPage: React.FC = () => {
   });
 
   // Adjust Form
+  const [showAdjustModal, setShowAdjustModal] = useState(false);
   const [adjustBatch, setAdjustBatch] = useState<StockBatch | null>(null);
   const [adjustForm, setAdjustForm] = useState({
     adjustmentType: 'PHYSICAL_COUNT_DISCREPANCY',
@@ -116,13 +209,58 @@ export const InventoryPage: React.FC = () => {
     reason: '',
   });
 
-  // Stock movements
-  const [movements, setMovements] = useState<any[]>([]);
-
   const [message, setMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
 
-  const loadBatches = async () => {
-    setLoading(true);
+  // Load Ledger Summary and Movements
+  const loadLedgerData = useCallback(async () => {
+    setIsLedgerLoading(true);
+    try {
+      const summaryParams: any = {
+        branchId: selectedBranchId,
+        period,
+      };
+      if (period === 'custom') {
+        if (customStartDate) summaryParams.startDate = customStartDate;
+        if (customEndDate) summaryParams.endDate = customEndDate;
+      }
+
+      const movementParams: any = {
+        branchId: selectedBranchId,
+        period,
+        page: movementPage,
+        limit: movementLimit,
+      };
+      if (period === 'custom') {
+        if (customStartDate) movementParams.startDate = customStartDate;
+        if (customEndDate) movementParams.endDate = customEndDate;
+      }
+      if (movementTypeFilter && movementTypeFilter !== 'ALL') {
+        movementParams.movementType = movementTypeFilter;
+      }
+      if (movementSearchQuery.trim()) {
+        movementParams.search = movementSearchQuery.trim();
+      }
+
+      const [summaryRes, movementsRes] = await Promise.all([
+        api.getInventoryLedgerSummary(summaryParams),
+        api.getInventoryLedgerMovements(movementParams),
+      ]);
+
+      setLedgerSummary(summaryRes);
+      setLedgerMovements(movementsRes.movements || []);
+      setMovementTotal(movementsRes.total || 0);
+      setMovementTotalPages(movementsRes.totalPages || 1);
+    } catch (err: any) {
+      console.error('Failed to load ledger data:', err);
+      setMessage({ text: err.message || 'Failed to load inventory ledger data', type: 'error' });
+    } finally {
+      setIsLedgerLoading(false);
+    }
+  }, [selectedBranchId, period, customStartDate, customEndDate, movementTypeFilter, movementSearchQuery, movementPage, movementLimit]);
+
+  // Load Batches (for Batches view)
+  const loadBatches = useCallback(async () => {
+    setBatchesLoading(true);
     try {
       const params: any = { branchId: selectedBranchId };
       if (filterTab === 'ACTIVE') params.status = 'ACTIVE';
@@ -134,80 +272,170 @@ export const InventoryPage: React.FC = () => {
     } catch (err) {
       console.error('Failed to load batches:', err);
     } finally {
-      setLoading(false);
+      setBatchesLoading(false);
     }
-  };
-
-  useEffect(() => {
-    loadBatches();
-    loadReferenceData();
   }, [selectedBranchId, filterTab]);
 
   const loadReferenceData = async () => {
     try {
       const [pRes, sRes] = await Promise.all([
-        api.getProducts({ limit: 100 }),
+        api.getProducts({ limit: 200 }),
         api.getSuppliers(),
       ]);
-      setProducts(pRes.products || []);
-      setSuppliers(sRes || []);
-    } catch (e) {}
+      setProducts(pRes.products || pRes);
+      setSuppliers(sRes);
+    } catch (err) {
+      console.error('Failed to load references:', err);
+    }
   };
 
-  const handleOpenReceive = () => {
+  useEffect(() => {
+    loadLedgerData();
+  }, [loadLedgerData]);
+
+  useEffect(() => {
+    if (activeViewMode === 'batches') {
+      loadBatches();
+    }
+  }, [activeViewMode, loadBatches]);
+
+  useEffect(() => {
     loadReferenceData();
-    setReceiveForm({
-      medicineId: '',
-      batchNumber: '',
-      expiryDate: '',
-      quantity: '',
-      purchaseRate: '',
-      mrp: '',
-      sellingPrice: '',
-      supplierId: '',
-      purchaseInvoiceRef: '',
-    });
-    setShowReceiveModal(true);
+  }, []);
+
+  // Quick Date Filter Change
+  const handlePeriodChange = (newPeriod: 'today' | 'last7days' | 'last30days' | 'custom') => {
+    setPeriod(newPeriod);
+    setMovementPage(1);
   };
 
-  const handleOpenAdjust = (batch: StockBatch) => {
-    setAdjustBatch(batch);
-    setAdjustForm({
-      adjustmentType: 'PHYSICAL_COUNT_DISCREPANCY',
-      quantityDelta: '',
-      reason: '',
-    });
-    setShowAdjustModal(true);
-  };
-
-  const handleOpenMovements = async () => {
+  // Export Filtered Movements to CSV
+  const handleExportCSV = async () => {
+    setIsExportingCSV(true);
     try {
-      const data = await api.getMovements({ branchId: selectedBranchId });
-      setMovements(data.movements || []);
-      setShowMovementsModal(true);
-    } catch (e) {}
+      const params: any = {
+        branchId: selectedBranchId,
+        period,
+        page: 1,
+        limit: 100, // Export up to 100 records
+      };
+      if (period === 'custom') {
+        if (customStartDate) params.startDate = customStartDate;
+        if (customEndDate) params.endDate = customEndDate;
+      }
+      if (movementTypeFilter && movementTypeFilter !== 'ALL') {
+        params.movementType = movementTypeFilter;
+      }
+      if (movementSearchQuery.trim()) {
+        params.search = movementSearchQuery.trim();
+      }
+
+      const res = await api.getInventoryLedgerMovements(params);
+      const items: LedgerMovementItem[] = res.movements || [];
+
+      if (items.length === 0) {
+        setMessage({ text: 'No movement records found to export.', type: 'error' });
+        return;
+      }
+
+      const headers = [
+        'Transaction Date',
+        'Medicine Name',
+        'Generic Name',
+        'Dosage Form',
+        'Base Unit',
+        'Batch Number',
+        'Expiry Date',
+        'Supplier',
+        'Movement Type',
+        'Inward Quantity',
+        'Outward Quantity',
+        'Unit Purchase Cost (INR)',
+        'Total Movement Value (INR)',
+        'Reference Doc Type',
+        'Reference Doc ID',
+        'Reason',
+        'Recorded By',
+      ];
+
+      const csvRows = [
+        headers.join(','),
+        ...items.map((m) =>
+          [
+            `"${new Date(m.transactionDate).toLocaleString('en-IN')}"`,
+            `"${(m.medicine.brandName || '').replace(/"/g, '""')}"`,
+            `"${(m.medicine.genericName || '').replace(/"/g, '""')}"`,
+            `"${m.medicine.dosageForm || ''}"`,
+            `"${m.medicine.baseUnit || ''}"`,
+            `"${m.batch?.batchNumber || ''}"`,
+            `"${m.batch?.expiryDate ? new Date(m.batch.expiryDate).toLocaleDateString('en-IN') : ''}"`,
+            `"${(m.batch?.supplier?.name || '').replace(/"/g, '""')}"`,
+            `"${m.movementTypeLabel}"`,
+            m.quantityInward,
+            m.quantityOutward,
+            m.unitPurchaseCost.toFixed(2),
+            m.totalMovementValue.toFixed(2),
+            `"${m.referenceDocType || ''}"`,
+            `"${m.referenceDocId || ''}"`,
+            `"${(m.reason || '').replace(/"/g, '""')}"`,
+            `"${m.performedBy.fullName || m.performedBy.username}"`,
+          ].join(',')
+        ),
+      ];
+
+      const blob = new Blob([csvRows.join('\n')], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.setAttribute('href', url);
+      link.setAttribute(
+        'download',
+        `confidos_inventory_ledger_${new Date().toISOString().slice(0, 10)}.csv`
+      );
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+
+      setMessage({ text: `Successfully exported ${items.length} movement records to CSV.`, type: 'success' });
+    } catch (err: any) {
+      setMessage({ text: err.message || 'Failed to export CSV', type: 'error' });
+    } finally {
+      setIsExportingCSV(false);
+    }
   };
 
-  const submitReceiveBatch = async (e: React.FormEvent) => {
+  // Handle Receive Stock Form Submission
+  const handleReceiveStock = async (e: React.FormEvent) => {
     e.preventDefault();
-    setMessage(null);
     try {
       await api.receiveBatch({
         ...receiveForm,
         branchId: selectedBranchId,
       });
-      setMessage({ text: 'Stock Batch received and movement ledger updated successfully.', type: 'success' });
+      setMessage({ text: 'Stock received and ledger recorded successfully!', type: 'success' });
       setShowReceiveModal(false);
-      loadBatches();
+      setReceiveForm({
+        medicineId: '',
+        batchNumber: '',
+        expiryDate: '',
+        quantity: '',
+        purchaseRate: '',
+        mrp: '',
+        sellingPrice: '',
+        supplierId: '',
+        purchaseInvoiceRef: '',
+      });
+      loadLedgerData();
+      if (activeViewMode === 'batches') loadBatches();
     } catch (err: any) {
-      setMessage({ text: err.message || 'Failed to receive stock batch.', type: 'error' });
+      setMessage({ text: err.message || 'Failed to receive stock', type: 'error' });
     }
   };
 
-  const submitAdjustBatch = async (e: React.FormEvent) => {
+  // Handle Adjust Stock Form Submission
+  const handleAdjustStock = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!adjustBatch) return;
-    setMessage(null);
+
     try {
       await api.adjustStock({
         batchId: adjustBatch.id,
@@ -215,60 +443,38 @@ export const InventoryPage: React.FC = () => {
         quantityDelta: parseInt(adjustForm.quantityDelta),
         reason: adjustForm.reason,
       });
-      setMessage({ text: 'Stock adjustment recorded with audit reason.', type: 'success' });
+      setMessage({ text: 'Stock adjustment and ledger recorded successfully!', type: 'success' });
       setShowAdjustModal(false);
-      loadBatches();
+      setAdjustBatch(null);
+      setAdjustForm({
+        adjustmentType: 'PHYSICAL_COUNT_DISCREPANCY',
+        quantityDelta: '',
+        reason: '',
+      });
+      loadLedgerData();
+      if (activeViewMode === 'batches') loadBatches();
     } catch (err: any) {
-      setMessage({ text: err.message || 'Failed to adjust stock.', type: 'error' });
+      setMessage({ text: err.message || 'Failed to adjust stock', type: 'error' });
     }
   };
 
-  // Selection Handlers
-  const handleToggleSelect = (id: string) => {
-    setSelectedBatchIds((prev) =>
-      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
-    );
-  };
-
-  const handleSelectAllVisible = () => {
-    if (selectedBatchIds.length === filteredBatches.length && filteredBatches.length > 0) {
-      setSelectedBatchIds([]);
-    } else {
-      setSelectedBatchIds(filteredBatches.map((b) => b.id));
-    }
-  };
-
-  const handleClearSelection = () => {
-    setSelectedBatchIds([]);
-  };
-
-  // View Batch Details
-  const handleOpenViewBatch = (batch: StockBatch) => {
-    setViewingBatch(batch);
-    setShowViewBatchModal(true);
-  };
-
-  // Edit Batch
-  const handleOpenEditBatch = (batch: StockBatch) => {
-    if (!isSuperAdmin) {
-      setShowPermissionModal(true);
-      return;
-    }
+  // Batches View Actions
+  const handleEditBatch = (batch: StockBatch) => {
     setEditingBatch(batch);
     setEditBatchForm({
       batchNumber: batch.batchNumber,
-      expiryDate: batch.expiryDate ? new Date(batch.expiryDate).toISOString().split('T')[0] : '',
+      expiryDate: new Date(batch.expiryDate).toISOString().split('T')[0],
       mrp: batch.mrp.toString(),
-      sellingPrice: (batch.sellingPrice || batch.mrp).toString(),
+      sellingPrice: batch.sellingPrice.toString(),
       status: batch.status,
     });
     setShowEditBatchModal(true);
   };
 
-  const handleUpdateBatch = async (e: React.FormEvent) => {
+  const handleSaveEditBatch = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingBatch) return;
-    setMessage(null);
+
     try {
       await api.updateBatch(editingBatch.id, {
         batchNumber: editBatchForm.batchNumber,
@@ -277,17 +483,18 @@ export const InventoryPage: React.FC = () => {
         sellingPrice: parseFloat(editBatchForm.sellingPrice),
         status: editBatchForm.status,
       });
-      setMessage({ text: 'Stock batch updated successfully.', type: 'success' });
+
+      setMessage({ text: `Batch ${editBatchForm.batchNumber} updated successfully.`, type: 'success' });
       setShowEditBatchModal(false);
       setEditingBatch(null);
       loadBatches();
+      loadLedgerData();
     } catch (err: any) {
-      setMessage({ text: err.message || 'Failed to update stock batch.', type: 'error' });
+      setMessage({ text: err.message || 'Failed to update batch.', type: 'error' });
     }
   };
 
-  // Delete Batch
-  const handleOpenDeleteBatch = (batch: StockBatch) => {
+  const handleDeleteBatch = (batch: StockBatch) => {
     if (!isSuperAdmin) {
       setShowPermissionModal(true);
       return;
@@ -298,539 +505,851 @@ export const InventoryPage: React.FC = () => {
 
   const handleConfirmDeleteBatch = async () => {
     if (!deletingBatch) return;
-    setMessage(null);
     try {
       const res = await api.deleteBatch(deletingBatch.id);
-      setMessage({ text: res.message || 'Stock batch removed successfully.', type: 'success' });
+      setMessage({
+        text: res.message || `Batch ${deletingBatch.batchNumber} processed successfully.`,
+        type: 'success',
+      });
       setShowDeleteBatchModal(false);
       setDeletingBatch(null);
       loadBatches();
+      loadLedgerData();
     } catch (err: any) {
-      setMessage({ text: err.message || 'Failed to remove stock batch.', type: 'error' });
+      setMessage({ text: err.message || 'Failed to delete batch.', type: 'error' });
     }
-  };
-
-  // Bulk Operations
-  const handleOpenBulkAction = (action: 'QUARANTINE' | 'ACTIVE' | 'DEPLETED' | 'DELETE') => {
-    if (!isSuperAdmin) {
-      setShowPermissionModal(true);
-      return;
-    }
-    setBulkActionType(action);
-    setShowBulkModal(true);
   };
 
   const handleExecuteBulkAction = async () => {
     if (!bulkActionType || selectedBatchIds.length === 0) return;
     setIsExecutingBulk(true);
-    setMessage(null);
     try {
       const res = await api.bulkBatchAction({
         batchIds: selectedBatchIds,
         action: bulkActionType,
       });
-      setMessage({
-        text: `Bulk action completed: ${res.affectedCount || selectedBatchIds.length} batch(es) processed.${res.quarantinedCount ? ` (${res.quarantinedCount} safely quarantined due to historical movements)` : ''}`,
-        type: 'success',
-      });
+
+      setMessage({ text: res.message || 'Bulk action executed successfully.', type: 'success' });
       setShowBulkModal(false);
       setSelectedBatchIds([]);
       setBulkActionType(null);
       loadBatches();
+      loadLedgerData();
     } catch (err: any) {
-      setMessage({ text: err.message || 'Failed to execute bulk batch operation.', type: 'error' });
+      setMessage({ text: err.message || 'Failed to execute bulk action.', type: 'error' });
     } finally {
       setIsExecutingBulk(false);
     }
   };
 
-  const filteredBatches = batches.filter((b) => {
-    if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase().trim();
-      const matchesSearch =
-        b.medicine?.brandName.toLowerCase().includes(q) ||
-        b.medicine?.genericName.toLowerCase().includes(q) ||
-        b.batchNumber.toLowerCase().includes(q) ||
-        (b.supplier?.name && b.supplier.name.toLowerCase().includes(q));
-      if (!matchesSearch) return false;
+  // Helper for Badge colors
+  const getMovementBadge = (type: string, label: string) => {
+    switch (type) {
+      case 'PURCHASE_RECEIPT':
+        return <Badge variant="success">{label}</Badge>;
+      case 'SALE':
+        return <Badge variant="info">{label}</Badge>;
+      case 'CUSTOMER_RETURN':
+        return <Badge variant="warning">{label}</Badge>;
+      case 'SUPPLIER_RETURN':
+        return <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold bg-amber-100 text-amber-800">{label}</span>;
+      case 'STOCK_CORRECTION':
+        return <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold bg-purple-100 text-purple-800">{label}</span>;
+      case 'DAMAGE_EXPIRY':
+        return <Badge variant="danger">{label}</Badge>;
+      case 'TRANSFER_IN':
+        return <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold bg-emerald-100 text-emerald-800">{label}</span>;
+      case 'TRANSFER_OUT':
+        return <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold bg-blue-100 text-blue-800">{label}</span>;
+      default:
+        return <Badge variant="neutral">{label}</Badge>;
     }
-
-    if (dosageFilter && b.medicine?.dosageForm?.toLowerCase() !== dosageFilter.toLowerCase()) {
-      return false;
-    }
-
-    if (stockLevelFilter === 'IN_STOCK' && b.availableQuantity <= 0) return false;
-    if (stockLevelFilter === 'LOW_STOCK' && (b.availableQuantity <= 0 || b.availableQuantity > 10)) return false;
-    if (stockLevelFilter === 'OUT_OF_STOCK' && b.availableQuantity > 0) return false;
-
-    if (supplierFilter && b.supplierId !== supplierFilter) return false;
-
-    if (minPrice && (b.sellingPrice || b.mrp) < parseFloat(minPrice)) return false;
-    if (maxPrice && (b.sellingPrice || b.mrp) > parseFloat(maxPrice)) return false;
-
-    return true;
-  });
+  };
 
   return (
-    <div className="p-6 md:p-8 space-y-6 max-w-7xl mx-auto overflow-y-auto">
-      {/* Page Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-2">
-            <h1 className="text-xl font-bold text-slate-900">Branch Stock Batches & FEFO</h1>
-            <Badge variant="neutral" size="sm">
-              {currentBranch?.name} ({currentBranch?.code})
-            </Badge>
-          </div>
-          <p className="text-xs text-slate-500 mt-0.5">
-            Independent batch records, expiry dates, quantities, and traceable movement ledger.
-          </p>
-        </div>
-
-        {!isBillingUser && (
-          <div className="flex items-center gap-2">
-            <button
-              onClick={handleOpenMovements}
-              className="flex items-center gap-2 px-3.5 py-2 bg-white hover:bg-slate-50 border border-slate-300 rounded-lg text-xs font-semibold text-slate-700 shadow-xs transition-colors"
-            >
-              <History className="w-4 h-4 text-slate-500" />
-              Movement Ledger
-            </button>
-            <button
-              onClick={handleOpenReceive}
-              className="flex items-center gap-2 px-4 py-2 bg-brand-500 hover:bg-brand-600 active:bg-brand-700 text-white rounded-lg text-xs font-bold shadow-xs transition-colors"
-            >
-              <Plus className="w-4 h-4" />
-              Receive Stock Batch
-            </button>
-          </div>
-        )}
-      </div>
-
+    <div className="p-6 space-y-6 max-w-7xl mx-auto">
+      {/* Alert Notification */}
       {message && (
         <div
-          className={`p-3.5 rounded-lg text-xs flex items-center justify-between ${
+          className={`p-4 rounded-xl flex items-center justify-between shadow-xs border ${
             message.type === 'success'
-              ? 'bg-pharmagreen-50 text-pharmagreen-800 border border-pharmagreen-200'
-              : 'bg-rose-50 text-rose-800 border border-rose-200'
+              ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+              : 'bg-rose-50 text-rose-800 border-rose-200'
           }`}
         >
-          <span>{message.text}</span>
-          <button onClick={() => setMessage(null)} className="font-bold underline ml-2">
-            Dismiss
+          <div className="flex items-center gap-2 text-xs font-semibold">
+            {message.type === 'success' ? <CheckCircle2 className="w-4 h-4 text-emerald-600" /> : <AlertTriangle className="w-4 h-4 text-rose-600" />}
+            <span>{message.text}</span>
+          </div>
+          <button onClick={() => setMessage(null)} className="text-slate-400 hover:text-slate-600">
+            <X className="w-4 h-4" />
           </button>
         </div>
       )}
 
-      {/* Filter Tabs & Search Bar */}
-      <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs space-y-3">
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-          <div className="flex items-center gap-1.5 p-1 bg-slate-100 rounded-lg self-start">
-            <button
-              onClick={() => setFilterTab('ACTIVE')}
-              className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all ${
-                filterTab === 'ACTIVE' ? 'bg-white text-brand-700 shadow-xs' : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              Active Saleable
-            </button>
-            <button
-              onClick={() => setFilterTab('NEAR_EXPIRY')}
-              className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all ${
-                filterTab === 'NEAR_EXPIRY' ? 'bg-white text-amber-700 shadow-xs' : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              Near Expiry (&lt;60d)
-            </button>
-            <button
-              onClick={() => setFilterTab('EXPIRED')}
-              className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all ${
-                filterTab === 'EXPIRED' ? 'bg-white text-rose-700 shadow-xs' : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              Expired / Quarantined
-            </button>
-            <button
-              onClick={() => setFilterTab('ALL')}
-              className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all ${
-                filterTab === 'ALL' ? 'bg-white text-slate-800 shadow-xs' : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              All Batches
-            </button>
-          </div>
-
-          <div className="flex items-center gap-2 w-full lg:w-auto">
-            <div className="relative flex-1 lg:w-72">
-              <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Filter by medicine, batch, or supplier..."
-                className="w-full pl-9 pr-3 py-1.5 text-xs bg-slate-50 border border-slate-300 rounded-lg focus:bg-white focus:ring-2 focus:ring-brand-500 focus:border-brand-500 font-medium"
-              />
+      {/* Header & Primary Actions */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-5 rounded-xl border border-slate-200 shadow-xs">
+        <div>
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 bg-brand-50 text-brand-600 rounded-lg">
+              <Layers className="w-6 h-6" />
             </div>
-
-            <FilterButton
-              activeCount={activeFilterCount}
-              onReset={resetFilters}
-              title="Filter Inventory Batches"
-              buttonLabel="Filter Batches"
-            >
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <FilterField label="Dosage Form">
-                  <FilterSelect
-                    value={dosageFilter}
-                    onChange={(e) => setDosageFilter(e.target.value)}
-                    options={[
-                      { label: 'All Dosage Forms', value: '' },
-                      { label: 'Tablets', value: 'Tablet' },
-                      { label: 'Capsules', value: 'Capsule' },
-                      { label: 'Syrups & Liquids', value: 'Syrup' },
-                      { label: 'Injections', value: 'Injection' },
-                      { label: 'Ointments & Creams', value: 'Ointment' },
-                      { label: 'Drops', value: 'Drops' },
-                      { label: 'Inhalers', value: 'Inhaler' },
-                    ]}
-                  />
-                </FilterField>
-
-                <FilterField label="Stock Availability">
-                  <FilterSelect
-                    value={stockLevelFilter}
-                    onChange={(e) => setStockLevelFilter(e.target.value)}
-                    options={[
-                      { label: 'All Levels', value: '' },
-                      { label: 'In Stock (> 0 units)', value: 'IN_STOCK' },
-                      { label: 'Low Stock (≤ 10 units)', value: 'LOW_STOCK' },
-                      { label: 'Depleted (0 units)', value: 'OUT_OF_STOCK' },
-                    ]}
-                  />
-                </FilterField>
-
-                <FilterField label="Supplier / Vendor" className="sm:col-span-2">
-                  <FilterSelect
-                    value={supplierFilter}
-                    onChange={(e) => setSupplierFilter(e.target.value)}
-                    options={[
-                      { label: 'All Suppliers', value: '' },
-                      ...suppliers.map((s) => ({ label: s.name, value: s.id })),
-                    ]}
-                  />
-                </FilterField>
-
-                <FilterField label="Min Selling Rate (₹)">
-                  <FilterInput
-                    type="number"
-                    min="0"
-                    placeholder="0.00"
-                    value={minPrice}
-                    onChange={(e) => setMinPrice(e.target.value)}
-                  />
-                </FilterField>
-
-                <FilterField label="Max Selling Rate (₹)">
-                  <FilterInput
-                    type="number"
-                    min="0"
-                    placeholder="2000.00"
-                    value={maxPrice}
-                    onChange={(e) => setMaxPrice(e.target.value)}
-                  />
-                </FilterField>
+            <div>
+              <div className="flex items-center gap-2">
+                <h1 className="text-xl font-bold text-slate-900 tracking-tight">Inventory Management</h1>
+                {currentBranch && (
+                  <span className="text-xs px-2.5 py-0.5 bg-slate-100 text-slate-700 font-semibold rounded-full border border-slate-200">
+                    {currentBranch.name} ({currentBranch.code})
+                  </span>
+                )}
               </div>
-            </FilterButton>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Ledger-based inventory tracking, real-time stock balances, and financial valuation
+              </p>
+            </div>
           </div>
         </div>
 
-        {/* Active Filter Badges */}
-        {activeFilterCount > 0 && (
-          <div className="flex flex-wrap items-center gap-1.5 pt-2 border-t border-slate-100 text-xs">
-            <span className="text-[11px] font-semibold text-slate-500 mr-1">Active Filters:</span>
-            {dosageFilter && (
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-brand-50 text-brand-700 text-[11px] font-medium border border-brand-200">
-                Form: {dosageFilter}
-                <button type="button" onClick={() => setDosageFilter('')} className="hover:text-brand-900">
-                  <X className="w-3 h-3" />
-                </button>
-              </span>
-            )}
-            {stockLevelFilter && (
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-brand-50 text-brand-700 text-[11px] font-medium border border-brand-200">
-                Stock: {stockLevelFilter === 'IN_STOCK' ? 'In Stock' : stockLevelFilter === 'LOW_STOCK' ? 'Low Stock' : 'Depleted'}
-                <button type="button" onClick={() => setStockLevelFilter('')} className="hover:text-brand-900">
-                  <X className="w-3 h-3" />
-                </button>
-              </span>
-            )}
-            {supplierFilter && (
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-brand-50 text-brand-700 text-[11px] font-medium border border-brand-200">
-                Supplier: {suppliers.find((s) => s.id === supplierFilter)?.name || supplierFilter}
-                <button type="button" onClick={() => setSupplierFilter('')} className="hover:text-brand-900">
-                  <X className="w-3 h-3" />
-                </button>
-              </span>
-            )}
-            {(minPrice || maxPrice) && (
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-brand-50 text-brand-700 text-[11px] font-medium border border-brand-200">
-                Price: ₹{minPrice || '0'} - {maxPrice ? `₹${maxPrice}` : 'Any'}
-                <button
-                  type="button"
-                  onClick={() => {
-                    setMinPrice('');
-                    setMaxPrice('');
-                  }}
-                  className="hover:text-brand-900"
-                >
-                  <X className="w-3 h-3" />
-                </button>
-              </span>
-            )}
-            <button
-              type="button"
-              onClick={resetFilters}
-              className="text-[11px] text-slate-500 hover:text-rose-600 font-semibold underline ml-1"
-            >
-              Clear All
-            </button>
-          </div>
-        )}
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            onClick={() => setShowReceiveModal(true)}
+            className="flex items-center gap-2 px-3.5 py-2 bg-brand-500 hover:bg-brand-600 text-white rounded-lg text-xs font-bold shadow-xs transition-colors"
+          >
+            <Plus className="w-4 h-4" />
+            <span>Receive Stock</span>
+          </button>
+          <button
+            onClick={() => setShowAdjustModal(true)}
+            className="flex items-center gap-2 px-3.5 py-2 bg-white border border-slate-300 text-slate-700 hover:bg-slate-50 rounded-lg text-xs font-semibold shadow-xs transition-colors"
+          >
+            <SlidersHorizontal className="w-4 h-4 text-slate-500" />
+            <span>Adjust Stock</span>
+          </button>
+          <button
+            onClick={handleExportCSV}
+            disabled={isExportingCSV}
+            className="flex items-center gap-2 px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold transition-colors"
+            title="Export filtered movements to CSV"
+          >
+            <Download className="w-4 h-4 text-slate-600" />
+            <span>{isExportingCSV ? 'Exporting...' : 'Export CSV'}</span>
+          </button>
+          <button
+            onClick={() => {
+              loadLedgerData();
+              if (activeViewMode === 'batches') loadBatches();
+            }}
+            className="p-2 border border-slate-200 text-slate-600 hover:bg-slate-50 rounded-lg transition-colors"
+            title="Refresh Data"
+          >
+            <RefreshCw className="w-4 h-4" />
+          </button>
+        </div>
       </div>
 
-      {/* Bulk Selection Action Bar */}
-      {selectedBatchIds.length > 0 && (
-        <div className="bg-brand-50 border border-brand-200 rounded-xl p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
-          <div className="flex items-center gap-2 text-xs font-bold text-brand-900">
-            <CheckSquare className="w-4 h-4 text-brand-600" />
-            <span>{selectedBatchIds.length} batch(es) selected across active filter</span>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <button
-              onClick={() => handleOpenBulkAction('QUARANTINE')}
-              className="px-2.5 py-1.5 bg-amber-100 hover:bg-amber-200 text-amber-800 rounded-lg text-xs font-bold border border-amber-300 transition-colors"
-            >
-              Quarantine Selected
-            </button>
-            <button
-              onClick={() => handleOpenBulkAction('ACTIVE')}
-              className="px-2.5 py-1.5 bg-emerald-100 hover:bg-emerald-200 text-emerald-800 rounded-lg text-xs font-bold border border-emerald-300 transition-colors"
-            >
-              Mark Active
-            </button>
-            <button
-              onClick={() => handleOpenBulkAction('DEPLETED')}
-              className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-lg text-xs font-bold border border-slate-300 transition-colors"
-            >
-              Mark Depleted
-            </button>
-            <button
-              onClick={() => handleOpenBulkAction('DELETE')}
-              className="px-2.5 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-xs font-bold shadow-xs transition-colors"
-            >
-              Delete / Safe Removal
-            </button>
-            <button
-              onClick={handleClearSelection}
-              className="px-2.5 py-1.5 bg-white hover:bg-slate-100 text-slate-600 rounded-lg text-xs font-semibold border border-slate-300 transition-colors"
-            >
-              Clear Selection
-            </button>
-          </div>
-        </div>
-      )}
+      {/* Top Navigation Tabs */}
+      <div className="flex border-b border-slate-200 bg-white px-4 pt-3 rounded-t-xl">
+        <button
+          onClick={() => setActiveViewMode('ledger')}
+          className={`flex items-center gap-2 pb-3 px-4 text-xs font-bold border-b-2 transition-all ${
+            activeViewMode === 'ledger'
+              ? 'border-brand-500 text-brand-600'
+              : 'border-transparent text-slate-500 hover:text-slate-800'
+          }`}
+        >
+          <History className="w-4 h-4" />
+          <span>Stock Movement Ledger & Financials</span>
+        </button>
+        <button
+          onClick={() => setActiveViewMode('batches')}
+          className={`flex items-center gap-2 pb-3 px-4 text-xs font-bold border-b-2 transition-all ${
+            activeViewMode === 'batches'
+              ? 'border-brand-500 text-brand-600'
+              : 'border-transparent text-slate-500 hover:text-slate-800'
+          }`}
+        >
+          <Boxes className="w-4 h-4" />
+          <span>Batch Balances & Operations</span>
+        </button>
+      </div>
 
-      {/* Batches Table Card */}
-      <div className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs">
-            <thead className="bg-slate-50 text-slate-700 font-bold border-b border-slate-200">
-              <tr>
-                <th className="py-3 px-3 w-10 text-center">
+      {/* ========================================================================= */}
+      {/* VIEW MODE 1: STOCK MOVEMENT LEDGER & FINANCIALS                          */}
+      {/* ========================================================================= */}
+      {activeViewMode === 'ledger' && (
+        <div className="space-y-6">
+          {/* Date & Range Filter Bar */}
+          <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-xs font-bold text-slate-600 mr-1 flex items-center gap-1.5">
+                  <Calendar className="w-4 h-4 text-slate-400" />
+                  Period:
+                </span>
+                <button
+                  onClick={() => handlePeriodChange('today')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                    period === 'today'
+                      ? 'bg-brand-500 text-white shadow-xs'
+                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                  }`}
+                >
+                  Today
+                </button>
+                <button
+                  onClick={() => handlePeriodChange('last7days')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                    period === 'last7days'
+                      ? 'bg-brand-500 text-white shadow-xs'
+                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                  }`}
+                >
+                  Last 7 Days
+                </button>
+                <button
+                  onClick={() => handlePeriodChange('last30days')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                    period === 'last30days'
+                      ? 'bg-brand-500 text-white shadow-xs'
+                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                  }`}
+                >
+                  Last 30 Days
+                </button>
+                <button
+                  onClick={() => handlePeriodChange('custom')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                    period === 'custom'
+                      ? 'bg-brand-500 text-white shadow-xs'
+                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                  }`}
+                >
+                  Custom Range
+                </button>
+              </div>
+
+              {/* Movement Type Dropdown */}
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-bold text-slate-600">Movement:</span>
+                <select
+                  value={movementTypeFilter}
+                  onChange={(e) => {
+                    setMovementTypeFilter(e.target.value);
+                    setMovementPage(1);
+                  }}
+                  className="px-3 py-1.5 border border-slate-300 rounded-lg text-xs font-semibold text-slate-700 bg-white focus:outline-none focus:ring-1 focus:ring-brand-500"
+                >
+                  <option value="ALL">All Movements</option>
+                  <option value="PURCHASE_RECEIPT">Purchase / Inward</option>
+                  <option value="SALE">Retail Sale / Outward</option>
+                  <option value="CUSTOMER_RETURN">Customer Return</option>
+                  <option value="SUPPLIER_RETURN">Supplier Return</option>
+                  <option value="STOCK_CORRECTION">Stock Correction</option>
+                  <option value="DAMAGE_EXPIRY">Damage / Expiry</option>
+                  <option value="TRANSFER_IN">Transfer In</option>
+                  <option value="TRANSFER_OUT">Transfer Out</option>
+                </select>
+              </div>
+            </div>
+
+            {/* Custom Date Pickers */}
+            {period === 'custom' && (
+              <div className="flex flex-wrap items-center gap-3 pt-2 border-t border-slate-100 text-xs">
+                <div className="flex items-center gap-2">
+                  <span className="font-semibold text-slate-600">From Date:</span>
                   <input
-                    type="checkbox"
-                    checked={filteredBatches.length > 0 && selectedBatchIds.length === filteredBatches.length}
-                    onChange={handleSelectAllVisible}
-                    className="rounded border-slate-300 text-brand-600 focus:ring-brand-500 cursor-pointer"
-                    title="Select all visible batches"
+                    type="date"
+                    value={customStartDate}
+                    onChange={(e) => setCustomStartDate(e.target.value)}
+                    className="px-3 py-1 border border-slate-300 rounded-lg text-xs bg-white text-slate-700"
                   />
-                </th>
-                <th className="py-3 px-4">Medicine & Form</th>
-                <th className="py-3 px-3">Batch Number</th>
-                <th className="py-3 px-3 text-center">Expiry Date</th>
-                <th className="py-3 px-3 text-right">Available Qty</th>
-                <th className="py-3 px-3 text-right">Purchase Rate</th>
-                <th className="py-3 px-3 text-right">MRP</th>
-                <th className="py-3 px-3 text-center">Status</th>
-                {!isBillingUser && <th className="py-3 px-4 text-right">Actions</th>}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100 font-medium">
-              {loading ? (
-                <tr>
-                  <td colSpan={9} className="py-8 text-center text-slate-400">
-                    Loading stock batches...
-                  </td>
-                </tr>
-              ) : batches.length === 0 ? (
-                <tr>
-                  <td colSpan={9} className="py-12 text-center text-slate-500">
-                    <p className="text-sm font-bold text-slate-800">No inventory available.</p>
-                    <p className="text-xs text-slate-500 mt-1">Receive stock through the authorized purchase invoice or stock-receipt workflow.</p>
-                    {!isBillingUser && (
-                      <button
-                        onClick={handleOpenReceive}
-                        className="mt-3 inline-flex items-center gap-1.5 px-3 py-1.5 bg-brand-500 hover:bg-brand-600 text-white rounded-lg text-xs font-bold transition-colors"
-                      >
-                        <Plus className="w-3.5 h-3.5" />
-                        Receive Stock Batch
-                      </button>
-                    )}
-                  </td>
-                </tr>
-              ) : filteredBatches.length === 0 ? (
-                <tr>
-                  <td colSpan={9} className="py-12 text-center text-slate-500">
-                    <p className="text-sm font-bold text-slate-700">No stock batches match your filter criteria.</p>
-                    <p className="text-xs text-slate-400 mt-1">Try resetting the filter options or adjusting your search term.</p>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setSearchQuery('');
-                        resetFilters();
-                      }}
-                      className="mt-3 inline-flex items-center gap-1.5 px-3 py-1.5 bg-brand-500 hover:bg-brand-600 text-white rounded-lg text-xs font-bold transition-colors"
-                    >
-                      Clear Filters & Search
-                    </button>
-                  </td>
-                </tr>
-              ) : (
-                filteredBatches.map((batch) => {
-                  const isExpired = new Date(batch.expiryDate) <= new Date();
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="font-semibold text-slate-600">To Date:</span>
+                  <input
+                    type="date"
+                    value={customEndDate}
+                    onChange={(e) => setCustomEndDate(e.target.value)}
+                    className="px-3 py-1 border border-slate-300 rounded-lg text-xs bg-white text-slate-700"
+                  />
+                </div>
+                <button
+                  onClick={loadLedgerData}
+                  className="px-3 py-1 bg-brand-500 hover:bg-brand-600 text-white rounded-lg text-xs font-bold transition-colors"
+                >
+                  Apply Dates
+                </button>
+              </div>
+            )}
+          </div>
 
-                  return (
-                    <tr
-                      key={batch.id}
-                      className={`hover:bg-slate-50/80 transition-colors ${
-                        selectedBatchIds.includes(batch.id) ? 'bg-brand-50/40' : ''
-                      }`}
-                    >
-                      <td className="py-3 px-3 text-center">
-                        <input
-                          type="checkbox"
-                          checked={selectedBatchIds.includes(batch.id)}
-                          onChange={() => handleToggleSelect(batch.id)}
-                          className="rounded border-slate-300 text-brand-600 focus:ring-brand-500 cursor-pointer"
-                        />
+          {/* 8 KPI Summary Cards (Requirement 4) */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            {/* Card 1: Opening Stock */}
+            <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs">
+              <div className="flex items-center justify-between text-slate-500 text-xs mb-1">
+                <span className="font-semibold">Opening Stock</span>
+                <Clock className="w-4 h-4 text-slate-400" />
+              </div>
+              <div className="text-xl font-bold text-slate-900">
+                {ledgerSummary ? ledgerSummary.openingStock.quantity.toLocaleString('en-IN') : '...'} <span className="text-xs font-normal text-slate-500">units</span>
+              </div>
+              <div className="text-xs text-slate-500 mt-1 flex justify-between">
+                <span>Opening Valuation:</span>
+                <span className="font-semibold text-slate-700">
+                  ₹{ledgerSummary ? ledgerSummary.openingStock.value.toLocaleString('en-IN', { minimumFractionDigits: 2 }) : '0.00'}
+                </span>
+              </div>
+              <p className="text-[10px] text-slate-400 mt-1 border-t border-slate-100 pt-1">
+                Stock balance prior to {ledgerSummary?.period.label || 'period'}
+              </p>
+            </div>
+
+            {/* Card 2: Stock Inward */}
+            <div className="bg-white p-4 rounded-xl border border-emerald-100 shadow-xs">
+              <div className="flex items-center justify-between text-emerald-700 text-xs mb-1">
+                <span className="font-semibold">Stock Inward</span>
+                <ArrowDownRight className="w-4 h-4 text-emerald-600" />
+              </div>
+              <div className="text-xl font-bold text-emerald-700">
+                +{ledgerSummary ? ledgerSummary.inward.quantity.toLocaleString('en-IN') : '...'} <span className="text-xs font-normal text-emerald-600">units</span>
+              </div>
+              <div className="text-xs text-slate-500 mt-1 flex justify-between">
+                <span>Inward Cost:</span>
+                <span className="font-semibold text-emerald-800">
+                  ₹{ledgerSummary ? ledgerSummary.inwardCost.toLocaleString('en-IN', { minimumFractionDigits: 2 }) : '0.00'}
+                </span>
+              </div>
+              <p className="text-[10px] text-slate-400 mt-1 border-t border-slate-100 pt-1">
+                Purchases & customer returns received
+              </p>
+            </div>
+
+            {/* Card 3: Stock Outward */}
+            <div className="bg-white p-4 rounded-xl border border-blue-100 shadow-xs">
+              <div className="flex items-center justify-between text-blue-700 text-xs mb-1">
+                <span className="font-semibold">Stock Outward</span>
+                <ArrowUpRight className="w-4 h-4 text-blue-600" />
+              </div>
+              <div className="text-xl font-bold text-blue-700">
+                -{ledgerSummary ? ledgerSummary.outward.quantity.toLocaleString('en-IN') : '...'} <span className="text-xs font-normal text-blue-600">units</span>
+              </div>
+              <div className="text-xs text-slate-500 mt-1 flex justify-between">
+                <span>Cost Basis:</span>
+                <span className="font-semibold text-blue-800">
+                  ₹{ledgerSummary ? ledgerSummary.outwardValue.toLocaleString('en-IN', { minimumFractionDigits: 2 }) : '0.00'}
+                </span>
+              </div>
+              <p className="text-[10px] text-slate-400 mt-1 border-t border-slate-100 pt-1">
+                Sales & supplier returns issued
+              </p>
+            </div>
+
+            {/* Card 4: Current Available Stock (Live Total) */}
+            <div className="bg-white p-4 rounded-xl border border-brand-200 shadow-xs bg-gradient-to-br from-white to-brand-50/20">
+              <div className="flex items-center justify-between text-brand-700 text-xs mb-1">
+                <span className="font-bold uppercase tracking-wider">Current Stock (Live)</span>
+                <Boxes className="w-4 h-4 text-brand-500" />
+              </div>
+              <div className="text-xl font-bold text-brand-700">
+                {ledgerSummary ? ledgerSummary.currentStock.quantity.toLocaleString('en-IN') : '...'} <span className="text-xs font-normal text-brand-600">units</span>
+              </div>
+              <div className="text-xs text-slate-500 mt-1 flex justify-between">
+                <span>Asset Valuation:</span>
+                <span className="font-semibold text-slate-900">
+                  ₹{ledgerSummary ? ledgerSummary.currentStock.value.toLocaleString('en-IN', { minimumFractionDigits: 2 }) : '0.00'}
+                </span>
+              </div>
+              <p className="text-[10px] text-slate-400 mt-1 border-t border-slate-100 pt-1">
+                Live on-hand balance in branch right now
+              </p>
+            </div>
+
+            {/* Card 5: Inward Cost */}
+            <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs">
+              <div className="flex items-center justify-between text-slate-500 text-xs mb-1">
+                <span className="font-semibold">Inward Cost</span>
+                <Receipt className="w-4 h-4 text-slate-400" />
+              </div>
+              <div className="text-xl font-bold text-slate-900">
+                ₹{ledgerSummary ? ledgerSummary.inwardCost.toLocaleString('en-IN', { minimumFractionDigits: 2 }) : '0.00'}
+              </div>
+              <p className="text-xs text-slate-500 mt-1">
+                Cost paid to acquire stock during {ledgerSummary?.period.label.toLowerCase() || 'period'}
+              </p>
+              <p className="text-[10px] text-slate-400 mt-1 border-t border-slate-100 pt-1">
+                Calculated in canonical base units
+              </p>
+            </div>
+
+            {/* Card 6: Outward Value (Valuation Basis) */}
+            <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs">
+              <div className="flex items-center justify-between text-slate-500 text-xs mb-1">
+                <span className="font-semibold">Outward Value</span>
+                <Scale className="w-4 h-4 text-slate-400" />
+              </div>
+              <div className="text-xl font-bold text-slate-900">
+                ₹{ledgerSummary ? ledgerSummary.outwardValue.toLocaleString('en-IN', { minimumFractionDigits: 2 }) : '0.00'}
+              </div>
+              <p className="text-xs text-slate-500 mt-1">
+                Acquisition cost of stock issued during period
+              </p>
+              <p className="text-[10px] text-slate-400 mt-1 border-t border-slate-100 pt-1">
+                Method: Batch-Specific Acquisition Cost
+              </p>
+            </div>
+
+            {/* Card 7: Gross Profit / Loss */}
+            <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs">
+              <div className="flex items-center justify-between text-slate-500 text-xs mb-1">
+                <span className="font-semibold">Gross Profit / Loss</span>
+                <TrendingUp className="w-4 h-4 text-emerald-600" />
+              </div>
+              <div className={`text-xl font-bold ${ledgerSummary && ledgerSummary.grossProfit >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                ₹{ledgerSummary ? ledgerSummary.grossProfit.toLocaleString('en-IN', { minimumFractionDigits: 2 }) : '0.00'}
+                {ledgerSummary && (
+                  <span className="text-xs font-semibold ml-1.5 px-2 py-0.5 bg-emerald-50 text-emerald-700 rounded-full">
+                    {ledgerSummary.grossProfitMargin.toFixed(1)}% margin
+                  </span>
+                )}
+              </div>
+              <div className="text-xs text-slate-500 mt-1 flex justify-between">
+                <span>Revenue: ₹{ledgerSummary ? ledgerSummary.salesRevenue.toLocaleString('en-IN') : '0'}</span>
+                <span>COGS: ₹{ledgerSummary ? ledgerSummary.cogs.toLocaleString('en-IN') : '0'}</span>
+              </div>
+              <p className="text-[10px] text-slate-400 mt-1 border-t border-slate-100 pt-1">
+                Eligible counter sales minus cost of goods sold
+              </p>
+            </div>
+
+            {/* Card 8: Stock Adjustments */}
+            <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs">
+              <div className="flex items-center justify-between text-slate-500 text-xs mb-1">
+                <span className="font-semibold">Stock Adjustments</span>
+                <AlertTriangle className="w-4 h-4 text-amber-500" />
+              </div>
+              <div className="text-xl font-bold text-slate-900">
+                {ledgerSummary && ledgerSummary.adjustments.netQuantity > 0 ? '+' : ''}
+                {ledgerSummary ? ledgerSummary.adjustments.netQuantity.toLocaleString('en-IN') : '0'} <span className="text-xs font-normal text-slate-500">units</span>
+              </div>
+              <div className="text-xs text-slate-500 mt-1 flex justify-between">
+                <span>Net Value:</span>
+                <span className="font-semibold text-slate-700">
+                  ₹{ledgerSummary ? Math.abs(ledgerSummary.adjustments.netValue).toLocaleString('en-IN', { minimumFractionDigits: 2 }) : '0.00'}
+                </span>
+              </div>
+              <div className="text-[10px] text-slate-500 mt-1 border-t border-slate-100 pt-1 flex gap-2">
+                <span>Dmg: {ledgerSummary?.adjustments.damaged.quantity || 0}</span>
+                <span>Exp: {ledgerSummary?.adjustments.expired.quantity || 0}</span>
+                <span>Corr: {ledgerSummary?.adjustments.corrections.quantity || 0}</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Movement Table Search and Filters */}
+          <div className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
+            <div className="p-4 border-b border-slate-200 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+              <div className="relative w-full sm:w-80">
+                <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
+                <input
+                  type="text"
+                  placeholder="Search medicine, batch, doc #, reason..."
+                  value={movementSearchQuery}
+                  onChange={(e) => {
+                    setMovementSearchQuery(e.target.value);
+                    setMovementPage(1);
+                  }}
+                  className="w-full pl-9 pr-3 py-1.5 border border-slate-300 rounded-lg text-xs placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-brand-500"
+                />
+              </div>
+
+              <div className="flex items-center gap-3 text-xs text-slate-500">
+                <span>
+                  Showing <strong>{ledgerMovements.length}</strong> of <strong>{movementTotal}</strong> movements
+                </span>
+                <select
+                  value={movementLimit}
+                  onChange={(e) => {
+                    setMovementLimit(parseInt(e.target.value));
+                    setMovementPage(1);
+                  }}
+                  className="px-2 py-1 border border-slate-300 rounded-lg text-xs bg-white text-slate-700"
+                >
+                  <option value={25}>25 / page</option>
+                  <option value={50}>50 / page</option>
+                  <option value={100}>100 / page</option>
+                </select>
+              </div>
+            </div>
+
+            {/* Detailed Movement Ledger Table (Requirement 5) */}
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse text-xs">
+                <thead>
+                  <tr className="bg-slate-50/80 border-b border-slate-200 text-slate-600 font-semibold uppercase text-[10px] tracking-wider select-none">
+                    <th className="py-3 px-4">Date & Time</th>
+                    <th className="py-3 px-4">Medicine / Dosage</th>
+                    <th className="py-3 px-4">Batch / Expiry / Supplier</th>
+                    <th className="py-3 px-4">Movement Type</th>
+                    <th className="py-3 px-4 text-right">Inward Qty</th>
+                    <th className="py-3 px-4 text-right">Outward Qty</th>
+                    <th className="py-3 px-4 text-right">Unit Cost</th>
+                    <th className="py-3 px-4 text-right">Total Value</th>
+                    <th className="py-3 px-4 text-right">Batch Stock</th>
+                    <th className="py-3 px-4">Source Ref & User</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {isLedgerLoading ? (
+                    <tr>
+                      <td colSpan={10} className="py-12 text-center text-slate-400">
+                        <div className="flex flex-col items-center justify-center gap-2">
+                          <div className="w-6 h-6 border-2 border-brand-500 border-t-transparent rounded-full animate-spin"></div>
+                          <p className="text-xs font-semibold text-slate-600">Loading stock movements ledger...</p>
+                        </div>
                       </td>
-                      <td className="py-3 px-4">
-                        <span className="font-bold text-slate-900 block">{batch.medicine?.brandName}</span>
-                        <span className="text-[11px] text-slate-500">
-                          {batch.medicine?.genericName} • {batch.medicine?.strength}
-                        </span>
+                    </tr>
+                  ) : ledgerMovements.length === 0 ? (
+                    <tr>
+                      <td colSpan={10} className="py-12 text-center text-slate-400">
+                        <History className="w-8 h-8 text-slate-300 mx-auto mb-2" />
+                        <p className="text-xs font-semibold text-slate-600">No stock movements found</p>
+                        <p className="text-[11px] text-slate-400 mt-0.5">
+                          Try adjusting your date range or movement type filters.
+                        </p>
                       </td>
-                      <td className="py-3 px-3 font-mono font-bold text-slate-800">
-                        {batch.batchNumber}
-                      </td>
-                      <td className="py-3 px-3 text-center font-mono">
-                        <span className={isExpired ? 'text-rose-600 font-bold' : 'text-slate-700'}>
-                          {new Date(batch.expiryDate).toLocaleDateString('en-IN', {
+                    </tr>
+                  ) : (
+                    ledgerMovements.map((m) => (
+                      <tr key={m.id} className="hover:bg-slate-50/70 transition-colors">
+                        {/* 1. Transaction Date */}
+                        <td className="py-3 px-4 whitespace-nowrap text-slate-700 font-medium">
+                          {new Date(m.transactionDate).toLocaleDateString('en-IN', {
                             day: '2-digit',
                             month: 'short',
                             year: 'numeric',
                           })}
-                        </span>
-                      </td>
-                      <td className="py-3 px-3 text-right font-mono font-black text-slate-900">
-                        {batch.availableQuantity}
-                      </td>
-                      <td className="py-3 px-3 text-right font-mono text-slate-600">
-                        ₹{batch.purchaseRate.toFixed(2)}
-                      </td>
-                      <td className="py-3 px-3 text-right font-mono font-bold text-slate-800">
-                        ₹{batch.mrp.toFixed(2)}
-                      </td>
-                      <td className="py-3 px-3 text-center">
-                        <Badge
-                          variant={
-                            batch.status === 'ACTIVE'
-                              ? 'success'
-                              : batch.status === 'EXPIRED'
-                              ? 'danger'
-                              : 'warning'
-                          }
-                          size="sm"
-                        >
-                          {batch.status}
-                        </Badge>
-                      </td>
-                      {!isBillingUser && (
-                        <td className="py-3 px-4 text-right">
-                          <div className="flex items-center justify-end gap-1">
-                            <button
-                              onClick={() => handleOpenViewBatch(batch)}
-                              title="View Batch Details"
-                              className="p-1 text-slate-500 hover:text-brand-600 hover:bg-slate-100 rounded transition-colors"
-                            >
-                              <Eye className="w-4 h-4" />
-                            </button>
-                            <button
-                              onClick={() => handleOpenAdjust(batch)}
-                              title="Audit Stock Adjustment"
-                              className="px-2 py-1 text-xs font-semibold text-slate-700 hover:text-emerald-700 bg-slate-100 hover:bg-slate-200 rounded border border-slate-300 transition-colors"
-                            >
-                              Adjust
-                            </button>
-                            <button
-                              onClick={() => handleOpenEditBatch(batch)}
-                              title="Edit Stock Batch Record"
-                              className="p-1 text-slate-500 hover:text-blue-600 hover:bg-slate-100 rounded transition-colors"
-                            >
-                              <Edit2 className="w-4 h-4" />
-                            </button>
-                            <button
-                              onClick={() => handleOpenDeleteBatch(batch)}
-                              title="Delete / Safe Removal"
-                              className="p-1 text-slate-500 hover:text-rose-600 hover:bg-slate-100 rounded transition-colors"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
+                          <span className="block text-[10px] text-slate-400">
+                            {new Date(m.transactionDate).toLocaleTimeString('en-IN', {
+                              hour: '2-digit',
+                              minute: '2-digit',
+                            })}
+                          </span>
+                        </td>
+
+                        {/* 2. Medicine & Generic Name */}
+                        <td className="py-3 px-4">
+                          <div className="font-bold text-slate-900 leading-snug">
+                            {m.medicine.brandName}
+                          </div>
+                          <div className="text-[11px] text-slate-500 truncate max-w-xs">
+                            {m.medicine.genericName}
+                          </div>
+                          <div className="text-[10px] text-slate-400 mt-0.5">
+                            {m.medicine.dosageForm} • Base: <strong>{m.medicine.baseUnit}</strong>
                           </div>
                         </td>
-                      )}
-                    </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
 
-      {/* Modal: Receive Stock Batch */}
-      <Modal isOpen={showReceiveModal} onClose={() => setShowReceiveModal(false)} title="Receive New Stock Batch" maxWidth="xl">
-        <form onSubmit={submitReceiveBatch} className="space-y-4">
+                        {/* 3. Batch, Expiry, Supplier */}
+                        <td className="py-3 px-4 whitespace-nowrap">
+                          {m.batch ? (
+                            <>
+                              <span className="font-mono font-semibold text-slate-800 bg-slate-100 px-1.5 py-0.5 rounded text-[11px]">
+                                {m.batch.batchNumber}
+                              </span>
+                              <div className="text-[10px] text-slate-500 mt-0.5">
+                                Exp: {new Date(m.batch.expiryDate).toLocaleDateString('en-IN', { month: 'short', year: 'numeric' })}
+                              </div>
+                              <div className="text-[10px] text-slate-400 truncate max-w-[140px]">
+                                {m.batch.supplier?.name || 'Direct / Catalogue'}
+                              </div>
+                            </>
+                          ) : (
+                            <span className="text-slate-400 text-xs">—</span>
+                          )}
+                        </td>
+
+                        {/* 4. Movement Type */}
+                        <td className="py-3 px-4 whitespace-nowrap">
+                          {getMovementBadge(m.movementType, m.movementTypeLabel)}
+                        </td>
+
+                        {/* 5. Quantity Inward */}
+                        <td className="py-3 px-4 text-right font-bold text-emerald-600 whitespace-nowrap">
+                          {m.quantityInward > 0 ? `+${m.quantityInward.toLocaleString('en-IN')}` : '—'}
+                        </td>
+
+                        {/* 6. Quantity Outward */}
+                        <td className="py-3 px-4 text-right font-bold text-blue-600 whitespace-nowrap">
+                          {m.quantityOutward > 0 ? `-${m.quantityOutward.toLocaleString('en-IN')}` : '—'}
+                        </td>
+
+                        {/* 7. Unit Purchase Cost */}
+                        <td className="py-3 px-4 text-right whitespace-nowrap text-slate-700">
+                          ₹{m.unitPurchaseCost.toFixed(2)}
+                        </td>
+
+                        {/* 8. Total Movement Value */}
+                        <td className="py-3 px-4 text-right font-semibold text-slate-900 whitespace-nowrap">
+                          ₹{m.totalMovementValue.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                        </td>
+
+                        {/* 9. Available Batch Quantity */}
+                        <td className="py-3 px-4 text-right whitespace-nowrap">
+                          {m.batch ? (
+                            <span className="font-bold text-slate-800">
+                              {m.batch.availableQuantity.toLocaleString('en-IN')}
+                            </span>
+                          ) : (
+                            <span className="text-slate-400">—</span>
+                          )}
+                        </td>
+
+                        {/* 10. Source Reference and Recorded By */}
+                        <td className="py-3 px-4 text-xs">
+                          {m.referenceDocId && (
+                            <span className="font-mono text-[10px] text-brand-600 font-semibold block">
+                              {m.referenceDocType ? `${m.referenceDocType}: ` : ''}{m.referenceDocId}
+                            </span>
+                          )}
+                          <span className="text-[10px] text-slate-500 block truncate max-w-[160px]" title={m.reason}>
+                            {m.reason || 'Ledger transaction'}
+                          </span>
+                          <span className="text-[10px] text-slate-400 block mt-0.5">
+                            By: {m.performedBy.fullName || m.performedBy.username}
+                          </span>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Pagination Bar */}
+            {movementTotalPages > 1 && (
+              <div className="p-4 border-t border-slate-200 flex items-center justify-between text-xs bg-slate-50/50">
+                <span className="text-slate-500">
+                  Page <strong>{movementPage}</strong> of <strong>{movementTotalPages}</strong> ({movementTotal} total movements)
+                </span>
+                <div className="flex items-center gap-1">
+                  <button
+                    disabled={movementPage <= 1}
+                    onClick={() => setMovementPage((prev) => Math.max(1, prev - 1))}
+                    className="p-1.5 border border-slate-300 rounded-lg hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed text-slate-700 transition-colors"
+                  >
+                    <ChevronLeft className="w-4 h-4" />
+                  </button>
+                  <span className="px-3 py-1 text-slate-700 font-bold bg-white border border-slate-200 rounded-lg">
+                    {movementPage}
+                  </span>
+                  <button
+                    disabled={movementPage >= movementTotalPages}
+                    onClick={() => setMovementPage((prev) => Math.min(movementTotalPages, prev + 1))}
+                    className="p-1.5 border border-slate-300 rounded-lg hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed text-slate-700 transition-colors"
+                  >
+                    <ChevronRight className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* VIEW MODE 2: BATCH BALANCES & OPERATIONS (Preserved)                       */}
+      {/* ========================================================================= */}
+      {activeViewMode === 'batches' && (
+        <div className="space-y-6">
+          {/* Batches Sub-tabs & Search */}
+          <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+            <div className="flex flex-wrap gap-2">
+              <button
+                onClick={() => setFilterTab('ALL')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                  filterTab === 'ALL'
+                    ? 'bg-slate-800 text-white shadow-xs'
+                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                }`}
+              >
+                All Batches
+              </button>
+              <button
+                onClick={() => setFilterTab('ACTIVE')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                  filterTab === 'ACTIVE'
+                    ? 'bg-brand-500 text-white shadow-xs'
+                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                }`}
+              >
+                Active Saleable
+              </button>
+              <button
+                onClick={() => setFilterTab('NEAR_EXPIRY')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                  filterTab === 'NEAR_EXPIRY'
+                    ? 'bg-amber-500 text-white shadow-xs'
+                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                }`}
+              >
+                Near Expiry (&lt;60d)
+              </button>
+              <button
+                onClick={() => setFilterTab('EXPIRED')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                  filterTab === 'EXPIRED'
+                    ? 'bg-rose-500 text-white shadow-xs'
+                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                }`}
+              >
+                Expired
+              </button>
+            </div>
+
+            <div className="relative w-full sm:w-72">
+              <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
+              <input
+                type="text"
+                placeholder="Search batch # or medicine..."
+                value={batchSearchQuery}
+                onChange={(e) => setBatchSearchQuery(e.target.value)}
+                className="w-full pl-9 pr-3 py-1.5 border border-slate-300 rounded-lg text-xs placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-brand-500"
+              />
+            </div>
+          </div>
+
+          {/* Batches Table */}
+          <div className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse text-xs">
+                <thead>
+                  <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 font-semibold uppercase text-[10px] tracking-wider">
+                    <th className="py-3 px-4">Medicine</th>
+                    <th className="py-3 px-4">Batch Number</th>
+                    <th className="py-3 px-4">Expiry Date</th>
+                    <th className="py-3 px-4 text-right">Available Qty</th>
+                    <th className="py-3 px-4 text-right">Purchase Rate</th>
+                    <th className="py-3 px-4 text-right">MRP</th>
+                    <th className="py-3 px-4 text-right">Selling Price</th>
+                    <th className="py-3 px-4">Status</th>
+                    <th className="py-3 px-4 text-center">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {batchesLoading ? (
+                    <tr>
+                      <td colSpan={9} className="py-8 text-center text-slate-400">
+                        Loading batches...
+                      </td>
+                    </tr>
+                  ) : batches.length === 0 ? (
+                    <tr>
+                      <td colSpan={9} className="py-8 text-center text-slate-400">
+                        No stock batches found for this filter.
+                      </td>
+                    </tr>
+                  ) : (
+                    batches
+                      .filter(
+                        (b) =>
+                          !batchSearchQuery ||
+                          b.batchNumber.toLowerCase().includes(batchSearchQuery.toLowerCase()) ||
+                          b.medicine?.brandName.toLowerCase().includes(batchSearchQuery.toLowerCase())
+                      )
+                      .map((b) => (
+                        <tr key={b.id} className="hover:bg-slate-50/70 transition-colors">
+                          <td className="py-3 px-4">
+                            <div className="font-bold text-slate-900">{b.medicine?.brandName}</div>
+                            <div className="text-[10px] text-slate-400">{b.medicine?.genericName}</div>
+                          </td>
+                          <td className="py-3 px-4 font-mono font-semibold text-slate-800">
+                            {b.batchNumber}
+                          </td>
+                          <td className="py-3 px-4 text-slate-600">
+                            {new Date(b.expiryDate).toLocaleDateString('en-IN', {
+                              day: '2-digit',
+                              month: 'short',
+                              year: 'numeric',
+                            })}
+                          </td>
+                          <td className="py-3 px-4 text-right font-bold text-slate-900">
+                            {b.availableQuantity.toLocaleString('en-IN')}
+                          </td>
+                          <td className="py-3 px-4 text-right text-slate-700">₹{b.purchaseRate.toFixed(2)}</td>
+                          <td className="py-3 px-4 text-right text-slate-700">₹{b.mrp.toFixed(2)}</td>
+                          <td className="py-3 px-4 text-right font-semibold text-slate-900">
+                            ₹{b.sellingPrice.toFixed(2)}
+                          </td>
+                          <td className="py-3 px-4">
+                            <Badge
+                              variant={
+                                b.status === 'ACTIVE'
+                                  ? 'success'
+                                  : b.status === 'QUARANTINE'
+                                  ? 'warning'
+                                  : 'danger'
+                              }
+                            >
+                              {b.status}
+                            </Badge>
+                          </td>
+                          <td className="py-3 px-4 text-center">
+                            <div className="flex items-center justify-center gap-1.5">
+                              <button
+                                onClick={() => handleEditBatch(b)}
+                                className="p-1 hover:bg-slate-100 rounded text-slate-500 hover:text-slate-800 transition-colors"
+                                title="Edit batch"
+                              >
+                                <Edit2 className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                onClick={() => handleDeleteBatch(b)}
+                                className="p-1 hover:bg-rose-50 rounded text-slate-400 hover:text-rose-600 transition-colors"
+                                title="Delete batch"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* MODALS                                                                    */}
+      {/* ========================================================================= */}
+
+      {/* Modal: Manual Receive Stock Batch */}
+      <Modal isOpen={showReceiveModal} onClose={() => setShowReceiveModal(false)} title="Receive Stock Batch (Inward)">
+        <form onSubmit={handleReceiveStock} className="space-y-4 text-xs">
           <div>
-            <label className="text-xs font-bold text-slate-700 block mb-1">Select Medicine *</label>
+            <label className="font-semibold text-slate-700 block mb-1">Select Medicine *</label>
             <select
               required
               value={receiveForm.medicineId}
               onChange={(e) => {
-                const prod = products.find((p) => p.id === e.target.value);
+                const med = products.find((p) => p.id === e.target.value);
                 setReceiveForm({
                   ...receiveForm,
                   medicineId: e.target.value,
-                  mrp: prod ? prod.mrp.toString() : '',
-                  sellingPrice: prod ? prod.mrp.toString() : '',
+                  purchaseRate: med?.defaultPurchaseRate?.toString() || '',
+                  mrp: med?.mrp.toString() || '',
+                  sellingPrice: med?.defaultSellingRate?.toString() || med?.mrp.toString() || '',
                 });
               }}
-              className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-300 rounded-lg focus:bg-white focus:ring-2 focus:ring-emerald-500 font-medium"
+              className="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs bg-white text-slate-700"
             >
-              <option value="">-- Choose Catalogue Medicine --</option>
+              <option value="">-- Choose Medicine --</option>
               {products.map((p) => (
                 <option key={p.id} value={p.id}>
-                  {p.brandName} ({p.genericName} - {p.strength}) - MRP ₹{p.mrp}
+                  {p.brandName} ({p.strength}) - MRP ₹{p.mrp}
                 </option>
               ))}
             </select>
@@ -838,76 +1357,91 @@ export const InventoryPage: React.FC = () => {
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="text-xs font-bold text-slate-700 block mb-1">Batch Number *</label>
+              <label className="font-semibold text-slate-700 block mb-1">Batch Number *</label>
               <input
                 type="text"
                 required
-                placeholder="e.g. DL-2026-B1"
+                placeholder="e.g. B-2026-99"
                 value={receiveForm.batchNumber}
                 onChange={(e) => setReceiveForm({ ...receiveForm, batchNumber: e.target.value })}
-                className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-300 rounded-lg focus:bg-white focus:ring-2 focus:ring-emerald-500 font-mono"
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs"
               />
             </div>
             <div>
-              <label className="text-xs font-bold text-slate-700 block mb-1">Expiry Date *</label>
+              <label className="font-semibold text-slate-700 block mb-1">Expiry Date *</label>
               <input
                 type="date"
                 required
                 value={receiveForm.expiryDate}
                 onChange={(e) => setReceiveForm({ ...receiveForm, expiryDate: e.target.value })}
-                className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-300 rounded-lg focus:bg-white focus:ring-2 focus:ring-emerald-500 font-mono"
-              />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-3 gap-3">
-            <div>
-              <label className="text-xs font-bold text-slate-700 block mb-1">Quantity Received *</label>
-              <input
-                type="number"
-                min="1"
-                required
-                placeholder="e.g. 50"
-                value={receiveForm.quantity}
-                onChange={(e) => setReceiveForm({ ...receiveForm, quantity: e.target.value })}
-                className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-300 rounded-lg focus:bg-white focus:ring-2 focus:ring-emerald-500 font-mono"
-              />
-            </div>
-            <div>
-              <label className="text-xs font-bold text-slate-700 block mb-1">Purchase Rate (₹) *</label>
-              <input
-                type="number"
-                step="0.01"
-                required
-                placeholder="e.g. 23.50"
-                value={receiveForm.purchaseRate}
-                onChange={(e) => setReceiveForm({ ...receiveForm, purchaseRate: e.target.value })}
-                className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-300 rounded-lg focus:bg-white focus:ring-2 focus:ring-emerald-500 font-mono"
-              />
-            </div>
-            <div>
-              <label className="text-xs font-bold text-slate-700 block mb-1">MRP (₹) *</label>
-              <input
-                type="number"
-                step="0.01"
-                required
-                placeholder="e.g. 33.50"
-                value={receiveForm.mrp}
-                onChange={(e) => setReceiveForm({ ...receiveForm, mrp: e.target.value, sellingPrice: e.target.value })}
-                className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-300 rounded-lg focus:bg-white focus:ring-2 focus:ring-emerald-500 font-mono"
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs"
               />
             </div>
           </div>
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="text-xs font-bold text-slate-700 block mb-1">Supplier</label>
+              <label className="font-semibold text-slate-700 block mb-1">Quantity (Base Units) *</label>
+              <input
+                type="number"
+                required
+                min="1"
+                placeholder="e.g. 100"
+                value={receiveForm.quantity}
+                onChange={(e) => setReceiveForm({ ...receiveForm, quantity: e.target.value })}
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs"
+              />
+            </div>
+            <div>
+              <label className="font-semibold text-slate-700 block mb-1">Purchase Rate (₹/unit) *</label>
+              <input
+                type="number"
+                step="0.01"
+                required
+                placeholder="₹ 0.00"
+                value={receiveForm.purchaseRate}
+                onChange={(e) => setReceiveForm({ ...receiveForm, purchaseRate: e.target.value })}
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="font-semibold text-slate-700 block mb-1">MRP (₹/unit) *</label>
+              <input
+                type="number"
+                step="0.01"
+                required
+                placeholder="₹ 0.00"
+                value={receiveForm.mrp}
+                onChange={(e) => setReceiveForm({ ...receiveForm, mrp: e.target.value })}
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs"
+              />
+            </div>
+            <div>
+              <label className="font-semibold text-slate-700 block mb-1">Selling Price (₹/unit) *</label>
+              <input
+                type="number"
+                step="0.01"
+                required
+                placeholder="₹ 0.00"
+                value={receiveForm.sellingPrice}
+                onChange={(e) => setReceiveForm({ ...receiveForm, sellingPrice: e.target.value })}
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="font-semibold text-slate-700 block mb-1">Supplier (Optional)</label>
               <select
                 value={receiveForm.supplierId}
                 onChange={(e) => setReceiveForm({ ...receiveForm, supplierId: e.target.value })}
-                className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-300 rounded-lg focus:bg-white focus:ring-2 focus:ring-emerald-500"
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs bg-white text-slate-700"
               >
-                <option value="">-- Choose Supplier (Optional) --</option>
+                <option value="">-- Choose Supplier --</option>
                 {suppliers.map((s) => (
                   <option key={s.id} value={s.id}>
                     {s.name}
@@ -916,13 +1450,13 @@ export const InventoryPage: React.FC = () => {
               </select>
             </div>
             <div>
-              <label className="text-xs font-bold text-slate-700 block mb-1">Purchase Invoice Ref</label>
+              <label className="font-semibold text-slate-700 block mb-1">Invoice / Reference #</label>
               <input
                 type="text"
-                placeholder="e.g. SUP-INV-8812"
+                placeholder="e.g. INV-9901"
                 value={receiveForm.purchaseInvoiceRef}
                 onChange={(e) => setReceiveForm({ ...receiveForm, purchaseInvoiceRef: e.target.value })}
-                className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-300 rounded-lg focus:bg-white focus:ring-2 focus:ring-emerald-500"
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs"
               />
             </div>
           </div>
@@ -937,269 +1471,178 @@ export const InventoryPage: React.FC = () => {
             </button>
             <button
               type="submit"
-              className="px-5 py-2 bg-brand-500 hover:bg-brand-600 active:bg-brand-700 text-white rounded-lg text-xs font-bold shadow-xs transition-colors"
+              className="px-5 py-2 bg-brand-500 hover:bg-brand-600 text-white rounded-lg text-xs font-bold shadow-xs transition-colors"
             >
-              Confirm Stock Receipt
+              Confirm Receipt
             </button>
           </div>
         </form>
       </Modal>
 
       {/* Modal: Adjust Stock */}
-      <Modal isOpen={showAdjustModal} onClose={() => setShowAdjustModal(false)} title="Audit Stock Adjustment" maxWidth="md">
-        {adjustBatch && (
-          <form onSubmit={submitAdjustBatch} className="space-y-4">
-            <div className="p-3 bg-slate-50 rounded-lg border border-slate-200 text-xs">
-              <p><strong>Medicine:</strong> {adjustBatch.medicine?.brandName}</p>
-              <p><strong>Batch:</strong> {adjustBatch.batchNumber}</p>
-              <p><strong>Current Available:</strong> <span className="font-bold text-emerald-700">{adjustBatch.availableQuantity} units</span></p>
-            </div>
+      <Modal isOpen={showAdjustModal} onClose={() => setShowAdjustModal(false)} title="Stock Adjustment (Correction / Damage)">
+        <form onSubmit={handleAdjustStock} className="space-y-4 text-xs">
+          <div>
+            <label className="font-semibold text-slate-700 block mb-1">Select Batch to Adjust *</label>
+            <select
+              required
+              value={adjustBatch?.id || ''}
+              onChange={(e) => {
+                const b = batches.find((item) => item.id === e.target.value);
+                setAdjustBatch(b || null);
+              }}
+              className="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs bg-white text-slate-700"
+            >
+              <option value="">-- Choose Batch --</option>
+              {batches.map((b) => (
+                <option key={b.id} value={b.id}>
+                  {b.medicine?.brandName} (Batch: {b.batchNumber}) - {b.availableQuantity} units available
+                </option>
+              ))}
+            </select>
+          </div>
 
+          {adjustBatch && (
+            <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg text-slate-600 space-y-1">
+              <div className="font-semibold text-slate-800">
+                {adjustBatch.medicine?.brandName} ({adjustBatch.medicine?.genericName})
+              </div>
+              <div className="text-[11px]">
+                Current Available Quantity: <strong className="text-slate-900">{adjustBatch.availableQuantity} units</strong>
+              </div>
+            </div>
+          )}
+
+          <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="text-xs font-bold text-slate-700 block mb-1">Adjustment Type *</label>
+              <label className="font-semibold text-slate-700 block mb-1">Adjustment Type *</label>
               <select
                 value={adjustForm.adjustmentType}
                 onChange={(e) => setAdjustForm({ ...adjustForm, adjustmentType: e.target.value })}
-                className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-300 rounded-lg"
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs bg-white text-slate-700"
               >
-                <option value="PHYSICAL_COUNT_DISCREPANCY">Physical Count Discrepancy</option>
-                <option value="DAMAGE">Damaged Stock (Quarantine)</option>
-                <option value="EXPIRED">Expired Batch Mark</option>
-                <option value="THEFT">Breakage / Theft</option>
-                <option value="OTHER">Other Supervised Reason</option>
+                <option value="PHYSICAL_COUNT_DISCREPANCY">Count Discrepancy</option>
+                <option value="DAMAGE">Damaged Units</option>
+                <option value="EXPIRED">Expired Batch</option>
+                <option value="STOCK_CORRECTION">Correction / Reversal</option>
               </select>
             </div>
-
             <div>
-              <label className="text-xs font-bold text-slate-700 block mb-1">
-                Quantity Delta (+ to add, - to deduct) *
+              <label className="font-semibold text-slate-700 block mb-1">
+                Quantity Delta * <span className="text-[10px] text-slate-400">(use - for deduction)</span>
               </label>
               <input
                 type="number"
                 required
-                placeholder="-5 or +10"
+                placeholder="e.g. -5 or +10"
                 value={adjustForm.quantityDelta}
                 onChange={(e) => setAdjustForm({ ...adjustForm, quantityDelta: e.target.value })}
-                className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-300 rounded-lg font-mono font-bold"
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs"
               />
-              <p className="text-[11px] text-slate-400 mt-1">
-                Example: enter <code>-2</code> if 2 strips were damaged.
-              </p>
-            </div>
-
-            <div>
-              <label className="text-xs font-bold text-slate-700 block mb-1">Audit Reason (Mandatory) *</label>
-              <textarea
-                required
-                rows={3}
-                placeholder="Explain why this inventory adjustment is required by pharmacy audit rules..."
-                value={adjustForm.reason}
-                onChange={(e) => setAdjustForm({ ...adjustForm, reason: e.target.value })}
-                className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-300 rounded-lg"
-              />
-            </div>
-
-            <div className="flex justify-end gap-2 pt-4 border-t border-slate-200">
-              <button
-                type="button"
-                onClick={() => setShowAdjustModal(false)}
-                className="px-4 py-2 border border-slate-300 rounded-lg text-xs font-semibold text-slate-600"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                className="px-5 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-xs font-bold"
-              >
-                Post Adjustment
-              </button>
-            </div>
-          </form>
-        )}
-      </Modal>
-
-      {/* Modal: Movement Ledger */}
-      <Modal isOpen={showMovementsModal} onClose={() => setShowMovementsModal(false)} title="Stock Movement Ledger" maxWidth="3xl">
-        <div className="overflow-x-auto max-h-[60vh]">
-          <table className="w-full text-left text-xs">
-            <thead className="bg-slate-50 text-slate-700 font-bold border-b border-slate-200 sticky top-0">
-              <tr>
-                <th className="py-2.5 px-3">Date & Time</th>
-                <th className="py-2.5 px-3">Type</th>
-                <th className="py-2.5 px-3">Medicine</th>
-                <th className="py-2.5 px-3 text-right">Delta</th>
-                <th className="py-2.5 px-4">Reason / Doc</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100 font-medium">
-              {movements.map((m) => (
-                <tr key={m.id}>
-                  <td className="py-2.5 px-3 text-slate-500 font-mono text-[11px]">
-                    {new Date(m.createdAt).toLocaleString('en-IN', {
-                      day: '2-digit',
-                      month: 'short',
-                      hour: '2-digit',
-                      minute: '2-digit',
-                    })}
-                  </td>
-                  <td className="py-2.5 px-3">
-                    <Badge variant={m.quantityDelta > 0 ? 'success' : 'danger'} size="sm">
-                      {m.movementType}
-                    </Badge>
-                  </td>
-                  <td className="py-2.5 px-3 font-bold text-slate-800">{m.medicine?.brandName}</td>
-                  <td className={`py-2.5 px-3 text-right font-mono font-bold ${m.quantityDelta > 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
-                    {m.quantityDelta > 0 ? `+${m.quantityDelta}` : m.quantityDelta}
-                  </td>
-                  <td className="py-2.5 px-4 text-slate-600 text-[11px]">{m.reason}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </Modal>
-
-      {/* Modal: View Batch Details */}
-      <Modal isOpen={showViewBatchModal} onClose={() => setShowViewBatchModal(false)} title="Stock Batch Details & Audit" maxWidth="md">
-        {viewingBatch && (
-          <div className="space-y-4 text-xs">
-            <div className="p-3 bg-slate-50 rounded-lg border border-slate-200 space-y-1.5">
-              <div className="flex justify-between items-start">
-                <div>
-                  <h4 className="font-bold text-slate-900 text-sm">{viewingBatch.medicine?.brandName}</h4>
-                  <p className="text-slate-500">{viewingBatch.medicine?.genericName} • {viewingBatch.medicine?.strength}</p>
-                </div>
-                <Badge
-                  variant={
-                    viewingBatch.status === 'ACTIVE'
-                      ? 'success'
-                      : viewingBatch.status === 'EXPIRED'
-                      ? 'danger'
-                      : 'warning'
-                  }
-                  size="sm"
-                >
-                  {viewingBatch.status}
-                </Badge>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3 bg-white p-3 rounded-lg border border-slate-100">
-              <div>
-                <span className="text-slate-400 block text-[11px]">Batch Number</span>
-                <span className="font-mono font-bold text-slate-800">{viewingBatch.batchNumber}</span>
-              </div>
-              <div>
-                <span className="text-slate-400 block text-[11px]">Available Quantity</span>
-                <span className="font-mono font-black text-slate-900 text-sm">{viewingBatch.availableQuantity} units</span>
-              </div>
-              <div>
-                <span className="text-slate-400 block text-[11px]">Expiry Date</span>
-                <span className="font-mono text-slate-800">
-                  {new Date(viewingBatch.expiryDate).toLocaleDateString('en-IN', {
-                    day: '2-digit',
-                    month: 'short',
-                    year: 'numeric',
-                  })}
-                </span>
-              </div>
-              <div>
-                <span className="text-slate-400 block text-[11px]">Supplier / Vendor</span>
-                <span className="font-medium text-slate-700">{viewingBatch.supplier?.name || 'Direct / Stock In'}</span>
-              </div>
-              <div>
-                <span className="text-slate-400 block text-[11px]">Purchase Rate</span>
-                <span className="font-mono text-slate-800">₹{viewingBatch.purchaseRate.toFixed(2)}</span>
-              </div>
-              <div>
-                <span className="text-slate-400 block text-[11px]">MRP / Selling Rate</span>
-                <span className="font-mono font-bold text-slate-800">
-                  ₹{viewingBatch.mrp.toFixed(2)} / ₹{(viewingBatch.sellingPrice || viewingBatch.mrp).toFixed(2)}
-                </span>
-              </div>
-            </div>
-
-            <div className="flex justify-end pt-3 border-t border-slate-200">
-              <button
-                type="button"
-                onClick={() => setShowViewBatchModal(false)}
-                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold transition-colors"
-              >
-                Close
-              </button>
             </div>
           </div>
-        )}
+
+          <div>
+            <label className="font-semibold text-slate-700 block mb-1">Adjustment Reason / Audit Note *</label>
+            <textarea
+              required
+              rows={2}
+              placeholder="State clear operational reason for stock adjustment..."
+              value={adjustForm.reason}
+              onChange={(e) => setAdjustForm({ ...adjustForm, reason: e.target.value })}
+              className="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs"
+            />
+          </div>
+
+          <div className="flex justify-end gap-2 pt-4 border-t border-slate-200">
+            <button
+              type="button"
+              onClick={() => setShowAdjustModal(false)}
+              className="px-4 py-2 border border-slate-300 rounded-lg text-xs font-semibold text-slate-600 hover:bg-slate-100"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              className="px-5 py-2 bg-brand-500 hover:bg-brand-600 text-white rounded-lg text-xs font-bold shadow-xs transition-colors"
+            >
+              Record Adjustment
+            </button>
+          </div>
+        </form>
       </Modal>
 
-      {/* Modal: Edit Stock Batch Record */}
-      <Modal isOpen={showEditBatchModal} onClose={() => setShowEditBatchModal(false)} title="Edit Stock Batch Record (Super Admin)" maxWidth="md">
+      {/* Modal: Edit Batch */}
+      <Modal isOpen={showEditBatchModal} onClose={() => setShowEditBatchModal(false)} title="Edit Stock Batch">
         {editingBatch && (
-          <form onSubmit={handleUpdateBatch} className="space-y-4">
-            <div className="p-3 bg-slate-50 rounded-lg border border-slate-200 text-xs">
-              <p><strong>Medicine:</strong> {editingBatch.medicine?.brandName}</p>
-              <p><strong>Available Qty:</strong> {editingBatch.availableQuantity} units</p>
+          <form onSubmit={handleSaveEditBatch} className="space-y-4 text-xs">
+            <div>
+              <label className="font-semibold text-slate-700 block mb-1">Medicine</label>
+              <input
+                type="text"
+                disabled
+                value={`${editingBatch.medicine?.brandName} (${editingBatch.medicine?.genericName})`}
+                className="w-full px-3 py-2 bg-slate-100 border border-slate-300 rounded-lg text-xs text-slate-500 cursor-not-allowed"
+              />
             </div>
 
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="text-xs font-bold text-slate-700 block mb-1">Batch Number *</label>
+                <label className="font-semibold text-slate-700 block mb-1">Batch Number *</label>
                 <input
                   type="text"
                   required
                   value={editBatchForm.batchNumber}
                   onChange={(e) => setEditBatchForm({ ...editBatchForm, batchNumber: e.target.value })}
-                  className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-300 rounded-lg font-mono focus:bg-white focus:ring-2 focus:ring-brand-500"
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs"
                 />
               </div>
               <div>
-                <label className="text-xs font-bold text-slate-700 block mb-1">Expiry Date *</label>
+                <label className="font-semibold text-slate-700 block mb-1">Expiry Date *</label>
                 <input
                   type="date"
                   required
                   value={editBatchForm.expiryDate}
                   onChange={(e) => setEditBatchForm({ ...editBatchForm, expiryDate: e.target.value })}
-                  className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-300 rounded-lg font-mono focus:bg-white focus:ring-2 focus:ring-brand-500"
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs"
                 />
               </div>
             </div>
 
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="text-xs font-bold text-slate-700 block mb-1">MRP (₹) *</label>
+                <label className="font-semibold text-slate-700 block mb-1">MRP (₹)</label>
                 <input
                   type="number"
                   step="0.01"
-                  min="0"
                   required
                   value={editBatchForm.mrp}
                   onChange={(e) => setEditBatchForm({ ...editBatchForm, mrp: e.target.value })}
-                  className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-300 rounded-lg font-mono focus:bg-white focus:ring-2 focus:ring-brand-500"
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs"
                 />
               </div>
               <div>
-                <label className="text-xs font-bold text-slate-700 block mb-1">Selling Price (₹) *</label>
+                <label className="font-semibold text-slate-700 block mb-1">Selling Price (₹)</label>
                 <input
                   type="number"
                   step="0.01"
-                  min="0"
                   required
                   value={editBatchForm.sellingPrice}
                   onChange={(e) => setEditBatchForm({ ...editBatchForm, sellingPrice: e.target.value })}
-                  className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-300 rounded-lg font-mono focus:bg-white focus:ring-2 focus:ring-brand-500"
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs"
                 />
               </div>
             </div>
 
             <div>
-              <label className="text-xs font-bold text-slate-700 block mb-1">Status *</label>
+              <label className="font-semibold text-slate-700 block mb-1">Status</label>
               <select
                 value={editBatchForm.status}
                 onChange={(e) => setEditBatchForm({ ...editBatchForm, status: e.target.value })}
-                className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-300 rounded-lg focus:bg-white focus:ring-2 focus:ring-brand-500"
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs bg-white text-slate-700"
               >
                 <option value="ACTIVE">ACTIVE (Saleable)</option>
-                <option value="QUARANTINE">QUARANTINE (Withdrawn / Hold)</option>
+                <option value="QUARANTINE">QUARANTINE (Hold)</option>
                 <option value="DEPLETED">DEPLETED (Zero Stock)</option>
               </select>
             </div>
@@ -1223,7 +1666,7 @@ export const InventoryPage: React.FC = () => {
         )}
       </Modal>
 
-      {/* Modal: Confirm Batch Deletion / Safe Removal */}
+      {/* Modal: Confirm Batch Deletion */}
       <Modal isOpen={showDeleteBatchModal} onClose={() => setShowDeleteBatchModal(false)} title="Confirm Batch Removal" maxWidth="md">
         {deletingBatch && (
           <div className="space-y-4 text-xs">
@@ -1234,7 +1677,7 @@ export const InventoryPage: React.FC = () => {
               </p>
             </div>
             <p className="text-slate-500 text-[11px] leading-relaxed">
-              <strong>Pharmaceutical Audit Compliance:</strong> If this batch has associated sales invoices or historical stock movements, it will be safely <strong>quarantined</strong> and marked depleted to preserve audit compliance rather than permanently deleted.
+              <strong>Pharmaceutical Audit Compliance:</strong> If this batch has associated sales invoices or historical stock movements, it will be safely quarantined rather than hard purged.
             </p>
             <div className="flex justify-end gap-2 pt-3 border-t border-slate-200">
               <button
@@ -1256,43 +1699,7 @@ export const InventoryPage: React.FC = () => {
         )}
       </Modal>
 
-      {/* Modal: Confirm Bulk Batch Operation */}
-      <Modal isOpen={showBulkModal} onClose={() => setShowBulkModal(false)} title="Confirm Bulk Batch Operation" maxWidth="md">
-        <div className="space-y-4 text-xs">
-          <div className="p-3 bg-brand-50 border border-brand-200 rounded-lg text-brand-900">
-            <p className="font-bold">
-              Execute <u>{bulkActionType}</u> across {selectedBatchIds.length} selected batch(es)?
-            </p>
-            <p className="mt-1 text-slate-600">
-              This action will update all selected batches across the active filter. Batches with historical sales will be safely managed to preserve audit integrity.
-            </p>
-          </div>
-          <div className="flex justify-end gap-2 pt-3 border-t border-slate-200">
-            <button
-              type="button"
-              disabled={isExecutingBulk}
-              onClick={() => setShowBulkModal(false)}
-              className="px-4 py-2 border border-slate-300 rounded-lg text-xs font-semibold text-slate-600 hover:bg-slate-100"
-            >
-              Cancel
-            </button>
-            <button
-              type="button"
-              disabled={isExecutingBulk}
-              onClick={handleExecuteBulkAction}
-              className={`px-5 py-2 text-white rounded-lg text-xs font-bold transition-colors ${
-                bulkActionType === 'DELETE'
-                  ? 'bg-rose-600 hover:bg-rose-700'
-                  : 'bg-brand-500 hover:bg-brand-600'
-              }`}
-            >
-              {isExecutingBulk ? 'Processing...' : 'Confirm Bulk Execution'}
-            </button>
-          </div>
-        </div>
-      </Modal>
-
-      {/* Super Admin Required Restriction Modal */}
+      {/* Permission Denied Modal */}
       <PermissionDeniedModal
         isOpen={showPermissionModal}
         onClose={() => setShowPermissionModal(false)}
