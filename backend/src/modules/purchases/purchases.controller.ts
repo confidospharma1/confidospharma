@@ -1885,7 +1885,9 @@ export const downloadPurchaseTemplate = async (req: Request, res: Response) => {
 export const bulkDeletePurchases = async (req: Request, res: Response) => {
   try {
     if (!req.user || req.user.role !== 'SUPER_ADMIN') {
-      return res.status(403).json({ message: 'Forbidden: Super Admin only' });
+      return res.status(403).json({
+        message: 'You do not have permission to delete these records. Please contact the Super Admin for assistance.',
+      });
     }
 
     const rawIds = req.body.ids || req.body.invoiceIds;
@@ -1901,45 +1903,84 @@ export const bulkDeletePurchases = async (req: Request, res: Response) => {
       return res.status(400).json({ message: 'No valid invoice IDs provided' });
     }
 
-    const outcome = await prisma.$transaction(async (tx) => {
-      const results = {
-        deleted: [] as string[],
-        failed: [] as { id: string; reason: string }[],
-      };
+    if (uniqueIds.length > 100) {
+      return res.status(400).json({
+        message: `Batch size of ${uniqueIds.length} exceeds the maximum limit of 100 invoices per request. Please delete in smaller batches.`,
+      });
+    }
 
-      for (const id of uniqueIds) {
-        const invoice = await tx.purchaseInvoice.findUnique({
-          where: { id },
-          include: { returns: true },
+    const outcome = await prisma.$transaction(
+      async (tx) => {
+        const results = {
+          deleted: [] as string[],
+          failed: [] as { id: string; reason: string }[],
+        };
+
+        const existingInvoices = await tx.purchaseInvoice.findMany({
+          where: { id: { in: uniqueIds } },
+          include: {
+            returns: {
+              select: { id: true },
+            },
+          },
         });
 
-        if (!invoice) {
-          results.failed.push({ id, reason: 'Invoice not found' });
-          continue;
+        const invoiceMap = new Map<string, (typeof existingInvoices)[0]>();
+        for (const inv of existingInvoices) {
+          invoiceMap.set(inv.id, inv);
         }
 
-        if (invoice.returns && invoice.returns.length > 0) {
-          results.failed.push({
-            id,
-            reason: `Invoice ${invoice.invoiceNumber} has associated purchase returns and cannot be deleted`,
-          });
-          continue;
+        const toCancelIds: string[] = [];
+        const toDeleteIds: string[] = [];
+
+        for (const id of uniqueIds) {
+          const invoice = invoiceMap.get(id);
+
+          if (!invoice) {
+            results.failed.push({ id, reason: 'Invoice not found' });
+            continue;
+          }
+
+          if (invoice.returns && invoice.returns.length > 0) {
+            results.failed.push({
+              id,
+              reason: `Invoice ${invoice.invoiceNumber} has associated purchase returns and cannot be deleted`,
+            });
+            continue;
+          }
+
+          if (invoice.status === 'RECEIVED') {
+            toCancelIds.push(id);
+            results.deleted.push(invoice.invoiceNumber);
+          } else {
+            toDeleteIds.push(id);
+            results.deleted.push(invoice.invoiceNumber);
+          }
         }
 
-        if (invoice.status === 'RECEIVED') {
-          await tx.purchaseInvoice.update({
-            where: { id },
+        if (toCancelIds.length > 0) {
+          await tx.purchaseInvoice.updateMany({
+            where: { id: { in: toCancelIds } },
             data: { status: 'CANCELLED' },
           });
-          results.deleted.push(invoice.invoiceNumber);
-        } else {
-          await tx.purchaseInvoice.delete({ where: { id } });
-          results.deleted.push(invoice.invoiceNumber);
         }
-      }
 
-      return results;
-    });
+        if (toDeleteIds.length > 0) {
+          await tx.purchaseInvoiceLine.deleteMany({
+            where: { purchaseInvoiceId: { in: toDeleteIds } },
+          });
+          await tx.purchaseInvoice.deleteMany({
+            where: { id: { in: toDeleteIds } },
+          });
+        }
+
+        return results;
+      },
+      {
+        maxWait: 5000,
+        timeout: 15000,
+      }
+    );
 
     await logAuditEvent({
       userId: req.user.id,
@@ -1961,7 +2002,13 @@ export const bulkDeletePurchases = async (req: Request, res: Response) => {
       totalProcessed: outcome.deleted.length,
     });
   } catch (error: any) {
-    return res.status(500).json({ message: error.message || 'Bulk delete failed' });
+    console.error('[BulkDeletePurchases] Error executing bulk deletion:', error);
+    if (error && typeof error === 'object' && error.code === 'P2003') {
+      return res.status(409).json({
+        message: 'One or more invoices cannot be deleted because they are referenced by other records.',
+      });
+    }
+    return res.status(500).json({ message: 'Failed to process bulk deletion of purchase invoices' });
   }
 };
 

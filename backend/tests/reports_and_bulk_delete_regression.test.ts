@@ -511,4 +511,226 @@ describe('Confidos Pharma — Reports & Bulk Deletion Regression Test Suite', { 
       expect(res.body.totalProcessed).toBe(0);
     });
   });
+
+  // =========================================================================
+  // DEF-006: PURCHASE INVOICE & SUPPLIER BULK DELETION — BOUNDED TRANSACTIONS
+  // =========================================================================
+  describe('Phase 3: Purchase Invoices & Suppliers Bulk Deletion — Bounded Transactions and Safety', () => {
+    let testSupplierId = '';
+    let testInvoiceReceivedId = '';
+    let testInvoiceDraftId = '';
+    let testInvoiceWithReturnId = '';
+    let testReturnId = '';
+
+    beforeAll(async () => {
+      // Create a test supplier
+      const supplier = await prisma.supplier.create({
+        data: {
+          name: `Bulk Test Supplier ${Date.now()}`,
+          phone: '9876543210',
+          email: `supplier_${Date.now()}@test.com`,
+          gstin: '37AAAAA0000A1Z5',
+          isActive: true,
+        },
+      });
+      testSupplierId = supplier.id;
+
+      // Create a RECEIVED invoice
+      const invReceived = await prisma.purchaseInvoice.create({
+        data: {
+          invoiceNumber: `INV-REC-${Date.now()}`,
+          supplierInvoiceNumber: `SUPP-REC-${Date.now()}`,
+          supplierId: testSupplierId,
+          branchId: testBranchId,
+          invoiceDate: new Date(),
+          subtotal: 1000,
+          taxTotal: 120,
+          grandTotal: 1120,
+          status: 'RECEIVED',
+          receivedByUserId: 'test-user',
+        },
+      });
+      testInvoiceReceivedId = invReceived.id;
+
+      // Create a DRAFT invoice
+      const invDraft = await prisma.purchaseInvoice.create({
+        data: {
+          invoiceNumber: `INV-DFT-${Date.now()}`,
+          supplierInvoiceNumber: `SUPP-DFT-${Date.now()}`,
+          supplierId: testSupplierId,
+          branchId: testBranchId,
+          invoiceDate: new Date(),
+          subtotal: 500,
+          taxTotal: 60,
+          grandTotal: 560,
+          status: 'DRAFT',
+          receivedByUserId: 'test-user',
+        },
+      });
+      testInvoiceDraftId = invDraft.id;
+
+      // Create an invoice with an associated return
+      const invWithReturn = await prisma.purchaseInvoice.create({
+        data: {
+          invoiceNumber: `INV-RET-${Date.now()}`,
+          supplierInvoiceNumber: `SUPP-RET-${Date.now()}`,
+          supplierId: testSupplierId,
+          branchId: testBranchId,
+          invoiceDate: new Date(),
+          subtotal: 800,
+          taxTotal: 96,
+          grandTotal: 896,
+          status: 'RECEIVED',
+          receivedByUserId: 'test-user',
+        },
+      });
+      testInvoiceWithReturnId = invWithReturn.id;
+
+      const purchaseReturn = await prisma.purchaseReturn.create({
+        data: {
+          returnNumber: `PR-TEST-${Date.now()}`,
+          purchaseInvoiceId: invWithReturn.id,
+          supplierId: testSupplierId,
+          branchId: testBranchId,
+          subtotal: 400,
+          taxTotal: 48,
+          grandTotal: 448,
+          reason: 'Damaged strips',
+          status: 'COMPLETED',
+          createdById: 'test-user',
+        },
+      });
+      testReturnId = purchaseReturn.id;
+    });
+
+    afterAll(async () => {
+      try {
+        if (testReturnId) await prisma.purchaseReturn.deleteMany({ where: { id: testReturnId } });
+        if (testInvoiceWithReturnId) await prisma.purchaseInvoice.deleteMany({ where: { id: testInvoiceWithReturnId } });
+        if (testInvoiceDraftId) await prisma.purchaseInvoice.deleteMany({ where: { id: testInvoiceDraftId } });
+        if (testInvoiceReceivedId) await prisma.purchaseInvoice.deleteMany({ where: { id: testInvoiceReceivedId } });
+        if (testSupplierId) await prisma.supplier.deleteMany({ where: { id: testSupplierId } });
+      } catch (_) {}
+    });
+
+    it('1. Non-Super Admin (Branch Admin) receives HTTP 403 with standardized guidance', async () => {
+      const res = await request(app)
+        .post('/api/purchases/bulk-delete')
+        .set('Authorization', `Bearer ${branchAdminToken}`)
+        .send({ ids: [testInvoiceDraftId] });
+
+      expect(res.status).toBe(403);
+      expect(res.body.message).toBe(
+        'You do not have permission to delete these records. Please contact the Super Admin for assistance.'
+      );
+    });
+
+    it('2. Invalid input validation: empty or missing IDs return HTTP 400', async () => {
+      const res1 = await request(app)
+        .post('/api/purchases/bulk-delete')
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .send({ ids: [] });
+      expect(res1.status).toBe(400);
+      expect(res1.body.message).toBe('No invoice IDs provided');
+
+      const res2 = await request(app)
+        .post('/api/purchases/bulk-delete')
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .send({ ids: ['   ', ''] });
+      expect(res2.status).toBe(400);
+      expect(res2.body.message).toBe('No valid invoice IDs provided');
+    });
+
+    it('3. Exceeding batch size limit (>100 IDs) returns HTTP 400', async () => {
+      const tooManyIds = Array.from({ length: 105 }, (_, i) => `mock-inv-id-${i}`);
+      const res = await request(app)
+        .post('/api/purchases/bulk-delete')
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .send({ ids: tooManyIds });
+
+      expect(res.status).toBe(400);
+      expect(res.body.message).toContain('exceeds the maximum limit of 100 invoices');
+    });
+
+    it('4. Invoice with associated purchase return fails gracefully and is reported in failed array', async () => {
+      const res = await request(app)
+        .post('/api/purchases/bulk-delete')
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .send({ ids: [testInvoiceWithReturnId] });
+
+      expect(res.status).toBe(200);
+      expect(res.body.failed.length).toBe(1);
+      expect(res.body.failed[0].reason).toContain('associated purchase returns and cannot be deleted');
+      expect(res.body.deleted.length).toBe(0);
+
+      // Verify invoice still exists in DB
+      const invoice = await prisma.purchaseInvoice.findUnique({ where: { id: testInvoiceWithReturnId } });
+      expect(invoice).not.toBeNull();
+    });
+
+    it('5. Super Admin bulk-cancels RECEIVED purchase invoice (updates status to CANCELLED)', async () => {
+      const res = await request(app)
+        .post('/api/purchases/bulk-delete')
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .send({ ids: [testInvoiceReceivedId] });
+
+      expect(res.status).toBe(200);
+      expect(res.body.deleted.length).toBe(1);
+
+      const check = await prisma.purchaseInvoice.findUnique({ where: { id: testInvoiceReceivedId } });
+      expect(check?.status).toBe('CANCELLED');
+    });
+
+    it('6. Super Admin bulk-deletes DRAFT purchase invoice permanently', async () => {
+      const res = await request(app)
+        .post('/api/purchases/bulk-delete')
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .send({ ids: [testInvoiceDraftId] });
+
+      expect(res.status).toBe(200);
+      expect(res.body.deleted.length).toBe(1);
+
+      const check = await prisma.purchaseInvoice.findUnique({ where: { id: testInvoiceDraftId } });
+      expect(check).toBeNull();
+    });
+
+    it('7. Super Admin bulk-deletes unreferenced supplier permanently', async () => {
+      const unrefSupplier = await prisma.supplier.create({
+        data: {
+          name: `Unref Supplier ${Date.now()}`,
+          phone: '9876543211',
+          email: `unref_${Date.now()}@test.com`,
+          gstin: '37BBBBB0000B1Z5',
+          isActive: true,
+        },
+      });
+
+      const res = await request(app)
+        .post('/api/suppliers/bulk-delete')
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .send({ ids: [unrefSupplier.id] });
+
+      expect(res.status).toBe(200);
+      expect(res.body.deleted.length).toBe(1);
+
+      const check = await prisma.supplier.findUnique({ where: { id: unrefSupplier.id } });
+      expect(check).toBeNull();
+    });
+
+    it('8. Super Admin safely archives referenced supplier (isActive: false)', async () => {
+      // testSupplierId has purchases associated with it
+      const res = await request(app)
+        .post('/api/suppliers/bulk-delete')
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .send({ ids: [testSupplierId] });
+
+      expect(res.status).toBe(200);
+      expect(res.body.archived.length).toBe(1);
+
+      const check = await prisma.supplier.findUnique({ where: { id: testSupplierId } });
+      expect(check).not.toBeNull();
+      expect(check?.isActive).toBe(false);
+    });
+  });
 });
+

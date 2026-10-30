@@ -309,16 +309,22 @@ export const bulkDeleteSuppliers = async (req: Request, res: Response) => {
       return res.status(400).json({ message: 'No valid supplier IDs provided' });
     }
 
-    const outcome = await prisma.$transaction(async (tx) => {
-      const results = {
-        deleted: [] as string[],
-        archived: [] as string[],
-        failed: [] as { id: string; reason: string }[],
-      };
+    if (uniqueIds.length > 100) {
+      return res.status(400).json({
+        message: `Batch size of ${uniqueIds.length} exceeds the maximum limit of 100 suppliers per request. Please delete in smaller batches.`,
+      });
+    }
 
-      for (const id of uniqueIds) {
-        const supplier = await tx.supplier.findUnique({
-          where: { id },
+    const outcome = await prisma.$transaction(
+      async (tx) => {
+        const results = {
+          deleted: [] as string[],
+          archived: [] as string[],
+          failed: [] as { id: string; reason: string }[],
+        };
+
+        const existingSuppliers = await tx.supplier.findMany({
+          where: { id: { in: uniqueIds } },
           include: {
             _count: {
               select: {
@@ -331,33 +337,59 @@ export const bulkDeleteSuppliers = async (req: Request, res: Response) => {
           },
         });
 
-        if (!supplier) {
-          results.failed.push({ id, reason: 'Supplier not found' });
-          continue;
+        const supplierMap = new Map<string, (typeof existingSuppliers)[0]>();
+        for (const s of existingSuppliers) {
+          supplierMap.set(s.id, s);
         }
 
-        const totalReferences =
-          supplier._count.purchases +
-          supplier._count.batches +
-          supplier._count.purchaseReturns +
-          supplier._count.purchaseIndents;
+        const toArchiveIds: string[] = [];
+        const toDeleteIds: string[] = [];
 
-        if (totalReferences > 0) {
-          // Safe archive to preserve ledger and audit trails
-          await tx.supplier.update({
-            where: { id },
+        for (const id of uniqueIds) {
+          const supplier = supplierMap.get(id);
+
+          if (!supplier) {
+            results.failed.push({ id, reason: 'Supplier not found' });
+            continue;
+          }
+
+          const totalReferences =
+            supplier._count.purchases +
+            supplier._count.batches +
+            supplier._count.purchaseReturns +
+            supplier._count.purchaseIndents;
+
+          if (totalReferences > 0) {
+            // Safe archive to preserve ledger and audit trails
+            toArchiveIds.push(id);
+            results.archived.push(supplier.name);
+          } else {
+            // Permanent delete when completely unreferenced
+            toDeleteIds.push(id);
+            results.deleted.push(supplier.name);
+          }
+        }
+
+        if (toArchiveIds.length > 0) {
+          await tx.supplier.updateMany({
+            where: { id: { in: toArchiveIds } },
             data: { isActive: false },
           });
-          results.archived.push(supplier.name);
-        } else {
-          // Permanent delete when completely unreferenced
-          await tx.supplier.delete({ where: { id } });
-          results.deleted.push(supplier.name);
         }
-      }
 
-      return results;
-    });
+        if (toDeleteIds.length > 0) {
+          await tx.supplier.deleteMany({
+            where: { id: { in: toDeleteIds } },
+          });
+        }
+
+        return results;
+      },
+      {
+        maxWait: 5000,
+        timeout: 15000,
+      }
+    );
 
     await logAuditEvent({
       userId: req.user.id,
@@ -381,7 +413,13 @@ export const bulkDeleteSuppliers = async (req: Request, res: Response) => {
       totalProcessed: totalSuccess,
     });
   } catch (error: any) {
-    return res.status(500).json({ message: error.message || 'Bulk delete failed' });
+    console.error('[BulkDeleteSuppliers] Error executing bulk deletion:', error);
+    if (error && typeof error === 'object' && error.code === 'P2003') {
+      return res.status(409).json({
+        message: 'One or more suppliers cannot be deleted because they are referenced by other records.',
+      });
+    }
+    return res.status(500).json({ message: 'Failed to process bulk deletion of suppliers' });
   }
 };
 
