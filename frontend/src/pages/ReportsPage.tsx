@@ -344,7 +344,7 @@ export const ReportsPage: React.FC = () => {
       ) : (
         <div className="space-y-6">
           {/* Daily Sales Panel */}
-          {activeReport === 'DAILY_SALES' && reportData && Array.isArray(reportData.invoices) && (
+          {activeReport === 'DAILY_SALES' && reportData && (
             <div className="space-y-4 animate-in fade-in">
               <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
                 <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs">
@@ -518,7 +518,7 @@ export const ReportsPage: React.FC = () => {
           )}
 
           {/* Stock Valuation Panel */}
-          {activeReport === 'VALUATION' && reportData && Array.isArray(reportData.items) && (
+          {activeReport === 'VALUATION' && reportData && (
             <div className="space-y-4 animate-in fade-in">
               <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
                 <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs">
@@ -690,7 +690,7 @@ export const ReportsPage: React.FC = () => {
           )}
 
           {/* GST Summary Panel */}
-          {activeReport === 'GST' && reportData && Array.isArray(reportData.hsnRecords) && (
+          {activeReport === 'GST' && reportData && (
             <div className="space-y-4 animate-in fade-in">
               <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
                 <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs">
@@ -833,7 +833,7 @@ export const ReportsPage: React.FC = () => {
           )}
 
           {/* Expiry Risk Panel */}
-          {activeReport === 'EXPIRY' && reportData && (Array.isArray(reportData.nearExpiry) || Array.isArray(reportData.expired)) && (
+          {activeReport === 'EXPIRY' && reportData && (
             <div className="space-y-4 animate-in fade-in">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="bg-white p-4 rounded-xl border border-amber-200 shadow-xs bg-amber-50/20">
