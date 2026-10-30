@@ -21,8 +21,8 @@
 | `tests/audit_fixes.test.ts` | Audit Logs, Event Persistence, Entity Tracking | 18 | 18 | 0 | 0 | 3.18s | **PASS** |
 | `tests/enterprise_defects_verification.test.ts` | Bulk Deletions, Safeguards, Supplier Quick Add, Route Shadowing | 12 | 12 | 0 | 0 | 33.40s | **PASS** |
 | `tests/imports.test.ts` | CSV / XLSX File Parsing, Column Header Collisions | 17 | 17 | 0 | 0 | 4.96s | **PASS** |
-| `tests/quality_audit_fixes_regression.test.ts` | Purchase Cancellation Pack Unit Reversal, Stock Guard, Bulk Delete Guidance | 5 | 5 | 0 | 0 | 41.77s | **PASS** |
-| **Total** | **All 11 Core Application & Regression Modules** | **172** | **172** | **0** | **0** | **456.61s** | **100% PASS** |
+| `tests/quality_audit_fixes_regression.test.ts` | Purchase Cancellation Pack Unit Reversal, Stock Guard, Bulk Delete Guidance & Edge Cases | 10 | 10 | 0 | 0 | 89.01s | **PASS** |
+| **Total** | **All 11 Core Application & Regression Modules** | **177** | **177** | **0** | **0** | **495.61s** | **100% PASS** |
 
 ---
 
