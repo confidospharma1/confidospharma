@@ -12,6 +12,7 @@ export const ReportsPage: React.FC = () => {
   const [activeReport, setActiveReport] = useState<'DAILY_SALES' | 'VALUATION' | 'GST' | 'EXPIRY'>('DAILY_SALES');
   const [loading, setLoading] = useState(false);
   const [reportData, setReportData] = useState<any>(null);
+  const [error, setError] = useState<string | null>(null);
 
   const [dateFilter, setDateFilter] = useState(new Date().toISOString().split('T')[0]);
 
@@ -59,8 +60,16 @@ export const ReportsPage: React.FC = () => {
     setExpiryStatusFilter('');
   };
 
+  const handleTabChange = (tab: 'DAILY_SALES' | 'VALUATION' | 'GST' | 'EXPIRY') => {
+    if (tab === activeReport) return;
+    setReportData(null);
+    setError(null);
+    setActiveReport(tab);
+  };
+
   const loadReport = async () => {
     setLoading(true);
+    setError(null);
     try {
       if (activeReport === 'DAILY_SALES') {
         const data = await api.getDailySales(selectedBranchId, dateFilter);
@@ -75,8 +84,10 @@ export const ReportsPage: React.FC = () => {
         const data = await api.getExpiryAlerts(selectedBranchId, 90);
         setReportData(data);
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error('Report load error:', err);
+      setError(err?.response?.data?.message || err?.message || 'Failed to generate report data. Please check branch connection.');
+      setReportData(null);
     } finally {
       setLoading(false);
     }
@@ -93,7 +104,7 @@ export const ReportsPage: React.FC = () => {
     let rows: any[] = [];
     let filename = `confidos_${activeReport.toLowerCase()}_${new Date().toISOString().split('T')[0]}.csv`;
 
-    if (activeReport === 'DAILY_SALES' && reportData.invoices) {
+    if (activeReport === 'DAILY_SALES' && Array.isArray(reportData.invoices)) {
       rows = reportData.invoices.map((inv: any) => ({
         InvoiceNumber: inv.invoiceNumber,
         Customer: inv.customerName || 'Retail Customer',
@@ -104,7 +115,7 @@ export const ReportsPage: React.FC = () => {
         GrandTotal: inv.grandTotal,
         Date: inv.createdAt,
       }));
-    } else if (activeReport === 'VALUATION' && reportData.items) {
+    } else if (activeReport === 'VALUATION' && Array.isArray(reportData.items)) {
       rows = reportData.items.map((i: any) => ({
         Medicine: i.medicineName,
         Generic: i.genericName,
@@ -115,7 +126,7 @@ export const ReportsPage: React.FC = () => {
         TotalPurchaseCost: i.purchaseValue,
         TotalMRPValue: i.mrpValue,
       }));
-    } else if (activeReport === 'GST' && reportData.hsnRecords) {
+    } else if (activeReport === 'GST' && Array.isArray(reportData.hsnRecords)) {
       rows = reportData.hsnRecords.map((h: any) => ({
         HSNCode: h.hsnCode,
         GSTRate: `${h.gstRate}%`,
@@ -125,7 +136,7 @@ export const ReportsPage: React.FC = () => {
         TotalTax: h.totalTax,
         TotalInvoiceAmount: h.totalAmount,
       }));
-    } else if (activeReport === 'EXPIRY' && reportData.nearExpiry) {
+    } else if (activeReport === 'EXPIRY' && Array.isArray(reportData.nearExpiry)) {
       rows = [...reportData.nearExpiry, ...(reportData.expired || [])].map((e: any) => ({
         Medicine: e.medicineName,
         Batch: e.batchNumber,
@@ -263,7 +274,7 @@ export const ReportsPage: React.FC = () => {
       <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="flex flex-wrap items-center gap-1.5 p-1 bg-slate-100 rounded-lg">
           <button
-            onClick={() => setActiveReport('DAILY_SALES')}
+            onClick={() => handleTabChange('DAILY_SALES')}
             className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all ${
               activeReport === 'DAILY_SALES' ? 'bg-white text-brand-700 shadow-xs' : 'text-slate-600 hover:text-slate-900'
             }`}
@@ -271,7 +282,7 @@ export const ReportsPage: React.FC = () => {
             Daily Sales Register
           </button>
           <button
-            onClick={() => setActiveReport('VALUATION')}
+            onClick={() => handleTabChange('VALUATION')}
             className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all ${
               activeReport === 'VALUATION' ? 'bg-white text-brand-700 shadow-xs' : 'text-slate-600 hover:text-slate-900'
             }`}
@@ -279,7 +290,7 @@ export const ReportsPage: React.FC = () => {
             Stock Valuation & Margin
           </button>
           <button
-            onClick={() => setActiveReport('GST')}
+            onClick={() => handleTabChange('GST')}
             className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all ${
               activeReport === 'GST' ? 'bg-white text-brand-700 shadow-xs' : 'text-slate-600 hover:text-slate-900'
             }`}
@@ -287,7 +298,7 @@ export const ReportsPage: React.FC = () => {
             GST Tax Summary (HSN)
           </button>
           <button
-            onClick={() => setActiveReport('EXPIRY')}
+            onClick={() => handleTabChange('EXPIRY')}
             className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all ${
               activeReport === 'EXPIRY' ? 'bg-white text-amber-700 shadow-xs' : 'text-slate-600 hover:text-slate-900'
             }`}
@@ -314,27 +325,43 @@ export const ReportsPage: React.FC = () => {
         <div className="p-12 text-center text-slate-400 text-sm">
           Generating report data...
         </div>
+      ) : error ? (
+        <div className="p-6 bg-rose-50 border border-rose-200 rounded-xl text-rose-800 flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <AlertTriangle className="w-5 h-5 text-rose-600 shrink-0" />
+            <div>
+              <p className="font-bold text-sm">Unable to Load Report Data</p>
+              <p className="text-xs text-rose-600 mt-0.5">{error}</p>
+            </div>
+          </div>
+          <button
+            onClick={loadReport}
+            className="px-3.5 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-xs font-bold transition-colors shadow-xs shrink-0"
+          >
+            Retry Report
+          </button>
+        </div>
       ) : (
         <div className="space-y-6">
           {/* Daily Sales Panel */}
-          {activeReport === 'DAILY_SALES' && reportData && (
+          {activeReport === 'DAILY_SALES' && reportData && Array.isArray(reportData.invoices) && (
             <div className="space-y-4 animate-in fade-in">
               <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
                 <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs">
                   <span className="text-[11px] font-bold text-slate-500 uppercase">Total Sales</span>
-                  <p className="text-2xl font-black font-mono text-brand-900 mt-1">₹{reportData.totalSales.toFixed(2)}</p>
+                  <p className="text-2xl font-black font-mono text-brand-900 mt-1">₹{(reportData.totalSales ?? 0).toFixed(2)}</p>
                 </div>
                 <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs">
                   <span className="text-[11px] font-bold text-slate-500 uppercase">GST Tax Collected</span>
-                  <p className="text-2xl font-black font-mono text-slate-800 mt-1">₹{reportData.totalTax.toFixed(2)}</p>
+                  <p className="text-2xl font-black font-mono text-slate-800 mt-1">₹{(reportData.totalTax ?? 0).toFixed(2)}</p>
                 </div>
                 <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs">
                   <span className="text-[11px] font-bold text-slate-500 uppercase">Discounts Granted</span>
-                  <p className="text-2xl font-black font-mono text-slate-800 mt-1">₹{reportData.totalDiscount.toFixed(2)}</p>
+                  <p className="text-2xl font-black font-mono text-slate-800 mt-1">₹{(reportData.totalDiscount ?? 0).toFixed(2)}</p>
                 </div>
                 <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs">
                   <span className="text-[11px] font-bold text-slate-500 uppercase">Invoices Issued</span>
-                  <p className="text-2xl font-black font-mono text-slate-800 mt-1">{reportData.totalInvoices}</p>
+                  <p className="text-2xl font-black font-mono text-slate-800 mt-1">{reportData.totalInvoices ?? 0}</p>
                 </div>
               </div>
 
@@ -477,9 +504,9 @@ export const ReportsPage: React.FC = () => {
                                 {inv.paymentMethod}
                               </Badge>
                             </td>
-                            <td className="py-2.5 px-3 text-right font-mono text-slate-600">₹{inv.subtotal.toFixed(2)}</td>
-                            <td className="py-2.5 px-3 text-right font-mono text-slate-600">₹{inv.taxTotal.toFixed(2)}</td>
-                            <td className="py-2.5 px-4 text-right font-mono font-bold text-brand-900">₹{inv.grandTotal.toFixed(2)}</td>
+                            <td className="py-2.5 px-3 text-right font-mono text-slate-600">₹{(inv.subtotal ?? 0).toFixed(2)}</td>
+                            <td className="py-2.5 px-3 text-right font-mono text-slate-600">₹{(inv.taxTotal ?? 0).toFixed(2)}</td>
+                            <td className="py-2.5 px-4 text-right font-mono font-bold text-brand-900">₹{(inv.grandTotal ?? 0).toFixed(2)}</td>
                           </tr>
                         ))
                       )}
@@ -491,24 +518,24 @@ export const ReportsPage: React.FC = () => {
           )}
 
           {/* Stock Valuation Panel */}
-          {activeReport === 'VALUATION' && reportData && (
+          {activeReport === 'VALUATION' && reportData && Array.isArray(reportData.items) && (
             <div className="space-y-4 animate-in fade-in">
               <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
                 <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs">
                   <span className="text-[11px] font-bold text-slate-500 uppercase">Total Available Units</span>
-                  <p className="text-2xl font-black font-mono text-slate-900 mt-1">{reportData.totalUnits}</p>
+                  <p className="text-2xl font-black font-mono text-slate-900 mt-1">{reportData.totalUnits ?? 0}</p>
                 </div>
                 <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs">
                   <span className="text-[11px] font-bold text-slate-500 uppercase">Valuation at Cost</span>
-                  <p className="text-2xl font-black font-mono text-slate-800 mt-1">₹{reportData.totalPurchaseValue.toFixed(2)}</p>
+                  <p className="text-2xl font-black font-mono text-slate-800 mt-1">₹{(reportData.totalPurchaseValue ?? 0).toFixed(2)}</p>
                 </div>
                 <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs">
                   <span className="text-[11px] font-bold text-slate-500 uppercase">Valuation at MRP</span>
-                  <p className="text-2xl font-black font-mono text-brand-900 mt-1">₹{reportData.totalMrpValue.toFixed(2)}</p>
+                  <p className="text-2xl font-black font-mono text-brand-900 mt-1">₹{(reportData.totalMrpValue ?? 0).toFixed(2)}</p>
                 </div>
                 <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs">
                   <span className="text-[11px] font-bold text-slate-500 uppercase">Potential Retail Margin</span>
-                  <p className="text-2xl font-black font-mono text-pharmagreen-700 mt-1">₹{reportData.potentialMargin.toFixed(2)}</p>
+                  <p className="text-2xl font-black font-mono text-pharmagreen-700 mt-1">₹{(reportData.potentialMargin ?? 0).toFixed(2)}</p>
                 </div>
               </div>
 
@@ -648,10 +675,10 @@ export const ReportsPage: React.FC = () => {
                             <td className="py-2.5 px-4 font-bold text-slate-900">{item.medicineName}</td>
                             <td className="py-2.5 px-3 font-mono text-slate-700">{item.batchNumber}</td>
                             <td className="py-2.5 px-3 text-right font-mono font-bold text-slate-900">{item.quantity}</td>
-                            <td className="py-2.5 px-3 text-right font-mono text-slate-600">₹{item.purchaseRate.toFixed(2)}</td>
-                            <td className="py-2.5 px-3 text-right font-mono text-slate-800">₹{item.mrp.toFixed(2)}</td>
-                            <td className="py-2.5 px-3 text-right font-mono text-slate-600">₹{item.purchaseValue.toFixed(2)}</td>
-                            <td className="py-2.5 px-4 text-right font-mono font-bold text-brand-900">₹{item.mrpValue.toFixed(2)}</td>
+                            <td className="py-2.5 px-3 text-right font-mono text-slate-600">₹{(item.purchaseRate ?? 0).toFixed(2)}</td>
+                            <td className="py-2.5 px-3 text-right font-mono text-slate-800">₹{(item.mrp ?? 0).toFixed(2)}</td>
+                            <td className="py-2.5 px-3 text-right font-mono text-slate-600">₹{(item.purchaseValue ?? 0).toFixed(2)}</td>
+                            <td className="py-2.5 px-4 text-right font-mono font-bold text-brand-900">₹{(item.mrpValue ?? 0).toFixed(2)}</td>
                           </tr>
                         ))
                       )}
@@ -663,24 +690,24 @@ export const ReportsPage: React.FC = () => {
           )}
 
           {/* GST Summary Panel */}
-          {activeReport === 'GST' && reportData && (
+          {activeReport === 'GST' && reportData && Array.isArray(reportData.hsnRecords) && (
             <div className="space-y-4 animate-in fade-in">
               <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
                 <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs">
                   <span className="text-[11px] font-bold text-slate-500 uppercase">Taxable Value</span>
-                  <p className="text-2xl font-black font-mono text-slate-900 mt-1">₹{reportData.totalTaxable.toFixed(2)}</p>
+                  <p className="text-2xl font-black font-mono text-slate-900 mt-1">₹{(reportData.totalTaxable ?? 0).toFixed(2)}</p>
                 </div>
                 <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs">
                   <span className="text-[11px] font-bold text-slate-500 uppercase">Central GST (CGST)</span>
-                  <p className="text-2xl font-black font-mono text-slate-800 mt-1">₹{reportData.totalCgst.toFixed(2)}</p>
+                  <p className="text-2xl font-black font-mono text-slate-800 mt-1">₹{(reportData.totalCgst ?? 0).toFixed(2)}</p>
                 </div>
                 <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs">
                   <span className="text-[11px] font-bold text-slate-500 uppercase">State GST (SGST)</span>
-                  <p className="text-2xl font-black font-mono text-slate-800 mt-1">₹{reportData.totalSgst.toFixed(2)}</p>
+                  <p className="text-2xl font-black font-mono text-slate-800 mt-1">₹{(reportData.totalSgst ?? 0).toFixed(2)}</p>
                 </div>
                 <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs">
                   <span className="text-[11px] font-bold text-slate-500 uppercase">Total Tax Amount</span>
-                  <p className="text-2xl font-black font-mono text-brand-900 mt-1">₹{reportData.totalTax.toFixed(2)}</p>
+                  <p className="text-2xl font-black font-mono text-brand-900 mt-1">₹{(reportData.totalTax ?? 0).toFixed(2)}</p>
                 </div>
               </div>
 
@@ -790,11 +817,11 @@ export const ReportsPage: React.FC = () => {
                           <tr key={idx} className="hover:bg-slate-50/50">
                             <td className="py-3 px-4 font-mono font-bold text-slate-900">{h.hsnCode}</td>
                             <td className="py-3 px-3 text-center font-bold">{h.gstRate}%</td>
-                            <td className="py-3 px-3 text-right font-mono text-slate-700">₹{h.taxableAmount.toFixed(2)}</td>
-                            <td className="py-3 px-3 text-right font-mono text-slate-600">₹{h.cgstAmount.toFixed(2)}</td>
-                            <td className="py-3 px-3 text-right font-mono text-slate-600">₹{h.sgstAmount.toFixed(2)}</td>
-                            <td className="py-3 px-3 text-right font-mono font-bold text-brand-900">₹{h.totalTax.toFixed(2)}</td>
-                            <td className="py-3 px-4 text-right font-mono font-black text-slate-900">₹{h.totalAmount.toFixed(2)}</td>
+                            <td className="py-3 px-3 text-right font-mono text-slate-700">₹{(h.taxableAmount ?? 0).toFixed(2)}</td>
+                            <td className="py-3 px-3 text-right font-mono text-slate-600">₹{(h.cgstAmount ?? 0).toFixed(2)}</td>
+                            <td className="py-3 px-3 text-right font-mono text-slate-600">₹{(h.sgstAmount ?? 0).toFixed(2)}</td>
+                            <td className="py-3 px-3 text-right font-mono font-bold text-brand-900">₹{(h.totalTax ?? 0).toFixed(2)}</td>
+                            <td className="py-3 px-4 text-right font-mono font-black text-slate-900">₹{(h.totalAmount ?? 0).toFixed(2)}</td>
                           </tr>
                         ))
                       )}
@@ -806,16 +833,16 @@ export const ReportsPage: React.FC = () => {
           )}
 
           {/* Expiry Risk Panel */}
-          {activeReport === 'EXPIRY' && reportData && (
+          {activeReport === 'EXPIRY' && reportData && (Array.isArray(reportData.nearExpiry) || Array.isArray(reportData.expired)) && (
             <div className="space-y-4 animate-in fade-in">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="bg-white p-4 rounded-xl border border-amber-200 shadow-xs bg-amber-50/20">
                   <span className="text-[11px] font-bold text-amber-800 uppercase">Near Expiry Batches (&lt;90 Days)</span>
-                  <p className="text-2xl font-black font-mono text-amber-700 mt-1">{reportData.totalNearExpiry}</p>
+                  <p className="text-2xl font-black font-mono text-amber-700 mt-1">{reportData.totalNearExpiry ?? 0}</p>
                 </div>
                 <div className="bg-white p-4 rounded-xl border border-rose-200 shadow-xs bg-rose-50/20">
                   <span className="text-[11px] font-bold text-rose-800 uppercase">Expired Batches (Blocked)</span>
-                  <p className="text-2xl font-black font-mono text-rose-700 mt-1">{reportData.totalExpired}</p>
+                  <p className="text-2xl font-black font-mono text-rose-700 mt-1">{reportData.totalExpired ?? 0}</p>
                 </div>
               </div>
 
@@ -946,6 +973,13 @@ export const ReportsPage: React.FC = () => {
                   </table>
                 </div>
               </div>
+            </div>
+          )}
+
+          {/* Empty state fallback */}
+          {!reportData && (
+            <div className="p-12 text-center text-slate-400 text-sm bg-white rounded-xl border border-slate-200 shadow-xs">
+              No report data available for the selected criteria.
             </div>
           )}
         </div>

@@ -580,16 +580,18 @@ export const bulkDeleteProducts = async (req: Request, res: Response) => {
       return res.status(400).json({ message: 'No valid product IDs provided' });
     }
 
-    const outcome = await prisma.$transaction(async (tx) => {
-      const results = {
-        deleted: [] as string[],
-        archived: [] as string[],
-        failed: [] as { id: string; reason: string }[],
-      };
+    const MAX_BULK_DELETE_LIMIT = 100;
+    if (uniqueIds.length > MAX_BULK_DELETE_LIMIT) {
+      return res.status(400).json({
+        message: `Bulk delete request exceeds the maximum limit of ${MAX_BULK_DELETE_LIMIT} products per operation.`,
+      });
+    }
 
-      for (const id of uniqueIds) {
-        const product = await tx.medicineProduct.findUnique({
-          where: { id },
+    const outcome = await prisma.$transaction(
+      async (tx) => {
+        // Query target products with reference counts in a single efficient batch query
+        const products = await tx.medicineProduct.findMany({
+          where: { id: { in: uniqueIds } },
           include: {
             _count: {
               select: {
@@ -605,36 +607,64 @@ export const bulkDeleteProducts = async (req: Request, res: Response) => {
           },
         });
 
-        if (!product) {
-          results.failed.push({ id, reason: 'Product not found' });
-          continue;
+        const foundProductMap = new Map(products.map((p) => [p.id, p]));
+        const toArchiveIds: string[] = [];
+        const toArchiveNames: string[] = [];
+        const toDeleteIds: string[] = [];
+        const toDeleteNames: string[] = [];
+        const failed: { id: string; reason: string }[] = [];
+
+        for (const id of uniqueIds) {
+          const product = foundProductMap.get(id);
+          if (!product) {
+            failed.push({ id, reason: 'Product not found' });
+            continue;
+          }
+
+          const totalReferences =
+            product._count.batches +
+            product._count.salesLines +
+            product._count.purchaseLines +
+            product._count.movements +
+            product._count.adjustments +
+            product._count.purchaseReturnLines +
+            product._count.purchaseIndentItems;
+
+          if (totalReferences > 0) {
+            toArchiveIds.push(product.id);
+            toArchiveNames.push(product.brandName);
+          } else {
+            toDeleteIds.push(product.id);
+            toDeleteNames.push(product.brandName);
+          }
         }
 
-        const totalReferences =
-          product._count.batches +
-          product._count.salesLines +
-          product._count.purchaseLines +
-          product._count.movements +
-          product._count.adjustments +
-          product._count.purchaseReturnLines +
-          product._count.purchaseIndentItems;
-
-        if (totalReferences > 0) {
-          // Safe archive to preserve historical billing and inventory batch records
-          await tx.medicineProduct.update({
-            where: { id },
+        // Safe bulk archive to preserve historical billing, purchase, and inventory batch records
+        if (toArchiveIds.length > 0) {
+          await tx.medicineProduct.updateMany({
+            where: { id: { in: toArchiveIds } },
             data: { isActive: false },
           });
-          results.archived.push(product.brandName);
-        } else {
-          // Permanent delete when completely unreferenced
-          await tx.medicineProduct.delete({ where: { id } });
-          results.deleted.push(product.brandName);
         }
-      }
 
-      return results;
-    });
+        // Permanent delete when completely unreferenced
+        if (toDeleteIds.length > 0) {
+          await tx.medicineProduct.deleteMany({
+            where: { id: { in: toDeleteIds } },
+          });
+        }
+
+        return {
+          deleted: toDeleteNames,
+          archived: toArchiveNames,
+          failed,
+        };
+      },
+      {
+        maxWait: 5000,
+        timeout: 15000,
+      }
+    );
 
     await logAuditEvent({
       userId: req.user.id,
@@ -658,7 +688,20 @@ export const bulkDeleteProducts = async (req: Request, res: Response) => {
       totalProcessed: totalSuccess,
     });
   } catch (error: any) {
-    return res.status(500).json({ message: error.message || 'Bulk delete failed' });
+    console.error('[BulkDeleteProducts] Error executing bulk deletion:', error);
+
+    if (error?.code === 'P2003') {
+      return res.status(409).json({
+        message: 'Some products could not be deleted because they are referenced by active database records.',
+      });
+    }
+
+    const isPrismaError = error?.code?.startsWith?.('P') || error?.name?.includes('Prisma');
+    const safeMessage = isPrismaError
+      ? 'A database error occurred while processing bulk product deletion. No records were corrupted.'
+      : (error.message || 'Bulk delete failed');
+
+    return res.status(500).json({ message: safeMessage });
   }
 };
 
