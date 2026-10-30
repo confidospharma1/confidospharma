@@ -123,14 +123,14 @@ export const LoginPage: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col justify-center items-center p-4">
-      <div className={`w-full ${needsSetup ? 'max-w-xl' : 'max-w-md'} bg-white rounded-2xl border border-slate-200 p-8 shadow-sm space-y-6 transition-all`}>
+    <div className="min-h-screen bg-slate-50 flex flex-col justify-center items-center p-3 sm:p-4">
+      <div className={`w-full max-w-[calc(100vw-1.5rem)] ${needsSetup ? 'sm:max-w-xl' : 'sm:max-w-md'} bg-white rounded-2xl border border-slate-200 p-5 sm:p-8 shadow-sm space-y-5 sm:space-y-6 transition-all`}>
         {/* Brand Header with Authentic Logo */}
         <div className="text-center space-y-2">
           <img
             src="/confidos-logo.png"
             alt="Confidos Pharma"
-            className="h-14 w-auto max-w-[210px] object-contain mx-auto"
+            className="h-11 sm:h-14 w-auto max-w-[190px] sm:max-w-[210px] object-contain mx-auto"
           />
           <p className="text-xs text-slate-500 font-medium tracking-wide">
             Enterprise Multi-Branch Pharmacy Management & Counter Billing OS
@@ -302,8 +302,8 @@ export const LoginPage: React.FC = () => {
           </form>
         )}
 
-        <div className="text-center text-[10px] text-slate-400 pt-2 border-t border-slate-100 flex items-center justify-center gap-1.5">
-          <ShieldCheck className="w-3.5 h-3.5 text-brand-500" />
+        <div className="text-center text-[10px] text-slate-400 pt-2 border-t border-slate-100 flex flex-wrap items-center justify-center gap-1.5 text-center">
+          <ShieldCheck className="w-3.5 h-3.5 text-brand-500 shrink-0" />
           <span>PostgreSQL Persistent Database • Enterprise Branch Scope Isolation</span>
         </div>
       </div>

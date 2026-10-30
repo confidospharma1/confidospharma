@@ -123,7 +123,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, o
               Set the standard inward purchase discount applied to new purchase invoices. Pharmacists can edit this on each invoice line.
             </p>
 
-            <div className="grid grid-cols-2 gap-3 items-center">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-start sm:items-center">
               <div>
                 <label className="text-[11px] font-bold text-slate-700 block mb-1">
                   Default Purchase Discount (%) *
@@ -141,7 +141,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, o
                     }
                     className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-lg font-mono font-bold text-brand-900 focus:ring-2 focus:ring-brand-500"
                   />
-                  <div className="flex gap-1">
+                  <div className="flex gap-1 shrink-0">
                     <button
                       type="button"
                       onClick={() => setSettings({ ...settings, DEFAULT_PURCHASE_DISCOUNT_PERCENT: '15.0' })}
@@ -199,7 +199,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, o
               Configure default intra-state GST component rates. Note: Products with specific tax categories (e.g. 12%, 18%) retain their configured rate.
             </p>
 
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div>
                 <label className="text-[11px] font-bold text-slate-700 block mb-1">
                   Default CGST Rate (%) *
@@ -270,7 +270,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, o
                 <span className="text-pharmagreen-900 font-black">₹{previewGrandTotal.toFixed(2)}</span>
               </div>
             </div>
-            <div className="flex items-center justify-between text-[11px] text-slate-500 pt-1 border-t border-slate-100 font-mono">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between text-[11px] text-slate-500 pt-1 border-t border-slate-100 font-mono gap-1">
               <span>CGST ({cgstVal}%): ₹{previewCGSTAmt.toFixed(2)}</span>
               <span>SGST ({sgstVal}%): ₹{previewSGSTAmt.toFixed(2)}</span>
               <span className="font-bold text-slate-700">Total GST ({computedCombinedGST}%): ₹{previewTotalTax.toFixed(2)}</span>
@@ -278,7 +278,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, o
           </div>
 
           {/* Section: Operational Settings */}
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="text-[11px] font-bold text-slate-700 block mb-1">
                 Near-Expiry Alert Threshold (Days)
@@ -309,18 +309,18 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, o
             </div>
           </div>
 
-          <div className="flex justify-end gap-2 pt-4 border-t border-slate-200">
+          <div className="flex flex-col-reverse sm:flex-row justify-end gap-2 pt-4 border-t border-slate-200">
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 border border-slate-300 rounded-lg text-xs font-semibold text-slate-600 hover:bg-slate-50 transition-colors"
+              className="w-full sm:w-auto px-4 py-2 border border-slate-300 rounded-lg text-xs font-semibold text-slate-600 hover:bg-slate-50 transition-colors"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={saving}
-              className="px-5 py-2 bg-brand-500 hover:bg-brand-600 active:bg-brand-700 text-white rounded-lg text-xs font-bold shadow-xs transition-colors flex items-center gap-1.5 focus:ring-2 focus:ring-brand-500"
+              className="w-full sm:w-auto px-5 py-2 bg-brand-500 hover:bg-brand-600 active:bg-brand-700 text-white rounded-lg text-xs font-bold shadow-xs transition-colors flex items-center justify-center gap-1.5 focus:ring-2 focus:ring-brand-500"
             >
               {saving ? 'Saving Settings...' : 'Save & Apply Configuration'}
             </button>

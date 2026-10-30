@@ -211,7 +211,7 @@ export const ProfitLossPage: React.FC = () => {
   const isNetProfit = (s?.netProfit || 0) >= 0;
 
   return (
-    <div className="p-6 md:p-8 space-y-6 max-w-7xl mx-auto overflow-y-auto">
+    <div className="p-3.5 sm:p-5 md:p-8 space-y-4 sm:space-y-6 max-w-7xl mx-auto overflow-y-auto">
       {/* Page Title & Controls */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
@@ -226,7 +226,7 @@ export const ProfitLossPage: React.FC = () => {
 
         <div className="flex flex-wrap items-center gap-2">
           {/* Presets */}
-          <div className="bg-white border border-slate-200 rounded-lg p-1 flex items-center gap-1 text-xs">
+          <div className="bg-white border border-slate-200 rounded-lg p-1 flex flex-wrap items-center gap-1 text-xs">
             <button
               onClick={() => applyPreset('today')}
               className={`px-2.5 py-1 rounded font-semibold transition-colors ${
@@ -655,7 +655,7 @@ export const ProfitLossPage: React.FC = () => {
         )}
 
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs">
+          <table className="w-full text-left text-xs min-w-[650px]">
             <thead className="bg-slate-50 text-slate-700 font-bold border-b border-slate-200">
               <tr>
                 <th className="py-2.5 px-4">Date</th>
@@ -718,7 +718,7 @@ export const ProfitLossPage: React.FC = () => {
             <p className="text-[10px] text-slate-500">Products delivering the highest realized gross profit in this period.</p>
           </div>
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
+            <table className="w-full text-left text-xs min-w-[650px]">
               <thead className="bg-slate-50 text-slate-700 font-bold border-b border-slate-200">
                 <tr>
                   <th className="py-2.5 px-4">Medicine Name</th>
@@ -753,7 +753,7 @@ export const ProfitLossPage: React.FC = () => {
       {/* Record Operating Expense Modal */}
       <Modal isOpen={showExpenseModal} onClose={() => setShowExpenseModal(false)} title="Record Operating Expense Voucher" maxWidth="lg">
         <form onSubmit={handleCreateExpense} className="space-y-4 text-xs">
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="text-xs font-bold text-slate-700 block mb-1">Expense Category *</label>
               <select
@@ -800,7 +800,7 @@ export const ProfitLossPage: React.FC = () => {
             />
           </div>
 
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div>
               <label className="text-xs font-bold text-slate-700 block mb-1">Payment Mode</label>
               <select

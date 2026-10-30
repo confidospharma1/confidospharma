@@ -245,7 +245,7 @@ export const ReportsPage: React.FC = () => {
   });
 
   return (
-    <div className="p-6 md:p-8 space-y-6 max-w-7xl mx-auto overflow-y-auto">
+    <div className="p-3.5 sm:p-5 md:p-8 space-y-4 sm:space-y-6 max-w-7xl mx-auto overflow-y-auto">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
@@ -272,7 +272,7 @@ export const ReportsPage: React.FC = () => {
 
       {/* Report Selector Tabs */}
       <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div className="flex flex-wrap items-center gap-1.5 p-1 bg-slate-100 rounded-lg">
+        <div className="flex items-center gap-1.5 p-1 bg-slate-100 rounded-lg overflow-x-auto whitespace-nowrap max-w-full">
           <button
             onClick={() => handleTabChange('DAILY_SALES')}
             className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all ${
@@ -476,7 +476,7 @@ export const ReportsPage: React.FC = () => {
                 )}
 
                 <div className="overflow-x-auto">
-                  <table className="w-full text-left text-xs">
+                  <table className="w-full text-left text-xs min-w-[650px]">
                     <thead className="bg-slate-50 text-slate-700 font-bold border-b border-slate-200">
                       <tr>
                         <th className="py-3 px-4">Invoice #</th>
@@ -650,7 +650,7 @@ export const ReportsPage: React.FC = () => {
                 )}
 
                 <div className="overflow-x-auto">
-                  <table className="w-full text-left text-xs">
+                  <table className="w-full text-left text-xs min-w-[700px]">
                     <thead className="bg-slate-50 text-slate-700 font-bold border-b border-slate-200">
                       <tr>
                         <th className="py-3 px-4">Medicine Name</th>
@@ -793,7 +793,7 @@ export const ReportsPage: React.FC = () => {
                 )}
 
                 <div className="overflow-x-auto">
-                  <table className="w-full text-left text-xs">
+                  <table className="w-full text-left text-xs min-w-[650px]">
                     <thead className="bg-slate-50 text-slate-700 font-bold border-b border-slate-200">
                       <tr>
                         <th className="py-3 px-4">HSN Code</th>
@@ -925,7 +925,7 @@ export const ReportsPage: React.FC = () => {
                 )}
 
                 <div className="overflow-x-auto">
-                  <table className="w-full text-left text-xs">
+                  <table className="w-full text-left text-xs min-w-[650px]">
                     <thead className="bg-slate-50 text-slate-700 font-bold border-b border-slate-200">
                       <tr>
                         <th className="py-3 px-4">Medicine Name</th>

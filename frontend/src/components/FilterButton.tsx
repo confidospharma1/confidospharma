@@ -40,7 +40,7 @@ export const FilterButton: React.FC<FilterButtonProps> = ({
   className = '',
 }) => {
   const resolvedCount = activeFilterCount ?? activeCount ?? 0;
-  const resolvedWidth = popoverWidth || width || 'w-80 sm:w-96';
+  const resolvedWidth = popoverWidth || width || 'w-[calc(100vw-2rem)] max-w-sm sm:w-96';
   const [isOpen, setIsOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -112,7 +112,7 @@ export const FilterButton: React.FC<FilterButtonProps> = ({
         <div
           className={`absolute z-30 mt-2 ${
             align === 'left' ? 'left-0' : 'right-0'
-          } ${resolvedWidth} bg-white rounded-xl shadow-xl border border-slate-200 p-4 animate-in fade-in zoom-in-95 duration-150`}
+          } max-w-[calc(100vw-1.5rem)] ${resolvedWidth} bg-white rounded-xl shadow-xl border border-slate-200 p-3 sm:p-4 animate-in fade-in zoom-in-95 duration-150`}
         >
           {/* Header */}
           <div className="flex items-center justify-between pb-3 mb-3 border-b border-slate-100">

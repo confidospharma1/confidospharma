@@ -285,7 +285,7 @@ export const ProductsPage: React.FC = () => {
   });
 
   return (
-    <div className="p-6 md:p-8 space-y-6 max-w-7xl mx-auto overflow-y-auto">
+    <div className="p-3.5 sm:p-5 md:p-8 space-y-4 sm:space-y-6 max-w-7xl mx-auto overflow-y-auto">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
@@ -298,7 +298,7 @@ export const ProductsPage: React.FC = () => {
         {!isBillingUser && (
           <button
             onClick={() => setShowAddModal(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-brand-500 hover:bg-brand-600 active:bg-brand-700 text-white rounded-lg text-xs font-bold shadow-xs transition-colors self-start"
+            className="flex items-center justify-center gap-2 px-4 py-2 bg-brand-500 hover:bg-brand-600 active:bg-brand-700 text-white rounded-lg text-xs font-bold shadow-xs transition-colors self-stretch sm:self-start"
           >
             <Plus className="w-4 h-4" />
             Add New Medicine
@@ -510,7 +510,7 @@ export const ProductsPage: React.FC = () => {
       {/* Products Table */}
       <div className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs">
+          <table className="w-full text-left text-xs min-w-[1100px]">
             <thead className="bg-slate-50 text-slate-700 font-bold border-b border-slate-200">
               <tr>
                 {isSuperAdmin && (
@@ -685,7 +685,7 @@ export const ProductsPage: React.FC = () => {
       {/* Modal: Add New Medicine */}
       <Modal isOpen={showAddModal} onClose={() => setShowAddModal(false)} title="Add Medicine to Master Catalogue" maxWidth="2xl">
         <form onSubmit={handleCreateProduct} className="space-y-4">
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="text-xs font-bold text-slate-700 block mb-1">Brand Name *</label>
               <input
@@ -710,7 +710,7 @@ export const ProductsPage: React.FC = () => {
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="text-xs font-bold text-slate-700 block mb-1">Dosage Form *</label>
               <select
@@ -744,7 +744,7 @@ export const ProductsPage: React.FC = () => {
             <p className="text-[11px] font-bold text-slate-700 uppercase tracking-wider">
               Pricing Structure & Rates (Kept Strictly Separate)
             </p>
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div>
                 <label className="text-xs font-bold text-blue-900 block mb-1">Default Purchase Rate</label>
                 <input
@@ -793,7 +793,7 @@ export const ProductsPage: React.FC = () => {
               <Pill className="w-3.5 h-3.5 text-brand-600" />
               Packaging & Unit Conversion (FEFO / POS / Inventory)
             </h4>
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div>
                 <label className="text-xs font-bold text-slate-700 block mb-1">Package Unit (Purchased As)</label>
                 <select
@@ -863,7 +863,7 @@ export const ProductsPage: React.FC = () => {
               Enter initial physical quantity to record opening stock for your pharmacy immediately, or leave blank / 0 to create catalogue record only (Out of Stock).
             </p>
 
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 sm:grid-cols-4 gap-3">
               <div>
                 <label className="text-xs font-bold text-slate-700 block mb-1">Initial Quantity</label>
                 <input
@@ -948,7 +948,7 @@ export const ProductsPage: React.FC = () => {
             )}
           </div>
 
-          <div className="grid grid-cols-4 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 sm:grid-cols-4 gap-3">
             <div>
               <label className="text-xs font-bold text-slate-700 block mb-1">Pack Size *</label>
               <input
@@ -997,7 +997,7 @@ export const ProductsPage: React.FC = () => {
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="text-xs font-bold text-slate-700 block mb-1">Barcode / EAN</label>
               <input
@@ -1044,7 +1044,7 @@ export const ProductsPage: React.FC = () => {
       {/* Modal: Edit Medicine */}
       <Modal isOpen={showEditModal} onClose={() => setShowEditModal(false)} title="Edit Medicine Master Record" maxWidth="2xl">
         <form onSubmit={handleUpdateProduct} className="space-y-4">
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="text-xs font-bold text-slate-700 block mb-1">Brand Name *</label>
               <input
@@ -1068,7 +1068,7 @@ export const ProductsPage: React.FC = () => {
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="text-xs font-bold text-slate-700 block mb-1">Dosage Form *</label>
               <select
@@ -1101,7 +1101,7 @@ export const ProductsPage: React.FC = () => {
             <p className="text-[11px] font-bold text-slate-700 uppercase tracking-wider">
               Pricing Structure & Rates (Kept Strictly Separate)
             </p>
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div>
                 <label className="text-xs font-bold text-blue-900 block mb-1">Default Purchase Rate</label>
                 <input
@@ -1150,7 +1150,7 @@ export const ProductsPage: React.FC = () => {
               <Pill className="w-3.5 h-3.5 text-brand-600" />
               Packaging & Unit Conversion (FEFO / POS / Inventory)
             </h4>
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div>
                 <label className="text-xs font-bold text-slate-700 block mb-1">Package Unit (Purchased As)</label>
                 <select
@@ -1202,7 +1202,7 @@ export const ProductsPage: React.FC = () => {
             </div>
           </div>
 
-          <div className="grid grid-cols-4 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 sm:grid-cols-4 gap-3">
             <div>
               <label className="text-xs font-bold text-slate-700 block mb-1">Pack Size *</label>
               <input
@@ -1248,7 +1248,7 @@ export const ProductsPage: React.FC = () => {
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="text-xs font-bold text-slate-700 block mb-1">Barcode / EAN</label>
               <input

@@ -125,7 +125,7 @@ export const TransfersPage: React.FC = () => {
   });
 
   return (
-    <div className="p-6 md:p-8 space-y-6 max-w-7xl mx-auto overflow-y-auto">
+    <div className="p-3.5 sm:p-5 md:p-8 space-y-4 sm:space-y-6 max-w-7xl mx-auto overflow-y-auto">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-xl font-bold text-slate-900">Branch Stock Transfers</h1>
@@ -137,7 +137,7 @@ export const TransfersPage: React.FC = () => {
         {!isBillingUser && (
           <button
             onClick={handleOpenTransferModal}
-            className="flex items-center gap-2 px-4 py-2 bg-brand-500 hover:bg-brand-600 active:bg-brand-700 text-white rounded-lg text-xs font-bold shadow-xs transition-colors"
+            className="flex items-center justify-center gap-2 px-4 py-2 bg-brand-500 hover:bg-brand-600 active:bg-brand-700 text-white rounded-lg text-xs font-bold shadow-xs transition-colors self-stretch sm:self-auto"
           >
             <Plus className="w-4 h-4" />
             Dispatch New Transfer
@@ -263,7 +263,7 @@ export const TransfersPage: React.FC = () => {
       {/* Transfers Table */}
       <div className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs">
+          <table className="w-full text-left text-xs min-w-[650px]">
             <thead className="bg-slate-50 text-slate-700 font-bold border-b border-slate-200">
               <tr>
                 <th className="py-3 px-4">Transfer #</th>

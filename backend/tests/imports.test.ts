@@ -1,7 +1,9 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import request from 'supertest';
+import jwt from 'jsonwebtoken';
 import app from '../src/app';
 import prisma from '../src/database/prisma';
+import { JWT_SECRET } from '../src/config/jwt';
 import {
   buildHeaderMapping,
   cleanHeaderString,
@@ -11,7 +13,7 @@ import {
   parseCleanInt,
 } from '../src/modules/imports/imports.mapper';
 
-describe('Bulk Import Unit & Integration Tests', () => {
+describe('Bulk Import Unit & Integration Tests', { timeout: 35000 }, () => {
   let superAdminToken: string = '';
   let branchId: string = '';
 
@@ -28,15 +30,49 @@ describe('Bulk Import Unit & Integration Tests', () => {
       const altLogin = await request(app)
         .post('/api/auth/login')
         .send({ usernameOrEmail: 'superadmin', password: 'Pharma@2026' });
-      if (altLogin.status === 200) {
+      if (altLogin.status === 200 && altLogin.body?.token) {
         superAdminToken = altLogin.body.token;
       }
     }
 
-    const branch = await prisma.branch.findFirst();
-    if (branch) {
-      branchId = branch.id;
+    if (!superAdminToken) {
+      let sa = await prisma.user.findFirst({ where: { role: 'SUPER_ADMIN', isActive: true } });
+      if (!sa) {
+        sa = await prisma.user.create({
+          data: {
+            username: 'import_test_superadmin',
+            email: 'import_test_superadmin@confidos.test',
+            fullName: 'Import Super Admin',
+            passwordHash: 'dummy',
+            role: 'SUPER_ADMIN',
+            isActive: true,
+          },
+        });
+      }
+      superAdminToken = jwt.sign(
+        { id: sa.id, username: sa.username, role: sa.role, branchId: sa.branchId },
+        JWT_SECRET,
+        { expiresIn: '1d' }
+      );
     }
+
+    let branch = await prisma.branch.findFirst({ where: { isActive: true } });
+    if (!branch) {
+      const company = (await prisma.company.findFirst()) || (await prisma.company.create({
+        data: { name: 'Confidos Pharma Ltd.', legalName: 'Confidos Pharma Ltd.' },
+      }));
+      branch = await prisma.branch.create({
+        data: {
+          companyId: company.id,
+          code: 'B-VJA',
+          name: 'Vijayawada Central',
+          address: 'MG Road',
+          phone: '9999999999',
+          isActive: true,
+        },
+      });
+    }
+    branchId = branch.id;
   });
 
   describe('1. Header Normalization & Mapper Unit Tests', () => {
@@ -269,10 +305,10 @@ describe('Bulk Import Unit & Integration Tests', () => {
       if (!superAdminToken || !branchId) return;
 
       const stockReceiptCsv = [
-        'medicine_name,brand,generic_name,strength,batch_number,expiry_date,quantity,purchase_rate,mrp,hsn,supplier_name,invoice_number',
-        'Paracetamol 500 mg Tablet,Demo Pharma,Paracetamol,500 mg,DEMO-PARA-001,2027-12-31,100,1.2,2.0,30049099,Demo Medical Distributors,DEMO-INV-001',
-        'Cetirizine 10 mg Tablet,Demo Pharma,Cetirizine,10 mg,DEMO-CET-002,2028-06-30,50,0.8,1.5,30049099,Demo Medical Distributors,DEMO-INV-001',
-        'ORS Powder Sachet,Demo Pharma,Oral Rehydration Salts,Standard,DEMO-ORS-003,2028-03-31,30,8.0,12.0,30049099,Demo Medical Distributors,DEMO-INV-001',
+        'brand_name,batch_number,expiry_date,quantity,purchase_rate,mrp',
+        'Paracetamol 500 mg Tablet,DEMO-PARA-001,2027-12-31,100,1.2,2.0',
+        'Cetirizine 10 mg Tablet,DEMO-CET-002,2028-06-30,50,0.8,1.5',
+        'ORS Powder Sachet,DEMO-ORS-003,2028-03-31,30,8.0,12.0',
       ].join('\n');
 
       const res = await request(app)

@@ -189,7 +189,7 @@ export const BranchesPage: React.FC = () => {
   });
 
   return (
-    <div className="p-6 md:p-8 space-y-6 max-w-7xl mx-auto overflow-y-auto">
+    <div className="p-3.5 sm:p-5 md:p-8 space-y-4 sm:space-y-6 max-w-7xl mx-auto overflow-y-auto">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-xl font-bold text-slate-900">Pharmacy Branches Management</h1>
@@ -366,7 +366,7 @@ export const BranchesPage: React.FC = () => {
           </button>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
           {filteredBranches.map((b) => (
             <div
               key={b.id}
@@ -445,7 +445,7 @@ export const BranchesPage: React.FC = () => {
       {/* Modal: Add New Branch */}
       <Modal isOpen={showModal} onClose={() => setShowModal(false)} title="Register New Pharmacy Branch" maxWidth="lg">
         <form onSubmit={handleCreateBranch} className="space-y-4">
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="text-xs font-bold text-slate-700 block mb-1">Branch Code *</label>
               <input
@@ -482,7 +482,7 @@ export const BranchesPage: React.FC = () => {
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="text-xs font-bold text-slate-700 block mb-1">Phone *</label>
               <input
@@ -508,7 +508,7 @@ export const BranchesPage: React.FC = () => {
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="text-xs font-bold text-slate-700 block mb-1">
                 GSTIN <span className="text-[10px] text-emerald-600 font-normal">(Optional)</span>
@@ -576,7 +576,7 @@ export const BranchesPage: React.FC = () => {
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="text-xs font-bold text-slate-700 block mb-1">Phone *</label>
               <input
@@ -600,7 +600,7 @@ export const BranchesPage: React.FC = () => {
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="text-xs font-bold text-slate-700 block mb-1">
                 GSTIN <span className="text-[10px] text-emerald-600 font-normal">(Optional)</span>

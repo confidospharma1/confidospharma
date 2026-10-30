@@ -354,7 +354,7 @@ export const StockMonitoringPage: React.FC = () => {
   }, [alerts]);
 
   return (
-    <div className="p-4 md:p-6 space-y-6 max-w-[1600px] mx-auto text-slate-800">
+    <div className="p-3 sm:p-4 md:p-6 space-y-4 sm:space-y-6 max-w-[1600px] mx-auto text-slate-800">
       {/* 1. Header with Branch & Strict Read-Only Notice */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-200 pb-4">
         <div>
@@ -376,7 +376,7 @@ export const StockMonitoringPage: React.FC = () => {
           </div>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-2 sm:gap-3">
           {/* Branch Badge */}
           <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-slate-50 border border-slate-200 text-xs">
             <Building2 className="w-3.5 h-3.5 text-slate-400" />
@@ -399,7 +399,7 @@ export const StockMonitoringPage: React.FC = () => {
       </div>
 
       {/* 2. Interactive Dashboard Summary Cards (Part 3.3) */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2 sm:gap-3">
         {/* Card 1: Unique Medicines */}
         <button
           type="button"
@@ -682,7 +682,7 @@ export const StockMonitoringPage: React.FC = () => {
         </div>
 
         {/* Dropdowns & Range Controls */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5 pt-2 border-t border-slate-100">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2 sm:gap-2.5 pt-2 border-t border-slate-100">
           {/* Stock Status */}
           <div>
             <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
@@ -852,7 +852,7 @@ export const StockMonitoringPage: React.FC = () => {
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs border-collapse">
+            <table className="w-full text-left text-xs border-collapse min-w-[1050px]">
               <thead>
                 <tr className="bg-slate-50/80 border-b border-slate-200 text-slate-600 font-bold">
                   <th className="py-3 px-4">Medicine & Generic Name</th>
@@ -1096,7 +1096,7 @@ export const StockMonitoringPage: React.FC = () => {
         >
           <div className="space-y-5">
             {/* Medicine Profile Card */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 p-3.5 rounded-xl bg-slate-50 border border-slate-200 text-xs">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-3 p-3 sm:p-3.5 rounded-xl bg-slate-50 border border-slate-200 text-xs">
               <div>
                 <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Generic Formulation</span>
                 <span className="font-semibold text-slate-800">{selectedMedicine.genericName}</span>
@@ -1157,7 +1157,7 @@ export const StockMonitoringPage: React.FC = () => {
               </div>
             ) : (
               <div className="overflow-x-auto rounded-lg border border-slate-200 max-h-96">
-                <table className="w-full text-left text-xs border-collapse">
+                <table className="w-full text-left text-xs border-collapse min-w-[750px]">
                   <thead className="sticky top-0 z-10 bg-slate-100 border-b border-slate-200 text-slate-700 font-bold">
                     <tr>
                       <th className="py-2.5 px-3">Batch Number</th>

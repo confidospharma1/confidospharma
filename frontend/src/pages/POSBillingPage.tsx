@@ -607,11 +607,11 @@ export const POSBillingPage: React.FC = () => {
   };
 
   return (
-    <div className="h-[calc(100vh-4rem)] flex flex-col md:flex-row overflow-hidden bg-slate-100">
+    <div className="min-h-[calc(100vh-4rem)] md:h-[calc(100vh-4rem)] flex flex-col md:flex-row overflow-y-auto md:overflow-hidden bg-slate-100">
       {/* Left Area: Medicine Search & Cart Table */}
-      <div className="flex-1 flex flex-col p-4 md:p-6 overflow-hidden space-y-4">
+      <div className="flex-1 flex flex-col p-3 sm:p-4 md:p-6 md:overflow-hidden space-y-4 min-w-0">
         {/* Top Search Card */}
-        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs relative">
+        <div className="bg-white p-3.5 sm:p-4 rounded-xl border border-slate-200 shadow-xs relative">
           <div className="flex items-center gap-3">
             <div className="relative flex-1">
               <Search className="w-5 h-5 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
@@ -622,11 +622,11 @@ export const POSBillingPage: React.FC = () => {
                 onChange={(e) => setSearchQuery(e.target.value)}
                 onKeyDown={handleSearchKeyDown}
                 placeholder="Search medicine by Brand, Generic name, or Scan Barcode... (F2 to focus)"
-                className="w-full pl-11 pr-24 py-2.5 text-sm bg-slate-50 border border-slate-300 rounded-lg focus:bg-white focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 font-medium text-slate-900 transition-all placeholder:text-slate-400"
+                className="w-full pl-11 pr-20 sm:pr-24 py-2.5 text-xs sm:text-sm bg-slate-50 border border-slate-300 rounded-lg focus:bg-white focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 font-medium text-slate-900 transition-all placeholder:text-slate-400"
               />
               <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1.5 text-xs text-slate-400">
                 <Barcode className="w-4 h-4 text-slate-500" />
-                <span className="font-mono text-[10px] bg-slate-200/80 px-1.5 py-0.5 rounded text-slate-600">
+                <span className="font-mono text-[10px] bg-slate-200/80 px-1.5 py-0.5 rounded text-slate-600 hidden sm:inline-block">
                   SCAN
                 </span>
               </div>
@@ -645,7 +645,7 @@ export const POSBillingPage: React.FC = () => {
                   <div
                     key={prod.id}
                     onClick={() => addItemToBill(prod)}
-                    className={`p-3.5 flex items-center justify-between cursor-pointer transition-colors ${
+                    className={`p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-2 cursor-pointer transition-colors ${
                       isSelected ? 'bg-brand-50/80 border-l-4 border-brand-500' : 'hover:bg-slate-50'
                     }`}
                   >
@@ -745,9 +745,9 @@ export const POSBillingPage: React.FC = () => {
             )}
           </div>
 
-          <div className="flex-1 overflow-y-auto">
+          <div className="flex-1 overflow-x-auto overflow-y-auto">
             {billItems.length === 0 ? (
-              <div className="h-full flex flex-col items-center justify-center text-slate-400 p-8 text-center">
+              <div className="h-full flex flex-col items-center justify-center text-slate-400 p-8 text-center min-h-[220px]">
                 <Search className="w-12 h-12 stroke-1 text-slate-300 mb-2" />
                 <p className="text-sm font-semibold text-slate-600">Cart is empty</p>
                 <p className="text-xs text-slate-400 max-w-sm mt-1">
@@ -755,7 +755,7 @@ export const POSBillingPage: React.FC = () => {
                 </p>
               </div>
             ) : (
-              <table className="w-full text-left text-xs">
+              <table className="w-full text-left text-xs min-w-[620px]">
                 <thead className="bg-slate-50 text-slate-700 font-bold border-b border-slate-200 sticky top-0 z-10">
                   <tr>
                     <th className="py-2.5 px-4">Item & Batch</th>
@@ -888,7 +888,7 @@ export const POSBillingPage: React.FC = () => {
       </div>
 
       {/* Right Area: Customer Details & Checkout Card */}
-      <div className="w-full md:w-96 bg-white border-l border-slate-200 p-5 flex flex-col justify-between overflow-y-auto shadow-sm">
+      <div className="w-full md:w-96 bg-white border-t md:border-t-0 md:border-l border-slate-200 p-4 sm:p-5 flex flex-col justify-between overflow-y-auto shadow-sm shrink-0">
         <div className="space-y-5">
           <div>
             <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-3">

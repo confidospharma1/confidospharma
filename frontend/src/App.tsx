@@ -25,6 +25,7 @@ const MainLayout: React.FC = () => {
   const { user, loading, isBillingUser } = useAuth();
   const [activeTab, setActiveTab] = useState('pos');
   const [prefilledPurchaseData, setPrefilledPurchaseData] = useState<any>(null);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   useEffect(() => {
     if (user) {
@@ -35,6 +36,12 @@ const MainLayout: React.FC = () => {
       }
     }
   }, [user, isBillingUser]);
+
+  // Close mobile sidebar on route change
+  const handleSelectTab = (tab: string) => {
+    setActiveTab(tab);
+    setIsSidebarOpen(false);
+  };
 
   if (loading) {
     return (
@@ -51,12 +58,22 @@ const MainLayout: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-slate-100 flex flex-col antialiased">
-      <Navbar onOpenPOS={() => setActiveTab('pos')} activeTab={activeTab} />
-      <div className="flex-1 flex overflow-hidden">
-        <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} />
-        <main className="flex-1 overflow-y-auto">
+      <Navbar
+        onOpenPOS={() => handleSelectTab('pos')}
+        activeTab={activeTab}
+        onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
+        isSidebarOpen={isSidebarOpen}
+      />
+      <div className="flex-1 flex overflow-hidden relative">
+        <Sidebar
+          activeTab={activeTab}
+          setActiveTab={handleSelectTab}
+          isOpenMobile={isSidebarOpen}
+          onCloseMobile={() => setIsSidebarOpen(false)}
+        />
+        <main className="flex-1 overflow-y-auto w-full min-w-0">
           {activeTab === 'pos' && <POSBillingPage />}
-          {activeTab === 'dashboard' && <DashboardPage onNavigate={setActiveTab} />}
+          {activeTab === 'dashboard' && <DashboardPage onNavigate={handleSelectTab} />}
           {activeTab === 'stock-monitoring' && <StockMonitoringPage />}
           {activeTab === 'inventory' && <InventoryPage />}
           {activeTab === 'catalogue' && <ProductsPage />}

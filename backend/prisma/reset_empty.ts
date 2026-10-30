@@ -4,14 +4,16 @@ dotenv.config();
 import prisma from '../src/database/prisma';
 
 /**
- * Confidos Pharma — Database Empty State Reset Script (Phase 18)
+ * Confidos Pharma — Database Empty State Reset Script
  * 
  * Clears all business and inventory transactions, stock batches, catalogue medicines,
- * and suppliers, leaving an empty, production-ready schema while preserving administrative
- * access and branch infrastructure.
+ * suppliers, branches, users, and companies, leaving a pure empty production-ready schema
+ * with system configuration settings intact.
+ * 
+ * On next launch, the application triggers the Initial Administrator Onboarding Wizard.
  */
 export async function resetDatabaseToEmptyState() {
-  console.log('🔄 Initiating Confidos Pharma Empty State Reset...');
+  console.log('🔄 Initiating Confidos Pharma Pure Empty State Reset...');
 
   // 1. Transactional & Line Item Tables
   await prisma.purchaseIndentItem.deleteMany({});
@@ -39,8 +41,14 @@ export async function resetDatabaseToEmptyState() {
   await prisma.medicineProduct.deleteMany({});
   await prisma.supplier.deleteMany({});
 
-  console.log('✅ All business records, inventory batches, and suppliers cleared.');
-  console.log('✅ Database schema, migrations, system settings, branches, and admin accounts preserved.');
+  // 5. Users, Branches, and Company (enables fresh onboarding flow)
+  await prisma.user.deleteMany({});
+  await prisma.branch.deleteMany({});
+  await prisma.company.deleteMany({});
+
+  console.log('✅ All application data, inventory batches, catalogues, branches, and user records cleared.');
+  console.log('✅ Database schema, migrations, constraints, and system configuration settings preserved.');
+  console.log('🌟 The system will now open directly into the Initial Onboarding Wizard (GET /api/auth/setup-status -> needsSetup: true).');
 }
 
 if (require.main === module) {

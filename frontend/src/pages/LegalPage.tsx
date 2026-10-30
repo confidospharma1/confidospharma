@@ -43,7 +43,7 @@ export const LegalPage: React.FC = () => {
   };
 
   return (
-    <div className="p-6 md:p-8 space-y-6 max-w-5xl mx-auto overflow-y-auto">
+    <div className="p-3.5 sm:p-5 md:p-8 space-y-4 sm:space-y-6 max-w-5xl mx-auto overflow-y-auto">
       <div>
         <div className="flex items-center gap-2">
           <h1 className="text-xl font-bold text-slate-900">Governance, Legal & Privacy Compliance</h1>
@@ -57,7 +57,7 @@ export const LegalPage: React.FC = () => {
       </div>
 
       {/* Tabs */}
-      <div className="flex flex-wrap items-center gap-1.5 p-1 bg-slate-100 rounded-lg w-fit">
+      <div className="flex items-center gap-1.5 p-1 bg-slate-100 rounded-lg overflow-x-auto whitespace-nowrap max-w-full">
         <button
           onClick={() => setActiveTab('PRIVACY')}
           className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all ${
@@ -249,7 +249,7 @@ export const LegalPage: React.FC = () => {
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="text-xs font-bold text-slate-700 block mb-1">Email Address *</label>
                   <input

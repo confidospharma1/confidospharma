@@ -70,12 +70,20 @@ describe('Purchase Inward Import & Canonical Mapping Test Suite', { timeout: 350
       { expiresIn: '1d' }
     );
 
+    const company =
+      (await prisma.company.findFirst()) ||
+      (await prisma.company.create({
+        data: {
+          name: 'Confidos Pharma Ltd.',
+          legalName: 'Confidos Healthcare & Pharmaceuticals Private Limited',
+        },
+      }));
+
     let branch = await prisma.branch.findFirst({ where: { isActive: true } });
     if (!branch) {
-      const company = await prisma.company.findFirst();
       branch = await prisma.branch.create({
         data: {
-          companyId: company?.id || 'company-1',
+          companyId: company.id,
           code: 'B-TEST',
           name: 'Test Branch',
           address: 'Test Address',
@@ -91,10 +99,9 @@ describe('Purchase Inward Import & Canonical Mapping Test Suite', { timeout: 350
       where: { id: { not: branchId }, isActive: true },
     });
     if (!branch2) {
-      const company = await prisma.company.findFirst();
       branch2 = await prisma.branch.create({
         data: {
-          companyId: company?.id || 'company-1',
+          companyId: company.id,
           code: 'B-TEST-2',
           name: 'Second Test Branch',
           address: 'Second Address',
@@ -108,10 +115,9 @@ describe('Purchase Inward Import & Canonical Mapping Test Suite', { timeout: 350
     // Inactive branch for activity status validation
     let inactBranch = await prisma.branch.findFirst({ where: { isActive: false } });
     if (!inactBranch) {
-      const company = await prisma.company.findFirst();
       inactBranch = await prisma.branch.create({
         data: {
-          companyId: company?.id || 'company-1',
+          companyId: company.id,
           code: 'B-INACT',
           name: 'Inactive Branch',
           address: 'Inactive Address',
@@ -1033,7 +1039,7 @@ describe('Purchase Inward Import & Canonical Mapping Test Suite', { timeout: 350
     });
 
     it('14.10 A valid Excel import (confidos_purchase_dummy_data.xlsx) generates staged preview', async () => {
-      const filePath = 'f:/pharma/samples/confidos_purchase_dummy_data.xlsx';
+      const filePath = require('path').resolve(__dirname, '../../samples/confidos_purchase_dummy_data.xlsx');
       const fileBuffer = require('fs').readFileSync(filePath);
 
       const res = await request(app)
@@ -1051,7 +1057,7 @@ describe('Purchase Inward Import & Canonical Mapping Test Suite', { timeout: 350
     });
 
     it('14.11 A valid CSV import (confidos_purchase_dummy_data.csv) generates staged preview', async () => {
-      const filePath = 'f:/pharma/samples/confidos_purchase_dummy_data.csv';
+      const filePath = require('path').resolve(__dirname, '../../samples/confidos_purchase_dummy_data.csv');
       const fileBuffer = require('fs').readFileSync(filePath);
 
       const res = await request(app)

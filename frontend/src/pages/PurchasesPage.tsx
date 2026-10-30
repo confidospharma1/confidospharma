@@ -1154,7 +1154,7 @@ export const PurchasesPage: React.FC<PurchasesPageProps> = ({ prefilledIndent, o
   };
 
   return (
-    <div className="p-6 md:p-8 space-y-6 max-w-7xl mx-auto overflow-y-auto">
+    <div className="p-3.5 sm:p-5 md:p-8 space-y-4 sm:space-y-6 max-w-7xl mx-auto overflow-y-auto">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
@@ -1165,7 +1165,7 @@ export const PurchasesPage: React.FC<PurchasesPageProps> = ({ prefilledIndent, o
         </div>
 
         {!isBillingUser && (
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <button
               onClick={() => setShowReturnModal(true)}
               className="flex items-center gap-1.5 px-3 py-2 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 rounded-lg text-xs font-bold transition-colors"
@@ -1200,7 +1200,7 @@ export const PurchasesPage: React.FC<PurchasesPageProps> = ({ prefilledIndent, o
       )}
 
       {/* Primary Sub-Tabs */}
-      <div className="flex gap-2 border-b border-slate-200 text-xs font-bold">
+      <div className="flex gap-2 border-b border-slate-200 text-xs font-bold overflow-x-auto whitespace-nowrap">
         <button
           onClick={() => setActiveSubTab('invoices')}
           className={`pb-2.5 px-3 border-b-2 transition-colors flex items-center gap-1.5 ${
@@ -1441,7 +1441,7 @@ export const PurchasesPage: React.FC<PurchasesPageProps> = ({ prefilledIndent, o
 
           <div className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
             <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs">
+              <table className="w-full text-left text-xs min-w-[850px]">
                 <thead className="bg-slate-50 text-slate-700 font-bold border-b border-slate-200">
                   <tr>
                     {isSuperAdmin && (
@@ -1722,7 +1722,7 @@ export const PurchasesPage: React.FC<PurchasesPageProps> = ({ prefilledIndent, o
 
           <div className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
             <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs">
+              <table className="w-full text-left text-xs min-w-[750px]">
                 <thead className="bg-slate-50 text-slate-700 font-bold border-b border-slate-200">
                   <tr>
                     {isSuperAdmin && (
@@ -1933,7 +1933,7 @@ export const PurchasesPage: React.FC<PurchasesPageProps> = ({ prefilledIndent, o
 
           <div className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
             <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs">
+              <table className="w-full text-left text-xs min-w-[750px]">
                 <thead className="bg-slate-50 text-slate-700 font-bold border-b border-slate-200">
                   <tr>
                     <th className="py-3 px-4">Debit Note / Return #</th>
@@ -2373,8 +2373,8 @@ export const PurchasesPage: React.FC<PurchasesPageProps> = ({ prefilledIndent, o
                   </div>
 
                   {/* Staged Items Table */}
-                  <div className="border border-slate-200 rounded-lg overflow-hidden max-h-64 overflow-y-auto">
-                    <table className="w-full text-left text-xs">
+                  <div className="border border-slate-200 rounded-lg overflow-hidden max-h-64 overflow-y-auto overflow-x-auto">
+                    <table className="w-full text-left text-xs min-w-[750px]">
                       <thead className="bg-slate-50 border-b border-slate-200 text-[10px] font-bold text-slate-500 uppercase sticky top-0">
                         <tr>
                           <th className="p-2">Row #</th>
@@ -2529,8 +2529,8 @@ export const PurchasesPage: React.FC<PurchasesPageProps> = ({ prefilledIndent, o
 
                     return (
                       <div key={idx} className="p-3 bg-slate-50 rounded-xl border border-slate-200 text-xs space-y-2">
-                        <div className="grid grid-cols-12 gap-2 items-end">
-                          <div className="col-span-3">
+                        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-12 gap-2 items-end">
+                          <div className="col-span-2 sm:col-span-4 lg:col-span-3">
                             <div className="flex items-center justify-between mb-0.5">
                               <label className="text-[10px] font-bold text-slate-600">Medicine *</label>
                               <button
@@ -2559,7 +2559,7 @@ export const PurchasesPage: React.FC<PurchasesPageProps> = ({ prefilledIndent, o
                             </select>
                           </div>
 
-                          <div className="col-span-2">
+                          <div className="col-span-1 sm:col-span-2 lg:col-span-2">
                             <label className="text-[10px] font-bold text-slate-600 block mb-0.5">Batch # *</label>
                             <input
                               type="text"
@@ -2571,7 +2571,7 @@ export const PurchasesPage: React.FC<PurchasesPageProps> = ({ prefilledIndent, o
                             />
                           </div>
 
-                          <div className="col-span-2">
+                          <div className="col-span-1 sm:col-span-2 lg:col-span-2">
                             <label className="text-[10px] font-bold text-slate-600 block mb-0.5">Expiry Date *</label>
                             <input
                               type="date"
@@ -2582,7 +2582,7 @@ export const PurchasesPage: React.FC<PurchasesPageProps> = ({ prefilledIndent, o
                             />
                           </div>
 
-                          <div className="col-span-1">
+                          <div className="col-span-1 sm:col-span-1 lg:col-span-1">
                             <label className="text-[10px] font-bold text-slate-600 block mb-0.5">Unit</label>
                             <select
                               value={l.unit || 'Box'}
@@ -2599,7 +2599,7 @@ export const PurchasesPage: React.FC<PurchasesPageProps> = ({ prefilledIndent, o
                             </select>
                           </div>
 
-                          <div className="col-span-1">
+                          <div className="col-span-1 sm:col-span-1 lg:col-span-1">
                             <label className="text-[10px] font-bold text-slate-600 block mb-0.5" title="Units per Pack/Box">Units/Pk</label>
                             <input
                               type="number"
@@ -2612,7 +2612,7 @@ export const PurchasesPage: React.FC<PurchasesPageProps> = ({ prefilledIndent, o
                             />
                           </div>
 
-                          <div className="col-span-1">
+                          <div className="col-span-1 sm:col-span-1 lg:col-span-1">
                             <label className="text-[10px] font-bold text-slate-600 block mb-0.5">Qty *</label>
                             <input
                               type="number"
@@ -2624,7 +2624,7 @@ export const PurchasesPage: React.FC<PurchasesPageProps> = ({ prefilledIndent, o
                             />
                           </div>
 
-                          <div className="col-span-1">
+                          <div className="col-span-1 sm:col-span-1 lg:col-span-1">
                             <label className="text-[10px] font-bold text-emerald-700 block mb-0.5">Free</label>
                             <input
                               type="number"
@@ -2635,7 +2635,7 @@ export const PurchasesPage: React.FC<PurchasesPageProps> = ({ prefilledIndent, o
                             />
                           </div>
 
-                          <div className="col-span-1 flex items-center justify-end">
+                          <div className="col-span-2 sm:col-span-4 lg:col-span-1 flex items-center justify-end">
                             {lines.length > 1 && (
                               <button
                                 type="button"
@@ -2650,8 +2650,8 @@ export const PurchasesPage: React.FC<PurchasesPageProps> = ({ prefilledIndent, o
                         </div>
 
                         {/* Secondary Row: Rates, Discounts, GST, Margins */}
-                        <div className="grid grid-cols-12 gap-2 pt-1 border-t border-slate-200/60 items-center text-[11px]">
-                          <div className="col-span-2">
+                        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-12 gap-2 pt-1 border-t border-slate-200/60 items-center text-[11px]">
+                          <div className="col-span-1 sm:col-span-1 lg:col-span-2">
                             <label className="text-[10px] text-blue-900 block font-bold">Pur Rate (₹) *</label>
                             <input
                               type="number"
@@ -2663,7 +2663,7 @@ export const PurchasesPage: React.FC<PurchasesPageProps> = ({ prefilledIndent, o
                             />
                           </div>
 
-                          <div className="col-span-2">
+                          <div className="col-span-1 sm:col-span-1 lg:col-span-2">
                             <label className="text-[10px] text-slate-500 block">Printed MRP (₹)</label>
                             <input
                               type="number"
@@ -2675,7 +2675,7 @@ export const PurchasesPage: React.FC<PurchasesPageProps> = ({ prefilledIndent, o
                             />
                           </div>
 
-                          <div className="col-span-2">
+                          <div className="col-span-1 sm:col-span-1 lg:col-span-2">
                             <label className="text-[10px] text-slate-500 block">Selling Rate (₹)</label>
                             <input
                               type="number"
@@ -2687,7 +2687,7 @@ export const PurchasesPage: React.FC<PurchasesPageProps> = ({ prefilledIndent, o
                             />
                           </div>
 
-                          <div className="col-span-2">
+                          <div className="col-span-1 sm:col-span-1 lg:col-span-2">
                             <label className="text-[10px] text-slate-500 block font-medium">
                               Discount ({Number(l.discountPercent || 0)}%)
                             </label>
@@ -2755,7 +2755,7 @@ export const PurchasesPage: React.FC<PurchasesPageProps> = ({ prefilledIndent, o
                             )}
                           </div>
 
-                          <div className="col-span-2">
+                          <div className="col-span-1 sm:col-span-1 lg:col-span-2">
                             <label className="text-[10px] text-slate-500 block">
                               GST ({l.gstRate}%)
                             </label>
@@ -2772,7 +2772,7 @@ export const PurchasesPage: React.FC<PurchasesPageProps> = ({ prefilledIndent, o
                             </select>
                           </div>
 
-                          <div className="col-span-2 flex flex-col items-end justify-center font-mono text-[10px] text-slate-600">
+                          <div className="col-span-2 sm:col-span-1 lg:col-span-2 flex flex-col items-end sm:items-start lg:items-end justify-center font-mono text-[10px] text-slate-600">
                             <span className="font-bold text-slate-800">
                               Base: {baseNormalizedQty} units
                             </span>
@@ -3148,7 +3148,7 @@ export const PurchasesPage: React.FC<PurchasesPageProps> = ({ prefilledIndent, o
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="font-bold text-slate-700 block mb-1">Phone Number *</label>
               <input
@@ -3172,7 +3172,7 @@ export const PurchasesPage: React.FC<PurchasesPageProps> = ({ prefilledIndent, o
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="font-bold text-slate-700 block mb-1">GSTIN Number</label>
               <input
@@ -3195,7 +3195,7 @@ export const PurchasesPage: React.FC<PurchasesPageProps> = ({ prefilledIndent, o
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="font-bold text-slate-700 block mb-1">Contact Person</label>
               <input

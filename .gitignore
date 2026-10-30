@@ -15,12 +15,13 @@ build/
 !.env.example
 !*/.env.example
 
-# Database files
+# Database files & Backups
 *.db
 *.db-journal
 *.sqlite
 backend/dev.db
 backend/dev.db-journal
+**/prisma/backups/
 
 # Logs
 npm-debug.log*

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { Building2, ShoppingCart, LogOut, ShieldCheck, User as UserIcon, Sliders } from 'lucide-react';
+import { Building2, ShoppingCart, LogOut, ShieldCheck, User as UserIcon, Sliders, Menu, X } from 'lucide-react';
 import { Badge } from './Badge';
 import { SettingsModal } from './SettingsModal';
 import { ProfileModal } from './ProfileModal';
@@ -8,9 +8,11 @@ import { ProfileModal } from './ProfileModal';
 interface NavbarProps {
   onOpenPOS: () => void;
   activeTab: string;
+  onToggleSidebar?: () => void;
+  isSidebarOpen?: boolean;
 }
 
-export const Navbar: React.FC<NavbarProps> = ({ onOpenPOS, activeTab }) => {
+export const Navbar: React.FC<NavbarProps> = ({ onOpenPOS, activeTab, onToggleSidebar, isSidebarOpen }) => {
   const { user, isSuperAdmin, isBranchAdmin, branches, selectedBranchId, setSelectedBranchId, logout, currentBranch } = useAuth();
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [showProfileModal, setShowProfileModal] = useState(false);
@@ -40,27 +42,38 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenPOS, activeTab }) => {
   };
 
   return (
-    <header className="sticky top-0 z-30 h-16 bg-white border-b border-slate-200 px-4 md:px-6 flex items-center justify-between shadow-xs">
-      {/* Brand logo & Branch display */}
-      <div className="flex items-center gap-4">
-        <div className="flex items-center gap-2">
+    <header className="sticky top-0 z-30 h-16 bg-white border-b border-slate-200 px-3 sm:px-4 md:px-6 flex items-center justify-between shadow-xs">
+      {/* Brand logo & Mobile menu toggle & Branch display */}
+      <div className="flex items-center gap-2 sm:gap-4 min-w-0">
+        {/* Mobile/Tablet Drawer Toggle */}
+        <button
+          type="button"
+          onClick={onToggleSidebar}
+          className="p-2 -ml-1 text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-lg lg:hidden transition-colors focus:ring-2 focus:ring-brand-500"
+          aria-label={isSidebarOpen ? 'Close navigation menu' : 'Open navigation menu'}
+          title="Toggle Navigation Menu"
+        >
+          {isSidebarOpen ? <X className="w-5 h-5 text-brand-600" /> : <Menu className="w-5 h-5" />}
+        </button>
+
+        <div className="flex items-center gap-2 shrink-0">
           <img
             src="/confidos-logo.png"
             alt="Confidos Pharma"
-            className="h-9 w-auto max-w-[165px] object-contain"
+            className="h-7 sm:h-9 w-auto max-w-[130px] sm:max-w-[165px] object-contain"
           />
         </div>
 
-        {/* Branch Switcher / Active Branch Indicator */}
-        <div className="hidden md:flex items-center gap-2 ml-3 pl-4 border-l border-slate-200">
-          <Building2 className="w-4 h-4 text-brand-500" />
+        {/* Branch Switcher / Active Branch Indicator (Desktop & Tablet) */}
+        <div className="hidden md:flex items-center gap-2 ml-2 pl-3 lg:ml-3 lg:pl-4 border-l border-slate-200">
+          <Building2 className="w-4 h-4 text-brand-500 shrink-0" />
           {isSuperAdmin && branches.length > 0 ? (
             <div className="flex items-center gap-2">
-              <span className="text-xs font-medium text-slate-500">Branch:</span>
+              <span className="text-xs font-medium text-slate-500 hidden lg:inline">Branch:</span>
               <select
                 value={selectedBranchId}
                 onChange={(e) => setSelectedBranchId(e.target.value)}
-                className="text-xs font-semibold text-slate-800 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-md px-2.5 py-1 transition-colors cursor-pointer focus:ring-2 focus:ring-brand-500"
+                className="text-xs font-semibold text-slate-800 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-md px-2.5 py-1 transition-colors cursor-pointer focus:ring-2 focus:ring-brand-500 max-w-[170px] lg:max-w-[220px] truncate"
               >
                 {branches.map((b) => (
                   <option key={b.id} value={b.id}>
@@ -70,8 +83,8 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenPOS, activeTab }) => {
               </select>
             </div>
           ) : (
-            <div className="text-xs">
-              <span className="font-semibold text-slate-800">{currentBranch?.name || 'Local Branch'}</span>
+            <div className="text-xs truncate max-w-[180px]">
+              <span className="font-semibold text-slate-800 truncate">{currentBranch?.name || 'Local Branch'}</span>
               <span className="ml-1.5 text-slate-500 font-mono text-[11px]">({currentBranch?.code})</span>
             </div>
           )}
@@ -79,19 +92,20 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenPOS, activeTab }) => {
       </div>
 
       {/* Right controls */}
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
         {/* Quick POS Button - Primary Brand Blue */}
         <button
           onClick={onOpenPOS}
-          className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all shadow-xs ${
+          className={`flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all shadow-xs ${
             activeTab === 'pos'
               ? 'bg-brand-600 text-white shadow-inner'
               : 'bg-brand-500 hover:bg-brand-600 active:bg-brand-700 text-white hover:shadow-sm'
           }`}
           title="Open Point of Sale Billing Counter (Shortcut: F2)"
         >
-          <ShoppingCart className="w-4 h-4" />
-          <span>POS Billing</span>
+          <ShoppingCart className="w-4 h-4 shrink-0" />
+          <span className="hidden xs:inline sm:inline">POS Billing</span>
+          <span className="xs:hidden">POS</span>
           <span className="hidden sm:inline-block px-1.5 py-0.2 bg-brand-700/60 rounded text-[10px] font-mono">
             F2
           </span>
@@ -101,10 +115,10 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenPOS, activeTab }) => {
         {(isSuperAdmin || isBranchAdmin) && (
           <button
             onClick={() => setShowSettingsModal(true)}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:text-brand-700 bg-slate-50 hover:bg-brand-50 border border-slate-200 hover:border-brand-200 rounded-lg transition-all"
+            className="flex items-center gap-1.5 p-1.5 sm:px-3 sm:py-1.5 text-xs font-semibold text-slate-700 hover:text-brand-700 bg-slate-50 hover:bg-brand-50 border border-slate-200 hover:border-brand-200 rounded-lg transition-all"
             title="Configure default discount, GST settings, and system defaults"
           >
-            <Sliders className="w-3.5 h-3.5 text-brand-500" />
+            <Sliders className="w-4 h-4 sm:w-3.5 sm:h-3.5 text-brand-500 shrink-0" />
             <span className="hidden md:inline">Settings</span>
           </button>
         )}
@@ -126,13 +140,23 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenPOS, activeTab }) => {
           </Badge>
         </button>
 
+        {/* Mobile/Tablet Profile button */}
+        <button
+          type="button"
+          onClick={() => setShowProfileModal(true)}
+          className="lg:hidden p-1.5 text-slate-600 hover:text-brand-600 hover:bg-slate-100 rounded-lg transition-colors"
+          title="View & Edit Administrator Profile"
+        >
+          <UserIcon className="w-4 h-4 text-slate-600" />
+        </button>
+
         {/* Sign Out */}
         <button
           onClick={logout}
-          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-600 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors border border-transparent hover:border-rose-200"
+          className="flex items-center gap-1.5 p-1.5 sm:px-3 sm:py-1.5 text-xs font-medium text-slate-600 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors border border-transparent hover:border-rose-200"
           title="Sign out of system"
         >
-          <LogOut className="w-4 h-4" />
+          <LogOut className="w-4 h-4 shrink-0" />
           <span className="hidden sm:inline">Sign Out</span>
         </button>
       </div>

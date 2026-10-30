@@ -567,7 +567,7 @@ export const InventoryPage: React.FC = () => {
   };
 
   return (
-    <div className="p-6 space-y-6 max-w-7xl mx-auto">
+    <div className="p-3.5 sm:p-5 md:p-6 space-y-4 sm:space-y-6 max-w-7xl mx-auto">
       {/* Alert Notification */}
       {message && (
         <div
@@ -588,7 +588,7 @@ export const InventoryPage: React.FC = () => {
       )}
 
       {/* Header & Primary Actions */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-5 rounded-xl border border-slate-200 shadow-xs">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-4 sm:p-5 rounded-xl border border-slate-200 shadow-xs">
         <div>
           <div className="flex items-center gap-3">
             <div className="p-2.5 bg-brand-50 text-brand-600 rounded-lg">
@@ -648,7 +648,7 @@ export const InventoryPage: React.FC = () => {
       </div>
 
       {/* Top Navigation Tabs */}
-      <div className="flex border-b border-slate-200 bg-white px-4 pt-3 rounded-t-xl">
+      <div className="flex border-b border-slate-200 bg-white px-2 sm:px-4 pt-2 sm:pt-3 rounded-t-xl overflow-x-auto whitespace-nowrap">
         <button
           onClick={() => setActiveViewMode('ledger')}
           className={`flex items-center gap-2 pb-3 px-4 text-xs font-bold border-b-2 transition-all ${
@@ -984,7 +984,7 @@ export const InventoryPage: React.FC = () => {
 
             {/* Detailed Movement Ledger Table (Requirement 5) */}
             <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse text-xs">
+              <table className="w-full text-left border-collapse text-xs min-w-[850px]">
                 <thead>
                   <tr className="bg-slate-50/80 border-b border-slate-200 text-slate-600 font-semibold uppercase text-[10px] tracking-wider select-none">
                     <th className="py-3 px-4">Date & Time</th>
@@ -1222,7 +1222,7 @@ export const InventoryPage: React.FC = () => {
           {/* Batches Table */}
           <div className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
             <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse text-xs">
+              <table className="w-full text-left border-collapse text-xs min-w-[750px]">
                 <thead>
                   <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 font-semibold uppercase text-[10px] tracking-wider">
                     <th className="py-3 px-4">Medicine</th>
@@ -1355,7 +1355,7 @@ export const InventoryPage: React.FC = () => {
             </select>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="font-semibold text-slate-700 block mb-1">Batch Number *</label>
               <input
@@ -1379,7 +1379,7 @@ export const InventoryPage: React.FC = () => {
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="font-semibold text-slate-700 block mb-1">Quantity (Base Units) *</label>
               <input
@@ -1406,7 +1406,7 @@ export const InventoryPage: React.FC = () => {
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="font-semibold text-slate-700 block mb-1">MRP (₹/unit) *</label>
               <input
@@ -1433,7 +1433,7 @@ export const InventoryPage: React.FC = () => {
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="font-semibold text-slate-700 block mb-1">Supplier (Optional)</label>
               <select
@@ -1513,7 +1513,7 @@ export const InventoryPage: React.FC = () => {
             </div>
           )}
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="font-semibold text-slate-700 block mb-1">Adjustment Type *</label>
               <select
@@ -1586,7 +1586,7 @@ export const InventoryPage: React.FC = () => {
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className="font-semibold text-slate-700 block mb-1">Batch Number *</label>
                 <input
@@ -1609,7 +1609,7 @@ export const InventoryPage: React.FC = () => {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className="font-semibold text-slate-700 block mb-1">MRP (₹)</label>
                 <input

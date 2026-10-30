@@ -145,7 +145,7 @@ export const BulkImportPage: React.FC = () => {
   }
 
   return (
-    <div className="p-6 md:p-8 space-y-6 max-w-7xl mx-auto overflow-y-auto">
+    <div className="p-3.5 sm:p-5 md:p-8 space-y-4 sm:space-y-6 max-w-7xl mx-auto overflow-y-auto">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
@@ -155,7 +155,7 @@ export const BulkImportPage: React.FC = () => {
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <button
             onClick={() => handleDownloadTemplate('catalogue')}
             className="flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-slate-50 border border-slate-300 rounded-lg text-xs font-medium text-slate-700 shadow-xs"
@@ -468,7 +468,7 @@ export const BulkImportPage: React.FC = () => {
             )}
 
             <div className="overflow-x-auto max-h-96">
-              <table className="w-full text-left text-xs">
+              <table className="w-full text-left text-xs min-w-[750px]">
                 <thead className="bg-slate-50 text-slate-700 font-bold border-b border-slate-200 sticky top-0">
                   <tr>
                     <th className="py-2.5 px-3 text-center">Row</th>

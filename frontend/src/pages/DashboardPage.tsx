@@ -69,12 +69,12 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
   }
 
   return (
-    <div className="p-6 md:p-8 space-y-6 max-w-7xl mx-auto overflow-y-auto">
+    <div className="p-3.5 sm:p-5 md:p-8 space-y-4 sm:space-y-6 max-w-7xl mx-auto overflow-y-auto">
       {/* Top Banner */}
-      <div className="bg-gradient-to-r from-brand-950 via-slate-900 to-slate-900 rounded-2xl p-6 text-white shadow-md relative overflow-hidden border border-slate-800">
+      <div className="bg-gradient-to-r from-brand-950 via-slate-900 to-slate-900 rounded-2xl p-4 sm:p-6 text-white shadow-md relative overflow-hidden border border-slate-800">
         <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
-            <div className="flex items-center gap-2 mb-2">
+            <div className="flex flex-wrap items-center gap-2 mb-2">
               <Badge variant="brand" size="sm">
                 CONFIDOS PHARMA OS
               </Badge>
@@ -82,23 +82,23 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
                 {currentBranch?.name} ({currentBranch?.code})
               </span>
             </div>
-            <h1 className="text-2xl font-black tracking-tight">Pharmacy Operations Center</h1>
-            <p className="text-xs text-slate-300 max-w-xl mt-1">
+            <h1 className="text-xl sm:text-2xl font-black tracking-tight">Pharmacy Operations Center</h1>
+            <p className="text-xs text-slate-300 max-w-xl mt-1 leading-relaxed">
               Real-time branch inventory, FEFO batch adherence, GST compliance, and high-speed counter billing.
             </p>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-2.5 sm:gap-3">
             <button
               onClick={() => onNavigate('pos')}
-              className="flex items-center gap-2 px-4 py-2.5 bg-brand-500 hover:bg-brand-600 active:bg-brand-700 text-white font-bold rounded-xl text-xs transition-colors shadow-xs"
+              className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2.5 bg-brand-500 hover:bg-brand-600 active:bg-brand-700 text-white font-bold rounded-xl text-xs transition-colors shadow-xs"
             >
               <ShoppingCart className="w-4 h-4" />
               Launch POS Counter
             </button>
             <button
               onClick={() => onNavigate('imports')}
-              className="flex items-center gap-2 px-4 py-2.5 bg-white/10 hover:bg-white/20 text-white font-semibold rounded-xl text-xs transition-colors backdrop-blur-sm border border-white/10"
+              className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2.5 bg-white/10 hover:bg-white/20 text-white font-semibold rounded-xl text-xs transition-colors backdrop-blur-sm border border-white/10"
             >
               <FileSpreadsheet className="w-4 h-4" />
               Bulk Import
@@ -108,7 +108,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
       </div>
 
       {/* Primary KPI Metrics Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         {/* Metric 1: Today's Sales */}
         <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-xs">
           <div className="flex items-center justify-between text-slate-500 mb-2">
@@ -254,7 +254,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
             {dailySales?.invoices?.length === 0 ? (
               <p className="text-xs text-slate-400 text-center py-6">No sales invoices recorded yet today.</p>
             ) : (
-              <table className="w-full text-left text-xs">
+              <table className="w-full text-left text-xs min-w-[380px]">
                 <thead className="text-slate-500 font-bold border-b border-slate-100">
                   <tr>
                     <th className="pb-2">Invoice #</th>
@@ -308,7 +308,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
                 No batches expiring within the next 60 days. Stock is healthy!
               </p>
             ) : (
-              <table className="w-full text-left text-xs">
+              <table className="w-full text-left text-xs min-w-[380px]">
                 <thead className="text-slate-500 font-bold border-b border-slate-100">
                   <tr>
                     <th className="pb-2">Medicine</th>

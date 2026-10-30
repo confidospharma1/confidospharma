@@ -92,7 +92,7 @@ export const AuditLogsPage: React.FC = () => {
   });
 
   return (
-    <div className="p-6 md:p-8 space-y-6 max-w-7xl mx-auto overflow-y-auto">
+    <div className="p-3.5 sm:p-5 md:p-8 space-y-4 sm:space-y-6 max-w-7xl mx-auto overflow-y-auto">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-xl font-bold text-slate-900">Immutable Audit Trail</h1>
@@ -104,7 +104,7 @@ export const AuditLogsPage: React.FC = () => {
 
       {/* Toolbar: Search & Filter Button */}
       <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs space-y-3">
-        <div className="flex flex-col sm:flex-row gap-3 justify-between items-center">
+        <div className="flex flex-col sm:flex-row gap-3 justify-between items-stretch sm:items-center">
           <div className="relative flex-1 w-full max-w-md">
             <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
             <input
@@ -116,7 +116,7 @@ export const AuditLogsPage: React.FC = () => {
             />
           </div>
 
-          <div className="flex items-center gap-2 self-end sm:self-auto">
+          <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
             <FilterButton
               activeCount={activeFilterCount}
               onReset={resetFilters}
@@ -250,7 +250,7 @@ export const AuditLogsPage: React.FC = () => {
       {/* Logs Table */}
       <div className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs">
+          <table className="w-full text-left text-xs min-w-[750px]">
             <thead className="bg-slate-50 text-slate-700 font-bold border-b border-slate-200">
               <tr>
                 <th className="py-3 px-4">Timestamp</th>
@@ -344,7 +344,7 @@ export const AuditLogsPage: React.FC = () => {
       >
         {selectedEvent && (
           <div className="space-y-4 text-xs">
-            <div className="grid grid-cols-2 gap-3 p-3 bg-slate-50 rounded-lg border border-slate-200 font-mono">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3 bg-slate-50 rounded-lg border border-slate-200 font-mono">
               <div>
                 <span className="text-slate-500 block text-[11px]">Event Action:</span>
                 <span className="font-bold text-slate-900">{selectedEvent.action}</span>

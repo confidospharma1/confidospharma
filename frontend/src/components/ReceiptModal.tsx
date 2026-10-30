@@ -63,7 +63,7 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
         <div
           id="printable-receipt"
           ref={receiptRef}
-          className="border border-slate-200 rounded-lg p-6 bg-white font-mono text-xs text-slate-800 leading-relaxed shadow-sm"
+          className="border border-slate-200 rounded-lg p-3 sm:p-6 bg-white font-mono text-xs text-slate-800 leading-relaxed shadow-sm"
         >
           {/* Header */}
           <div className="text-center border-b border-dashed border-slate-300 pb-4 mb-4">
@@ -71,7 +71,7 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
             <p className="text-xs font-semibold text-slate-700">{branch?.name || 'Central Pharmacy Branch'}</p>
             <p className="text-[11px] text-slate-600">{branch?.address}</p>
             <p className="text-[11px] text-slate-600">Tel: {branch?.phone}</p>
-            <div className="mt-1 flex justify-center gap-4 text-[11px] text-slate-700">
+            <div className="mt-1 flex flex-wrap justify-center gap-2 sm:gap-4 text-[11px] text-slate-700">
               <span><strong>GSTIN:</strong> {branch?.gstin}</span>
               {branch?.drugLicenseNo && <span><strong>DL:</strong> {branch.drugLicenseNo}</span>}
             </div>
@@ -81,13 +81,13 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
           </div>
 
           {/* Invoice Metadata */}
-          <div className="grid grid-cols-2 gap-2 text-[11px] border-b border-dashed border-slate-300 pb-3 mb-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px] border-b border-dashed border-slate-300 pb-3 mb-3">
             <div>
               <p><strong>Invoice No:</strong> {invoice.invoiceNumber}</p>
               <p><strong>Date & Time:</strong> {formattedDate} {formattedTime}</p>
               <p><strong>Payment Mode:</strong> <span className="font-semibold text-brand-700">{invoice.paymentMethod}</span></p>
             </div>
-            <div className="text-right">
+            <div className="sm:text-right">
               <p><strong>Patient/Customer:</strong> {invoice.customerName || 'Retail Customer'}</p>
               {invoice.customerPhone && <p><strong>Mobile:</strong> {invoice.customerPhone}</p>}
               {invoice.doctorName && <p><strong>Dr. Name:</strong> {invoice.doctorName}</p>}
@@ -95,43 +95,45 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
           </div>
 
           {/* Table */}
-          <table className="w-full text-left text-[11px] mb-3">
-            <thead>
-              <tr className="border-b border-slate-400 text-slate-900 font-bold">
-                <th className="py-1">#</th>
-                <th className="py-1">Description</th>
-                <th className="py-1 text-center">Batch</th>
-                <th className="py-1 text-center">Exp</th>
-                <th className="py-1 text-center">HSN</th>
-                <th className="py-1 text-right">Qty</th>
-                <th className="py-1 text-right">MRP</th>
-                <th className="py-1 text-right">Total</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {invoice.lines.map((line, idx) => (
-                <tr key={line.id || idx}>
-                  <td className="py-1.5 align-top">{idx + 1}</td>
-                  <td className="py-1.5 align-top font-sans font-medium text-slate-900">
-                    {line.medicineName}
-                    {line.discountPercent > 0 && (
-                      <span className="block text-[10px] text-pharmagreen-700 font-mono">
-                        (Disc: {line.discountPercent}%)
-                      </span>
-                    )}
-                  </td>
-                  <td className="py-1.5 text-center align-top">{line.batchNumber}</td>
-                  <td className="py-1.5 text-center align-top">
-                    {line.expiryDate ? new Date(line.expiryDate).toLocaleDateString('en-IN', { month: '2-digit', year: '2-digit' }) : '-'}
-                  </td>
-                  <td className="py-1.5 text-center align-top">{line.hsnCode}</td>
-                  <td className="py-1.5 text-right font-bold align-top">{line.quantity}</td>
-                  <td className="py-1.5 text-right align-top">₹{line.unitMrp.toFixed(2)}</td>
-                  <td className="py-1.5 text-right font-bold align-top">₹{line.lineTotal.toFixed(2)}</td>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-[11px] mb-3 min-w-[420px]">
+              <thead>
+                <tr className="border-b border-slate-400 text-slate-900 font-bold">
+                  <th className="py-1">#</th>
+                  <th className="py-1">Description</th>
+                  <th className="py-1 text-center">Batch</th>
+                  <th className="py-1 text-center">Exp</th>
+                  <th className="py-1 text-center">HSN</th>
+                  <th className="py-1 text-right">Qty</th>
+                  <th className="py-1 text-right">MRP</th>
+                  <th className="py-1 text-right">Total</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {invoice.lines.map((line, idx) => (
+                  <tr key={line.id || idx}>
+                    <td className="py-1.5 align-top">{idx + 1}</td>
+                    <td className="py-1.5 align-top font-sans font-medium text-slate-900">
+                      {line.medicineName}
+                      {line.discountPercent > 0 && (
+                        <span className="block text-[10px] text-pharmagreen-700 font-mono">
+                          (Disc: {line.discountPercent}%)
+                        </span>
+                      )}
+                    </td>
+                    <td className="py-1.5 text-center align-top">{line.batchNumber}</td>
+                    <td className="py-1.5 text-center align-top">
+                      {line.expiryDate ? new Date(line.expiryDate).toLocaleDateString('en-IN', { month: '2-digit', year: '2-digit' }) : '-'}
+                    </td>
+                    <td className="py-1.5 text-center align-top">{line.hsnCode}</td>
+                    <td className="py-1.5 text-right font-bold align-top">{line.quantity}</td>
+                    <td className="py-1.5 text-right align-top">₹{line.unitMrp.toFixed(2)}</td>
+                    <td className="py-1.5 text-right font-bold align-top">₹{line.lineTotal.toFixed(2)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
 
           {/* Financial Totals */}
           <div className="border-t border-dashed border-slate-300 pt-2 space-y-1 text-[11px]">
