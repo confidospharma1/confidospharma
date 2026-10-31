@@ -85,7 +85,7 @@ export const ReportsPage: React.FC = () => {
         setReportData(data);
       }
     } catch (err: any) {
-      console.error('Report load error:', err);
+      // Report load error handled in setError state
       setError(err?.response?.data?.message || err?.message || 'Failed to generate report data. Please check branch connection.');
       setReportData(null);
     } finally {
@@ -475,7 +475,7 @@ export const ReportsPage: React.FC = () => {
                   </div>
                 )}
 
-                <div className="overflow-x-auto">
+                <div className="overflow-x-auto touch-scroll">
                   <table className="w-full text-left text-xs min-w-[650px]">
                     <thead className="bg-slate-50 text-slate-700 font-bold border-b border-slate-200">
                       <tr>
@@ -649,7 +649,7 @@ export const ReportsPage: React.FC = () => {
                   </div>
                 )}
 
-                <div className="overflow-x-auto">
+                <div className="overflow-x-auto touch-scroll">
                   <table className="w-full text-left text-xs min-w-[700px]">
                     <thead className="bg-slate-50 text-slate-700 font-bold border-b border-slate-200">
                       <tr>
@@ -792,7 +792,7 @@ export const ReportsPage: React.FC = () => {
                   </div>
                 )}
 
-                <div className="overflow-x-auto">
+                <div className="overflow-x-auto touch-scroll">
                   <table className="w-full text-left text-xs min-w-[650px]">
                     <thead className="bg-slate-50 text-slate-700 font-bold border-b border-slate-200">
                       <tr>
@@ -924,7 +924,7 @@ export const ReportsPage: React.FC = () => {
                   </div>
                 )}
 
-                <div className="overflow-x-auto">
+                <div className="overflow-x-auto touch-scroll">
                   <table className="w-full text-left text-xs min-w-[650px]">
                     <thead className="bg-slate-50 text-slate-700 font-bold border-b border-slate-200">
                       <tr>

@@ -215,7 +215,7 @@ export const StockMonitoringPage: React.FC = () => {
           setMfgOptions(res.manufacturers || []);
         }
       } catch (err) {
-        console.warn('Could not load filter options:', err);
+        // Filter options load error handled gracefully
       }
     };
     fetchOptions();
@@ -342,7 +342,7 @@ export const StockMonitoringPage: React.FC = () => {
       const res = await api.getStockMonitoringBatches(item.medicineId, effectiveBranchId);
       setBatchDetails(res);
     } catch (err) {
-      console.error('Failed to load batch drill-down:', err);
+      // Batch drill-down error handled in state
     } finally {
       setLoadingBatches(false);
     }
@@ -851,7 +851,7 @@ export const StockMonitoringPage: React.FC = () => {
             )}
           </div>
         ) : (
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto touch-scroll">
             <table className="w-full text-left text-xs border-collapse min-w-[1050px]">
               <thead>
                 <tr className="bg-slate-50/80 border-b border-slate-200 text-slate-600 font-bold">

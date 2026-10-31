@@ -110,9 +110,9 @@ export const FilterButton: React.FC<FilterButtonProps> = ({
       {/* Popover Panel */}
       {isOpen && (
         <div
-          className={`absolute z-30 mt-2 ${
-            align === 'left' ? 'left-0' : 'right-0'
-          } max-w-[calc(100vw-1.5rem)] ${resolvedWidth} bg-white rounded-xl shadow-xl border border-slate-200 p-3 sm:p-4 animate-in fade-in zoom-in-95 duration-150`}
+          className={`fixed inset-x-3 top-20 sm:absolute sm:inset-auto sm:mt-2 ${
+            align === 'left' ? 'sm:left-0' : 'sm:right-0'
+          } max-w-[calc(100vw-1.5rem)] ${resolvedWidth} bg-white rounded-xl shadow-2xl border border-slate-200 p-3 sm:p-4 animate-in fade-in zoom-in-95 duration-150`}
         >
           {/* Header */}
           <div className="flex items-center justify-between pb-3 mb-3 border-b border-slate-100">

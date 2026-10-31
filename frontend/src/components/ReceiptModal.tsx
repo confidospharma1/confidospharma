@@ -95,7 +95,7 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
           </div>
 
           {/* Table */}
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto touch-scroll">
             <table className="w-full text-left text-[11px] mb-3 min-w-[420px]">
               <thead>
                 <tr className="border-b border-slate-400 text-slate-900 font-bold">

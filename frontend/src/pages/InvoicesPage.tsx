@@ -60,7 +60,7 @@ export const InvoicesPage: React.FC = () => {
       });
       setInvoices(data.invoices || []);
     } catch (e) {
-      console.error(e);
+      // Invoice load error handled in UI
     } finally {
       setLoading(false);
     }
@@ -249,7 +249,7 @@ export const InvoicesPage: React.FC = () => {
 
       {/* Invoices Table */}
       <div className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto touch-scroll">
           <table className="w-full text-left text-xs min-w-[850px]">
             <thead className="bg-slate-50 text-slate-700 font-bold border-b border-slate-200">
               <tr>

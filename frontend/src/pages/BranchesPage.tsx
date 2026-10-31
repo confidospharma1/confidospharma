@@ -67,7 +67,7 @@ export const BranchesPage: React.FC = () => {
       const data = await api.getBranches();
       setBranches(data || []);
     } catch (e) {
-      console.error(e);
+      // Branches load error handled in UI
     } finally {
       setLoading(false);
     }

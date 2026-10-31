@@ -41,7 +41,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, o
         });
       }
     } catch (err: any) {
-      console.error('Error fetching settings:', err);
+      // Error handled by defaults
     } finally {
       setLoading(false);
     }

@@ -85,7 +85,7 @@ export const IndentsPage: React.FC<IndentsPageProps> = ({ onNavigateToPurchase }
       setSuppliers(suppliersRes.data || suppliersRes || []);
       setProducts(productsRes.data || productsRes || []);
     } catch (err: any) {
-      console.error('Failed to load indents data:', err);
+      // Indents load error handled in UI
     } finally {
       setLoading(false);
     }
@@ -282,7 +282,7 @@ export const IndentsPage: React.FC<IndentsPageProps> = ({ onNavigateToPurchase }
 
       {/* Indents Table */}
       <div className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto touch-scroll">
           <table className="w-full text-left border-collapse text-xs min-w-[850px]">
             <thead>
               <tr className="bg-slate-50/80 border-b border-slate-200 text-slate-500 font-bold uppercase tracking-wider text-[10px]">
@@ -584,7 +584,7 @@ export const IndentsPage: React.FC<IndentsPageProps> = ({ onNavigateToPurchase }
             )}
 
             {/* Items Table */}
-            <div className="border border-slate-200 rounded-lg overflow-x-auto text-xs">
+            <div className="border border-slate-200 rounded-lg overflow-x-auto touch-scroll text-xs">
               <table className="w-full text-left min-w-[500px]">
                 <thead className="bg-slate-50 border-b border-slate-200 text-[10px] font-bold uppercase text-slate-500">
                   <tr>

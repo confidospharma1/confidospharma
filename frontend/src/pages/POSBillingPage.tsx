@@ -16,6 +16,9 @@ import {
   Printer,
   Sparkles,
   Calendar,
+  ArrowRight,
+  ArrowLeft,
+  ShoppingCart,
 } from 'lucide-react';
 import { Badge } from '../components/Badge';
 import { ReceiptModal } from '../components/ReceiptModal';
@@ -67,6 +70,7 @@ export const POSBillingPage: React.FC = () => {
   const [errorMessage, setErrorMessage] = useState('');
   const [completedInvoice, setCompletedInvoice] = useState<SalesInvoice | null>(null);
   const [showReceiptModal, setShowReceiptModal] = useState(false);
+  const [mobileView, setMobileView] = useState<'cart' | 'checkout'>('cart');
 
   const searchInputRef = useRef<HTMLInputElement>(null);
 
@@ -330,8 +334,8 @@ export const POSBillingPage: React.FC = () => {
         setSearchResults(res.products || []);
         setShowDropdown(true);
         setSelectedIndex(0);
-      } catch (err) {
-        console.error('Search error:', err);
+      } catch {
+        // Quiet search error in live query
       } finally {
         setIsSearching(false);
       }
@@ -608,8 +612,36 @@ export const POSBillingPage: React.FC = () => {
 
   return (
     <div className="min-h-[calc(100vh-4rem)] md:h-[calc(100vh-4rem)] flex flex-col md:flex-row overflow-y-auto md:overflow-hidden bg-slate-100">
+      {/* Mobile Tab Switcher (Only visible on < md) */}
+      <div className="md:hidden sticky top-0 z-20 bg-white border-b border-slate-200 px-3 py-2 flex items-center gap-2 shadow-2xs">
+        <button
+          type="button"
+          onClick={() => setMobileView('cart')}
+          className={`flex-1 py-2 px-3 text-xs font-bold rounded-xl transition-all flex items-center justify-center gap-2 ${
+            mobileView === 'cart'
+              ? 'bg-brand-500 text-white shadow-xs'
+              : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+          }`}
+        >
+          <ShoppingCart className="w-4 h-4" />
+          <span>Cart ({billItems.length})</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => setMobileView('checkout')}
+          className={`flex-1 py-2 px-3 text-xs font-bold rounded-xl transition-all flex items-center justify-center gap-2 ${
+            mobileView === 'checkout'
+              ? 'bg-brand-500 text-white shadow-xs'
+              : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+          }`}
+        >
+          <CreditCard className="w-4 h-4" />
+          <span>Pay (₹{grandTotal.toFixed(2)})</span>
+        </button>
+      </div>
+
       {/* Left Area: Medicine Search & Cart Table */}
-      <div className="flex-1 flex flex-col p-3 sm:p-4 md:p-6 md:overflow-hidden space-y-4 min-w-0">
+      <div className={`flex-1 flex flex-col p-3 sm:p-4 md:p-6 md:overflow-hidden space-y-4 min-w-0 ${mobileView === 'checkout' ? 'hidden md:flex' : 'flex'}`}>
         {/* Top Search Card */}
         <div className="bg-white p-3.5 sm:p-4 rounded-xl border border-slate-200 shadow-xs relative">
           <div className="flex items-center gap-3">
@@ -755,89 +787,95 @@ export const POSBillingPage: React.FC = () => {
                 </p>
               </div>
             ) : (
-              <table className="w-full text-left text-xs min-w-[620px]">
-                <thead className="bg-slate-50 text-slate-700 font-bold border-b border-slate-200 sticky top-0 z-10">
-                  <tr>
-                    <th className="py-2.5 px-4">Item & Batch</th>
-                    <th className="py-2.5 px-3 text-center">Expiry</th>
-                    <th className="py-2.5 px-3 text-right">Unit MRP</th>
-                    <th className="py-2.5 px-3 text-center w-28">Quantity</th>
-                    <th className="py-2.5 px-3 text-center w-20">Disc %</th>
-                    <th className="py-2.5 px-3 text-center">GST</th>
-                    <th className="py-2.5 px-4 text-right">Total</th>
-                    <th className="py-2.5 px-3 text-center w-10"></th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 font-medium">
+              <>
+                {/* 1. Mobile Touch-Friendly Card View (< sm) */}
+                <div className="block sm:hidden divide-y divide-slate-100 pb-20 md:pb-0">
                   {billItems.map((item, idx) => {
                     const gross = item.unitMrp * item.quantity;
                     const lineNet = gross - (gross * item.discountPercent) / 100;
 
                     return (
-                      <tr key={`${item.medicineId}_${item.batchId}`} className="hover:bg-slate-50/80 transition-colors">
-                        <td className="py-3 px-4">
-                          <p className="font-bold text-slate-900">{item.brandName}</p>
-                          {item.availableBatches && item.availableBatches.length > 1 ? (
-                            <div className="flex items-center gap-1.5 mt-1">
-                              <span className="text-[10px] text-slate-400 font-semibold uppercase">Batch:</span>
+                      <div key={`${item.medicineId}_${item.batchId}_${idx}`} className="p-3.5 space-y-2.5 bg-white">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0 flex-1">
+                            <p className="font-bold text-slate-900 text-sm leading-tight">{item.brandName}</p>
+                            <p className="text-[11px] text-slate-500 font-medium">({item.genericName} - {item.strength})</p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => removeItem(idx)}
+                            className="p-1 text-slate-400 hover:text-rose-600 transition-colors"
+                            aria-label="Remove item"
+                            title="Remove item"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+
+                        <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+                          {/* Batch selector */}
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-[10px] text-slate-400 font-semibold uppercase">Batch:</span>
+                            {item.availableBatches && item.availableBatches.length > 1 ? (
                               <select
                                 value={item.batchId}
                                 onChange={(e) => changeItemBatch(idx, e.target.value)}
-                                className="text-[11px] font-mono bg-white border border-slate-300 rounded px-1.5 py-0.5 text-slate-800 font-semibold focus:outline-brand-500 shadow-2xs"
-                                title="Select specific physical stock batch"
+                                className="text-[11px] font-mono bg-white border border-slate-300 rounded px-1.5 py-0.5 text-slate-800 font-semibold focus:outline-brand-500"
                               >
                                 {item.availableBatches.map((b) => (
                                   <option key={b.id} value={b.id}>
-                                    {b.batchNumber} (Avail: {Math.floor(b.availableQuantity / (item.unitMultiplier || 1))} {item.selectedUnit || 'units'})
+                                    {b.batchNumber} (Avail: {Math.floor(b.availableQuantity / (item.unitMultiplier || 1))})
                                   </option>
                                 ))}
                               </select>
-                            </div>
-                          ) : (
-                            <p className="text-[11px] text-slate-500 font-mono mt-0.5">
-                              Batch: <span className="font-semibold text-slate-700">{item.batchNumber}</span> (Avail: {Math.floor(item.availableStock / (item.unitMultiplier || 1))} {item.selectedUnit || 'units'})
-                            </p>
-                          )}
-                        </td>
-                        <td className="py-3 px-3 text-center font-mono text-[11px] text-slate-600">
-                          {new Date(item.expiryDate).toLocaleDateString('en-IN', { month: 'short', year: 'numeric' })}
-                        </td>
-                        <td className="py-3 px-3 text-right font-mono text-slate-800">
-                          <span className="font-bold">₹{item.unitMrp.toFixed(2)}</span>
-                          <span className="text-[10px] text-slate-400 block font-sans">/{item.selectedUnit || 'unit'}</span>
-                        </td>
-                        <td className="py-3 px-3 text-center">
-                          <div className="flex flex-col items-center justify-center gap-1">
-                            <div className="flex items-center justify-center gap-1">
-                              <button
-                                onClick={() => updateQuantity(idx, item.quantity - 1)}
-                                className="p-1 rounded bg-slate-100 hover:bg-slate-200 text-slate-700"
-                                title="Decrease quantity"
-                              >
-                                <Minus className="w-3 h-3" />
-                              </button>
-                              <input
-                                type="number"
-                                min="1"
-                                max={Math.floor(item.availableStock / (item.unitMultiplier || 1))}
-                                value={item.quantity}
-                                onChange={(e) => updateQuantity(idx, parseInt(e.target.value) || 0)}
-                                className="w-12 text-center py-1 bg-white border border-slate-300 rounded text-xs font-bold font-mono focus:ring-1 focus:ring-emerald-500"
-                              />
-                              <button
-                                onClick={() => updateQuantity(idx, item.quantity + 1)}
-                                className="p-1 rounded bg-slate-100 hover:bg-slate-200 text-slate-700"
-                                title="Increase quantity"
-                              >
-                                <Plus className="w-3 h-3" />
-                              </button>
-                            </div>
-                            {item.supportedUnits && item.supportedUnits.length > 1 ? (
+                            ) : (
+                              <span className="font-mono text-[11px] font-semibold text-slate-700">
+                                {item.batchNumber} <span className="text-slate-400 font-normal">(Avail: {Math.floor(item.availableStock / (item.unitMultiplier || 1))})</span>
+                              </span>
+                            )}
+                          </div>
+
+                          {/* Unit MRP */}
+                          <div className="font-mono text-slate-800">
+                            <span className="font-bold">₹{item.unitMrp.toFixed(2)}</span>
+                            <span className="text-[10px] text-slate-400">/{item.selectedUnit || 'unit'}</span>
+                          </div>
+                        </div>
+
+                        {/* Stepper + Unit selector + Line Total */}
+                        <div className="flex items-center justify-between gap-2 pt-2 border-t border-slate-100">
+                          <div className="flex items-center gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => updateQuantity(idx, item.quantity - 1)}
+                              className="w-8 h-8 rounded-lg bg-slate-100 hover:bg-slate-200 active:bg-slate-300 text-slate-700 flex items-center justify-center font-bold text-sm transition-colors"
+                              aria-label="Decrease quantity"
+                            >
+                              <Minus className="w-3.5 h-3.5" />
+                            </button>
+                            <input
+                              type="number"
+                              min="1"
+                              max={Math.floor(item.availableStock / (item.unitMultiplier || 1))}
+                              value={item.quantity}
+                              onChange={(e) => updateQuantity(idx, parseInt(e.target.value) || 0)}
+                              className="w-12 text-center py-1.5 bg-white border border-slate-300 rounded-lg text-xs font-bold font-mono"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => updateQuantity(idx, item.quantity + 1)}
+                              className="w-8 h-8 rounded-lg bg-slate-100 hover:bg-slate-200 active:bg-slate-300 text-slate-700 flex items-center justify-center font-bold text-sm transition-colors"
+                              aria-label="Increase quantity"
+                            >
+                              <Plus className="w-3.5 h-3.5" />
+                            </button>
+
+                            {/* Unit selector */}
+                            {item.supportedUnits && item.supportedUnits.length > 1 && (
                               <select
                                 value={item.selectedUnit}
                                 onChange={(e) => changeItemUnit(idx, e.target.value)}
-                                className="text-[10px] font-semibold bg-white border border-slate-300 rounded px-1.5 py-0.5 text-brand-700 shadow-2xs"
-                                title="Select retail unit (Tablet / Strip / Bottle / Box)"
+                                className="text-[11px] font-semibold bg-white border border-slate-300 rounded-lg px-2 py-1 text-brand-700"
                               >
                                 {item.supportedUnits.map((u) => (
                                   <option key={u.unit} value={u.unit}>
@@ -845,51 +883,191 @@ export const POSBillingPage: React.FC = () => {
                                   </option>
                                 ))}
                               </select>
-                            ) : (
-                              <span className="text-[10px] text-slate-400 font-medium">
-                                {item.selectedUnit || item.baseUnit || 'units'}
-                              </span>
                             )}
                           </div>
-                        </td>
-                        <td className="py-3 px-3 text-center">
-                          <input
-                            type="number"
-                            min="0"
-                            max="10"
-                            value={item.discountPercent}
-                            onChange={(e) => updateDiscount(idx, parseFloat(e.target.value) || 0)}
-                            className="w-14 text-center py-1 bg-white border border-slate-300 rounded text-xs font-mono text-slate-800 focus:ring-1 focus:ring-emerald-500"
-                          />
-                        </td>
-                        <td className="py-3 px-3 text-center font-mono text-slate-600 text-[11px]">
-                          {item.gstRate}%
-                        </td>
-                        <td className="py-3 px-4 text-right font-mono font-bold text-slate-900">
-                          ₹{lineNet.toFixed(2)}
-                        </td>
-                        <td className="py-3 px-3 text-center">
-                          <button
-                            onClick={() => removeItem(idx)}
-                            className="text-slate-400 hover:text-rose-600 transition-colors p-1"
-                            title="Remove item"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </td>
-                      </tr>
+
+                          <div className="text-right">
+                            <span className="text-sm font-bold font-mono text-slate-900">₹{lineNet.toFixed(2)}</span>
+                            {item.discountPercent > 0 && (
+                              <span className="block text-[10px] text-pharmagreen-700 font-mono">({item.discountPercent}% off)</span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
                     );
                   })}
-                </tbody>
-              </table>
+                </div>
+
+                {/* 2. Desktop / Tablet Comprehensive Table (>= sm) */}
+                <div className="hidden sm:block overflow-x-auto">
+                  <table className="w-full text-left text-xs min-w-[620px]">
+                    <thead className="bg-slate-50 text-slate-700 font-bold border-b border-slate-200 sticky top-0 z-10">
+                      <tr>
+                        <th className="py-2.5 px-4">Item & Batch</th>
+                        <th className="py-2.5 px-3 text-center">Expiry</th>
+                        <th className="py-2.5 px-3 text-right">Unit MRP</th>
+                        <th className="py-2.5 px-3 text-center w-28">Quantity</th>
+                        <th className="py-2.5 px-3 text-center w-20">Disc %</th>
+                        <th className="py-2.5 px-3 text-center">GST</th>
+                        <th className="py-2.5 px-4 text-right">Total</th>
+                        <th className="py-2.5 px-3 text-center w-10"></th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 font-medium">
+                      {billItems.map((item, idx) => {
+                        const gross = item.unitMrp * item.quantity;
+                        const lineNet = gross - (gross * item.discountPercent) / 100;
+
+                        return (
+                          <tr key={`${item.medicineId}_${item.batchId}_${idx}`} className="hover:bg-slate-50/80 transition-colors">
+                            <td className="py-3 px-4">
+                              <p className="font-bold text-slate-900">{item.brandName}</p>
+                              {item.availableBatches && item.availableBatches.length > 1 ? (
+                                <div className="flex items-center gap-1.5 mt-1">
+                                  <span className="text-[10px] text-slate-400 font-semibold uppercase">Batch:</span>
+                                  <select
+                                    value={item.batchId}
+                                    onChange={(e) => changeItemBatch(idx, e.target.value)}
+                                    className="text-[11px] font-mono bg-white border border-slate-300 rounded px-1.5 py-0.5 text-slate-800 font-semibold focus:outline-brand-500 shadow-2xs"
+                                    title="Select specific physical stock batch"
+                                  >
+                                    {item.availableBatches.map((b) => (
+                                      <option key={b.id} value={b.id}>
+                                        {b.batchNumber} (Avail: {Math.floor(b.availableQuantity / (item.unitMultiplier || 1))} {item.selectedUnit || 'units'})
+                                      </option>
+                                    ))}
+                                  </select>
+                                </div>
+                              ) : (
+                                <p className="text-[11px] text-slate-500 font-mono mt-0.5">
+                                  Batch: <span className="font-semibold text-slate-700">{item.batchNumber}</span> (Avail: {Math.floor(item.availableStock / (item.unitMultiplier || 1))} {item.selectedUnit || 'units'})
+                                </p>
+                              )}
+                            </td>
+                            <td className="py-3 px-3 text-center font-mono text-[11px] text-slate-600">
+                              {new Date(item.expiryDate).toLocaleDateString('en-IN', { month: 'short', year: 'numeric' })}
+                            </td>
+                            <td className="py-3 px-3 text-right font-mono text-slate-800">
+                              <span className="font-bold">₹{item.unitMrp.toFixed(2)}</span>
+                              <span className="text-[10px] text-slate-400 block font-sans">/{item.selectedUnit || 'unit'}</span>
+                            </td>
+                            <td className="py-3 px-3 text-center">
+                              <div className="flex flex-col items-center justify-center gap-1">
+                                <div className="flex items-center justify-center gap-1">
+                                  <button
+                                    onClick={() => updateQuantity(idx, item.quantity - 1)}
+                                    className="p-1 rounded bg-slate-100 hover:bg-slate-200 text-slate-700"
+                                    title="Decrease quantity"
+                                  >
+                                    <Minus className="w-3 h-3" />
+                                  </button>
+                                  <input
+                                    type="number"
+                                    min="1"
+                                    max={Math.floor(item.availableStock / (item.unitMultiplier || 1))}
+                                    value={item.quantity}
+                                    onChange={(e) => updateQuantity(idx, parseInt(e.target.value) || 0)}
+                                    className="w-12 text-center py-1 bg-white border border-slate-300 rounded text-xs font-bold font-mono focus:ring-1 focus:ring-emerald-500"
+                                  />
+                                  <button
+                                    onClick={() => updateQuantity(idx, item.quantity + 1)}
+                                    className="p-1 rounded bg-slate-100 hover:bg-slate-200 text-slate-700"
+                                    title="Increase quantity"
+                                  >
+                                    <Plus className="w-3 h-3" />
+                                  </button>
+                                </div>
+                                {item.supportedUnits && item.supportedUnits.length > 1 ? (
+                                  <select
+                                    value={item.selectedUnit}
+                                    onChange={(e) => changeItemUnit(idx, e.target.value)}
+                                    className="text-[10px] font-semibold bg-white border border-slate-300 rounded px-1.5 py-0.5 text-brand-700 shadow-2xs"
+                                    title="Select retail unit (Tablet / Strip / Bottle / Box)"
+                                  >
+                                    {item.supportedUnits.map((u) => (
+                                      <option key={u.unit} value={u.unit}>
+                                        {u.unit}
+                                      </option>
+                                    ))}
+                                  </select>
+                                ) : (
+                                  <span className="text-[10px] text-slate-400 font-medium">
+                                    {item.selectedUnit || item.baseUnit || 'units'}
+                                  </span>
+                                )}
+                              </div>
+                            </td>
+                            <td className="py-3 px-3 text-center">
+                              <input
+                                type="number"
+                                min="0"
+                                max="10"
+                                value={item.discountPercent}
+                                onChange={(e) => updateDiscount(idx, parseFloat(e.target.value) || 0)}
+                                className="w-14 text-center py-1 bg-white border border-slate-300 rounded text-xs font-mono text-slate-800 focus:ring-1 focus:ring-emerald-500"
+                              />
+                            </td>
+                            <td className="py-3 px-3 text-center font-mono text-slate-600 text-[11px]">
+                              {item.gstRate}%
+                            </td>
+                            <td className="py-3 px-4 text-right font-mono font-bold text-slate-900">
+                              ₹{lineNet.toFixed(2)}
+                            </td>
+                            <td className="py-3 px-3 text-center">
+                              <button
+                                onClick={() => removeItem(idx)}
+                                className="text-slate-400 hover:text-rose-600 transition-colors p-1"
+                                title="Remove item"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </>
             )}
           </div>
         </div>
+
+        {/* Mobile Sticky Quick-Checkout Floating Bar */}
+        {billItems.length > 0 && (
+          <div className="md:hidden fixed bottom-14 inset-x-0 bg-white/95 backdrop-blur-md border-t border-slate-200 p-3 shadow-lg flex items-center justify-between z-20">
+            <div>
+              <span className="text-[10px] text-slate-500 uppercase font-bold block">Payable Total</span>
+              <span className="text-lg font-black font-mono text-brand-900">₹{grandTotal.toFixed(2)}</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setMobileView('checkout')}
+              className="px-4 py-2 bg-brand-500 hover:bg-brand-600 active:bg-brand-700 text-white font-bold text-xs rounded-xl shadow-xs flex items-center gap-1.5 transition-colors"
+            >
+              <span>Proceed to Pay</span>
+              <ArrowRight className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Right Area: Customer Details & Checkout Card */}
-      <div className="w-full md:w-96 bg-white border-t md:border-t-0 md:border-l border-slate-200 p-4 sm:p-5 flex flex-col justify-between overflow-y-auto shadow-sm shrink-0">
+      <div className={`w-full md:w-96 bg-white border-t md:border-t-0 md:border-l border-slate-200 p-4 sm:p-5 flex-col justify-between overflow-y-auto shadow-sm shrink-0 ${mobileView === 'cart' ? 'hidden md:flex' : 'flex'}`}>
         <div className="space-y-5">
+          {/* Mobile Back Button */}
+          <div className="md:hidden pb-2 mb-1 border-b border-slate-100 flex items-center justify-between">
+            <button
+              type="button"
+              onClick={() => setMobileView('cart')}
+              className="inline-flex items-center gap-1.5 text-xs font-bold text-brand-600 hover:text-brand-800"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              <span>← Back to Cart ({billItems.length})</span>
+            </button>
+            <span className="text-xs font-mono font-bold text-brand-900">₹{grandTotal.toFixed(2)}</span>
+          </div>
+
           <div>
             <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-3">
               Customer Details (Optional)

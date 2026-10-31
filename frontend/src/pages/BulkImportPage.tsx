@@ -467,7 +467,7 @@ export const BulkImportPage: React.FC = () => {
               </div>
             )}
 
-            <div className="overflow-x-auto max-h-96">
+            <div className="overflow-x-auto touch-scroll max-h-96">
               <table className="w-full text-left text-xs min-w-[750px]">
                 <thead className="bg-slate-50 text-slate-700 font-bold border-b border-slate-200 sticky top-0">
                   <tr>

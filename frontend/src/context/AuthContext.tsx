@@ -51,8 +51,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       } else {
         setSelectedBranchId(data.user.branchId || '');
       }
-    } catch (error) {
-      console.error('Failed to load user profile:', error);
+    } catch {
+      // Clear token and reset user on authentication failure
       removeAuthToken();
       setUser(null);
     } finally {

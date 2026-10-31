@@ -654,7 +654,7 @@ export const ProfitLossPage: React.FC = () => {
           </div>
         )}
 
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto touch-scroll">
           <table className="w-full text-left text-xs min-w-[650px]">
             <thead className="bg-slate-50 text-slate-700 font-bold border-b border-slate-200">
               <tr>
@@ -717,7 +717,7 @@ export const ProfitLossPage: React.FC = () => {
             <h2 className="text-sm font-bold text-slate-900">Top Medicines by Gross Profit Contribution</h2>
             <p className="text-[10px] text-slate-500">Products delivering the highest realized gross profit in this period.</p>
           </div>
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto touch-scroll">
             <table className="w-full text-left text-xs min-w-[650px]">
               <thead className="bg-slate-50 text-slate-700 font-bold border-b border-slate-200">
                 <tr>

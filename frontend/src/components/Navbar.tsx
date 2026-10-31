@@ -89,6 +89,33 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenPOS, activeTab, onToggleSi
             </div>
           )}
         </div>
+
+        {/* Mobile Branch Badge & Quick Switcher */}
+        <div className="flex md:hidden items-center ml-1">
+          {isSuperAdmin && branches.length > 0 ? (
+            <select
+              value={selectedBranchId}
+              onChange={(e) => setSelectedBranchId(e.target.value)}
+              className="text-[11px] font-bold text-brand-900 bg-brand-50 border border-brand-200 rounded-md px-1.5 py-1 max-w-[105px] truncate focus:ring-2 focus:ring-brand-500"
+              title="Active Branch"
+              aria-label="Active Branch"
+            >
+              {branches.map((b) => (
+                <option key={b.id} value={b.id}>
+                  {b.code} - {b.name}
+                </option>
+              ))}
+            </select>
+          ) : (
+            <span
+              className="inline-flex items-center gap-1 text-[11px] font-bold font-mono px-2 py-0.5 bg-brand-50 text-brand-700 border border-brand-200 rounded-md max-w-[95px] truncate"
+              title={currentBranch?.name || 'Local Branch'}
+            >
+              <Building2 className="w-3 h-3 text-brand-500 shrink-0" />
+              <span className="truncate">{currentBranch?.code || 'Branch'}</span>
+            </span>
+          )}
+        </div>
       </div>
 
       {/* Right controls */}
@@ -102,10 +129,11 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenPOS, activeTab, onToggleSi
               : 'bg-brand-500 hover:bg-brand-600 active:bg-brand-700 text-white hover:shadow-sm'
           }`}
           title="Open Point of Sale Billing Counter (Shortcut: F2)"
+          aria-label="Open Point of Sale Billing Counter"
         >
           <ShoppingCart className="w-4 h-4 shrink-0" />
-          <span className="hidden xs:inline sm:inline">POS Billing</span>
-          <span className="xs:hidden">POS</span>
+          <span className="hidden sm:inline">POS Billing</span>
+          <span className="sm:hidden font-bold">POS</span>
           <span className="hidden sm:inline-block px-1.5 py-0.2 bg-brand-700/60 rounded text-[10px] font-mono">
             F2
           </span>

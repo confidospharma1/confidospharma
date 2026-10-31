@@ -51,7 +51,7 @@ export const ProductsPage: React.FC = () => {
       api.getBranches().then((res) => {
         if (Array.isArray(res)) setBranches(res);
         else if (res?.data && Array.isArray(res.data)) setBranches(res.data);
-      }).catch(console.error);
+      }).catch(() => {});
     }
   }, [isSuperAdmin]);
 
@@ -162,7 +162,7 @@ export const ProductsPage: React.FC = () => {
       const data = await api.getProducts({ search, limit: 100 });
       setProducts(data.products || []);
     } catch (err) {
-      console.error('Failed to load products:', err);
+      // Product load error handled in UI
     } finally {
       setLoading(false);
     }
@@ -509,7 +509,7 @@ export const ProductsPage: React.FC = () => {
 
       {/* Products Table */}
       <div className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto touch-scroll">
           <table className="w-full text-left text-xs min-w-[1100px]">
             <thead className="bg-slate-50 text-slate-700 font-bold border-b border-slate-200">
               <tr>

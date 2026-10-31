@@ -46,3 +46,24 @@ input:focus, button:focus, select:focus, textarea:focus {
   outline: 2px solid #0082cd;
   outline-offset: 1px;
 }
+
+/* Mobile smooth touch scrolling & responsive layout helpers */
+html {
+  -webkit-text-size-adjust: 100%;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.touch-scroll {
+  -webkit-overflow-scrolling: touch;
+  scroll-behavior: smooth;
+}
+
+/* Hide scrollbar for compact mobile horizontal tab bars */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+

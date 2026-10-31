@@ -22,6 +22,7 @@ interface DashboardPageProps {
 export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
   const { isSuperAdmin, selectedBranchId, currentBranch } = useAuth();
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   // Stats
   const [dailySales, setDailySales] = useState<any>(null);
@@ -32,6 +33,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
   useEffect(() => {
     const loadDashboardData = async () => {
       setLoading(true);
+      setLoadError(null);
       try {
         const [daily, val, exp] = await Promise.all([
           api.getDailySales(selectedBranchId),
@@ -47,8 +49,8 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
           const comp = await api.getCompanyOverview();
           setCompanyOverview(comp);
         }
-      } catch (err) {
-        console.error('Failed to load dashboard data:', err);
+      } catch (err: any) {
+        setLoadError(err.message || 'Unable to load branch operational metrics. Check branch connection.');
       } finally {
         setLoading(false);
       }
@@ -250,7 +252,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
               View All &rarr;
             </button>
           </div>
-          <div className="p-4 flex-1 overflow-x-auto">
+          <div className="p-4 flex-1 overflow-x-auto touch-scroll">
             {dailySales?.invoices?.length === 0 ? (
               <p className="text-xs text-slate-400 text-center py-6">No sales invoices recorded yet today.</p>
             ) : (
@@ -264,8 +266,8 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-50">
-                  {dailySales?.invoices?.slice(0, 5).map((inv: any) => (
-                    <tr key={inv.id} className="hover:bg-slate-50/50">
+                  {dailySales?.invoices?.slice(0, 5).map((inv: any, idx: number) => (
+                    <tr key={inv.id || inv.invoiceNumber || idx} className="hover:bg-slate-50/50">
                       <td className="py-2.5 font-mono font-bold text-slate-900">{inv.invoiceNumber}</td>
                       <td className="py-2.5 text-slate-700">{inv.customerName || 'Retail Customer'}</td>
                       <td className="py-2.5 text-center">
@@ -302,7 +304,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
               Manage &rarr;
             </button>
           </div>
-          <div className="p-4 flex-1 overflow-x-auto">
+          <div className="p-4 flex-1 overflow-x-auto touch-scroll">
             {expiryAlerts?.nearExpiry?.length === 0 ? (
               <p className="text-xs text-pharmagreen-700 text-center py-6 font-medium">
                 No batches expiring within the next 60 days. Stock is healthy!
@@ -318,8 +320,8 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-50">
-                  {expiryAlerts?.nearExpiry?.slice(0, 5).map((exp: any) => (
-                    <tr key={exp.id} className="hover:bg-slate-50/50">
+                  {expiryAlerts?.nearExpiry?.slice(0, 5).map((exp: any, idx: number) => (
+                    <tr key={exp.id || exp.batchNumber || idx} className="hover:bg-slate-50/50">
                       <td className="py-2.5 font-bold text-slate-800">{exp.medicineName}</td>
                       <td className="py-2.5 font-mono text-slate-600">{exp.batchNumber}</td>
                       <td className="py-2.5 text-center font-bold text-amber-700">

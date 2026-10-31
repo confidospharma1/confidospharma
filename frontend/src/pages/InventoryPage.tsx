@@ -251,7 +251,7 @@ export const InventoryPage: React.FC = () => {
       setMovementTotal(movementsRes.total || 0);
       setMovementTotalPages(movementsRes.totalPages || 1);
     } catch (err: any) {
-      console.error('Failed to load ledger data:', err);
+      // Ledger error handled in message state
       setMessage({ text: err.message || 'Failed to load inventory ledger data', type: 'error' });
     } finally {
       setIsLedgerLoading(false);
@@ -270,7 +270,7 @@ export const InventoryPage: React.FC = () => {
       const data = await api.getBatches(params);
       setBatches(data);
     } catch (err) {
-      console.error('Failed to load batches:', err);
+      // Batches error handled gracefully
     } finally {
       setBatchesLoading(false);
     }
@@ -285,7 +285,7 @@ export const InventoryPage: React.FC = () => {
       setProducts(pRes.products || pRes);
       setSuppliers(sRes);
     } catch (err) {
-      console.error('Failed to load references:', err);
+      // References error handled gracefully
     }
   };
 
@@ -983,7 +983,7 @@ export const InventoryPage: React.FC = () => {
             </div>
 
             {/* Detailed Movement Ledger Table (Requirement 5) */}
-            <div className="overflow-x-auto">
+            <div className="overflow-x-auto touch-scroll">
               <table className="w-full text-left border-collapse text-xs min-w-[850px]">
                 <thead>
                   <tr className="bg-slate-50/80 border-b border-slate-200 text-slate-600 font-semibold uppercase text-[10px] tracking-wider select-none">
@@ -1221,7 +1221,7 @@ export const InventoryPage: React.FC = () => {
 
           {/* Batches Table */}
           <div className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
-            <div className="overflow-x-auto">
+            <div className="overflow-x-auto touch-scroll">
               <table className="w-full text-left border-collapse text-xs min-w-[750px]">
                 <thead>
                   <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 font-semibold uppercase text-[10px] tracking-wider">

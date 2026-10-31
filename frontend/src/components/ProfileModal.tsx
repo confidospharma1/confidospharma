@@ -47,7 +47,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose }) =
         });
       }
     } catch (err: any) {
-      console.error('Error fetching profile:', err);
+      // Error handled by fallback to authUser context
       // Fallback to authUser context
       if (authUser) {
         setProfileData({
