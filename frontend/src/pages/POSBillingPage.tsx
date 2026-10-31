@@ -71,8 +71,24 @@ export const POSBillingPage: React.FC = () => {
   const [completedInvoice, setCompletedInvoice] = useState<SalesInvoice | null>(null);
   const [showReceiptModal, setShowReceiptModal] = useState(false);
   const [mobileView, setMobileView] = useState<'cart' | 'checkout'>('cart');
+  const [maxDiscountLimit, setMaxDiscountLimit] = useState<number>(100);
 
   const searchInputRef = useRef<HTMLInputElement>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    api.getSettings().then((res: any) => {
+      const settings = res.settings || res;
+      if (settings?.MAX_DISCOUNT_PERCENT) {
+        const parsed = parseFloat(settings.MAX_DISCOUNT_PERCENT);
+        if (!isNaN(parsed) && parsed > 0) {
+          setMaxDiscountLimit(parsed);
+        }
+      }
+    }).catch(() => {
+      // Default to 100 on error
+    });
+  }, []);
 
   const deriveUnitsForProduct = (prod: MedicineProduct) => {
     const form = (prod.dosageForm || '').toLowerCase();
@@ -299,17 +315,25 @@ export const POSBillingPage: React.FC = () => {
     return supportedUnits[0].unit;
   };
 
-  // Focus search input on mount, F2 shortcut, and global custom events
+  // Focus search input strictly once on initial component mount
   useEffect(() => {
     searchInputRef.current?.focus();
+  }, []);
 
+  // Keep references to billItems and isSubmitting so global events don't re-bind and steal focus
+  const billItemsRef = useRef(billItems);
+  billItemsRef.current = billItems;
+  const isSubmittingRef = useRef(isSubmitting);
+  isSubmittingRef.current = isSubmitting;
+
+  useEffect(() => {
     const handleFocusSearch = () => {
       searchInputRef.current?.focus();
       searchInputRef.current?.select();
     };
 
     const handleCheckout = () => {
-      if (billItems.length > 0 && !isSubmitting) {
+      if (billItemsRef.current.length > 0 && !isSubmittingRef.current) {
         handleCompleteBill();
       }
     };
@@ -333,7 +357,17 @@ export const POSBillingPage: React.FC = () => {
       window.removeEventListener('pharmacy:pos-checkout', handleCheckout);
       window.removeEventListener('keydown', handleGlobalKeyDown);
     };
-  }, [billItems, isSubmitting]);
+  }, []);
+
+  // Scroll active dropdown item into view when navigating with Arrow keys
+  useEffect(() => {
+    if (showDropdown && dropdownRef.current) {
+      const activeEl = dropdownRef.current.children[selectedIndex] as HTMLElement;
+      if (activeEl) {
+        activeEl.scrollIntoView({ block: 'nearest' });
+      }
+    }
+  }, [selectedIndex, showDropdown]);
 
   // Debounced product search
   useEffect(() => {
@@ -548,9 +582,9 @@ export const POSBillingPage: React.FC = () => {
 
   const updateDiscount = (index: number, disc: number) => {
     if (disc < 0) disc = 0;
-    if (disc > 10) {
-      setErrorMessage('Maximum policy discount limit is 10%.');
-      disc = 10;
+    if (disc > maxDiscountLimit) {
+      setErrorMessage(`Maximum policy discount limit is ${maxDiscountLimit}%.`);
+      disc = maxDiscountLimit;
     } else {
       setErrorMessage('');
     }
@@ -687,7 +721,10 @@ export const POSBillingPage: React.FC = () => {
 
           {/* Search Dropdown */}
           {showDropdown && searchResults.length > 0 && (
-            <div className="absolute left-0 right-0 top-full mt-1.5 bg-white border border-slate-300 rounded-xl shadow-2xl z-40 max-h-80 overflow-y-auto divide-y divide-slate-100">
+            <div
+              ref={dropdownRef}
+              className="absolute left-0 right-0 top-full mt-1.5 bg-white border border-slate-300 rounded-xl shadow-2xl z-40 max-h-80 overflow-y-auto divide-y divide-slate-100"
+            >
               {searchResults.map((prod, index) => {
                 const isSelected = index === selectedIndex;
                 const hasStock = (prod.totalAvailableStock || 0) > 0;
@@ -902,6 +939,20 @@ export const POSBillingPage: React.FC = () => {
                                 ))}
                               </select>
                             )}
+
+                            {/* Mobile Discount Input */}
+                            <div className="flex items-center gap-1 bg-slate-50 px-1.5 py-0.5 rounded border border-slate-200">
+                              <span className="text-[10px] text-slate-500 font-bold uppercase">Disc%:</span>
+                              <input
+                                type="number"
+                                min="0"
+                                max={maxDiscountLimit}
+                                step="0.5"
+                                value={item.discountPercent}
+                                onChange={(e) => updateDiscount(idx, parseFloat(e.target.value) || 0)}
+                                className="w-11 text-center py-0.5 bg-white border border-slate-300 rounded text-xs font-mono text-slate-800"
+                              />
+                            </div>
                           </div>
 
                           <div className="text-right">
@@ -1019,7 +1070,8 @@ export const POSBillingPage: React.FC = () => {
                               <input
                                 type="number"
                                 min="0"
-                                max="10"
+                                max={maxDiscountLimit}
+                                step="0.5"
                                 value={item.discountPercent}
                                 onChange={(e) => updateDiscount(idx, parseFloat(e.target.value) || 0)}
                                 className="w-14 text-center py-1 bg-white border border-slate-300 rounded text-xs font-mono text-slate-800 focus:ring-1 focus:ring-emerald-500"

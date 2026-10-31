@@ -241,6 +241,16 @@ describe('Confidos Pharma - Purchase-Unit Conversion & Pricing Engine Test Suite
     });
 
     it('API accepts custom 12.5% and 20% max discount, but strictly rejects 21% and -1%', async () => {
+      await prisma.systemSetting.upsert({
+        where: { key: 'MAX_PURCHASE_DISCOUNT_PERCENT' },
+        update: { value: '20.0' },
+        create: {
+          key: 'MAX_PURCHASE_DISCOUNT_PERCENT',
+          value: '20.0',
+          description: 'Maximum purchase discount limit',
+        },
+      });
+
       // 1. Valid custom 12.5%
       const res125 = await request(app)
         .post('/api/purchases')

@@ -39,6 +39,14 @@ export const createInvoice = async (req: Request, res: Response) => {
       let cgstTotalDec = new Decimal(0);
       let sgstTotalDec = new Decimal(0);
 
+      // Determine maximum allowed POS counter discount percentage from system settings
+      const maxDiscountSetting = await tx.systemSetting.findUnique({
+        where: { key: 'MAX_DISCOUNT_PERCENT' },
+      });
+      const maxAllowedDiscount = maxDiscountSetting
+        ? parseFloat(maxDiscountSetting.value) || 100.0
+        : 100.0;
+
       const processedLines: any[] = [];
       const now = new Date();
 
@@ -51,8 +59,8 @@ export const createInvoice = async (req: Request, res: Response) => {
         }
 
         const discPct = new Decimal(discountPercent || 0);
-        if (discPct.isNegative() || discPct.greaterThan(10)) {
-          throw new Error('Discount percentage cannot exceed 10% policy limit.');
+        if (discPct.isNegative() || discPct.greaterThan(maxAllowedDiscount)) {
+          throw new Error(`Discount percentage cannot exceed ${maxAllowedDiscount}% policy limit.`);
         }
 
         // Fetch medicine

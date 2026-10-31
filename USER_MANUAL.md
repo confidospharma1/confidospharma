@@ -659,6 +659,18 @@ The platform has undergone rigorous quality assurance and engineering enhancemen
   - Scoped branch discovery allows Branch Administrators to view all active branches when selecting transfer destinations.
   - Allowed Branch Admin 1 to dispatch stock directly to Branch Admin 2, and Branch Admin 2 to view and receive the stock in their transfers list.
 
+### 13. POS Counter Selected Bill Items Discount Customization (Section 10)
+- **Implemented Fix:** Eliminated the hardcoded 10% discount restriction in POS billing:
+  - The backend `createInvoice` billing controller dynamically references `MAX_DISCOUNT_PERCENT` from System Settings (defaulting to 100% or administrator policy threshold) instead of rejecting discounts above 10%.
+  - The POS billing interface loads the active discount limit from the Settings API, dynamically setting the validation ceiling and input `max` attribute.
+  - Added discount percentage adjustment in both desktop and mobile views.
+
+### 14. Keyboard Arrow Navigation & Focus Stability in POS (Section 10)
+- **Implemented Fix:** Resolved focus jumping when pressing arrow keys in cart inputs:
+  - Previously, `searchInputRef.current?.focus()` was bound to an effect depending on `[billItems, isSubmitting]`. Pressing ArrowUp / ArrowDown in quantity or discount fields updated item state, which immediately triggered the effect and stole focus back to the search bar.
+  - Re-architected search input autofocus to trigger strictly once on component mount, with event listeners decoupled via mutable refs.
+  - Arrow keys now adjust quantities and discounts continuously without focus jumping to another text box. Dropdown search navigation auto-scrolls selected items cleanly into view.
+
 ---
 
 *Confidos Pharma Enterprise OS is maintained by the Engineering and Compliance Teams. For technical support, contact `support@confidospharma.com`.*

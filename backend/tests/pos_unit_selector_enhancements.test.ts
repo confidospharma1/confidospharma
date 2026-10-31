@@ -578,6 +578,62 @@ describe('Confidos Pharma - POS Billing Quantity-Unit Selector & Bottle Enhancem
       expect(res.body.taxTotal).toBeCloseTo(4.82, 1);
       expect(res.body.grandTotal).toBe(45);
     });
+
+    it('accepts higher discount rates (e.g. 25%) in POS Selected Bill Items according to system setting', async () => {
+      const med = await prisma.medicineProduct.create({
+        data: {
+          internalCode: `MED-HIGH-DISC-${Date.now()}`,
+          brandName: `Discount Drug ${Date.now()}`,
+          genericName: 'Paracetamol',
+          strength: '500 mg',
+          dosageForm: 'Tablet',
+          manufacturer: 'GSK',
+          packSize: '10 Tablets',
+          baseUnit: 'Tablet',
+          conversionFactor: 10,
+          gstRate: 0,
+          mrp: 100.0,
+          isActive: true,
+        },
+      });
+
+      const batch = await prisma.stockBatch.create({
+        data: {
+          medicineId: med.id,
+          branchId,
+          batchNumber: `BATCH-HIGH-DISC-${Date.now()}`,
+          expiryDate: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000),
+          quantityReceived: 50,
+          availableQuantity: 50,
+          purchaseRate: 50.0,
+          sellingPrice: 100.0,
+          mrp: 100.0,
+          status: 'ACTIVE',
+        },
+      });
+
+      const res = await request(app)
+        .post('/api/billing/invoices')
+        .set('Authorization', `Bearer ${cashierToken}`)
+        .send({
+          branchId,
+          customerName: 'High Discount Customer',
+          items: [
+            {
+              medicineId: med.id,
+              batchId: batch.id,
+              quantity: 1,
+              unit: 'Tablet',
+              discountPercent: 25,
+            },
+          ],
+        });
+
+      expect(res.status).toBe(201);
+      expect(res.body.lines[0].discountPercent).toBe(25);
+      expect(res.body.lines[0].discountAmount).toBe(25);
+      expect(res.body.grandTotal).toBe(75);
+    });
   });
 
   // TEST H: Insufficient Stock Protection

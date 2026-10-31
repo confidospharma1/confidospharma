@@ -32,8 +32,8 @@ const DEFAULT_SETTINGS: Record<string, { value: string; description: string }> =
     description: 'Allow cashiers to apply manual discount during POS billing',
   },
   MAX_DISCOUNT_PERCENT: {
-    value: '10.0',
-    description: 'Maximum allowable discount percentage at POS billing',
+    value: '100.0',
+    description: 'Maximum allowable discount percentage at POS billing (up to 100%)',
   },
   NEAR_EXPIRY_THRESHOLD_DAYS: {
     value: '60',
@@ -107,6 +107,13 @@ export const updateSettings = async (req: Request, res: Response) => {
       const maxDisc = parseFloat(settings.MAX_PURCHASE_DISCOUNT_PERCENT);
       if (isNaN(maxDisc) || maxDisc < 0 || maxDisc > 100) {
         return res.status(400).json({ message: 'Maximum purchase discount limit must be between 0% and 100%' });
+      }
+    }
+
+    if (settings.MAX_DISCOUNT_PERCENT !== undefined) {
+      const maxRetailDisc = parseFloat(settings.MAX_DISCOUNT_PERCENT);
+      if (isNaN(maxRetailDisc) || maxRetailDisc < 0 || maxRetailDisc > 100) {
+        return res.status(400).json({ message: 'Maximum retail counter discount limit must be between 0% and 100%' });
       }
     }
 

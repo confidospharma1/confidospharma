@@ -240,7 +240,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, o
                   type="number"
                   step="0.5"
                   min="0"
-                  max="50"
+                  max="100"
                   required
                   value={settings.MAX_DISCOUNT_PERCENT}
                   onChange={(e) =>
