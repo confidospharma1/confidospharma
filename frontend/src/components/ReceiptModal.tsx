@@ -63,32 +63,31 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
         <div
           id="printable-receipt"
           ref={receiptRef}
-          className="border border-slate-200 rounded-lg p-3 sm:p-6 bg-white font-mono text-xs text-slate-800 leading-relaxed shadow-sm"
+          className="border border-slate-200 rounded-lg p-3 sm:p-4 bg-white font-mono text-xs text-slate-800 leading-normal shadow-sm max-w-xl mx-auto"
         >
-          {/* Header */}
-          <div className="text-center border-b border-dashed border-slate-300 pb-4 mb-4">
-            <h1 className="text-base font-bold text-slate-900 tracking-wider">CONFIDOS PHARMA</h1>
-            <p className="text-xs font-semibold text-slate-700">{branch?.name || 'Central Pharmacy Branch'}</p>
-            <p className="text-[11px] text-slate-600">{branch?.address}</p>
-            <p className="text-[11px] text-slate-600">Tel: {branch?.phone}</p>
-            <div className="mt-1 flex flex-wrap justify-center gap-2 sm:gap-4 text-[11px] text-slate-700">
-              <span><strong>GSTIN:</strong> {branch?.gstin}</span>
-              {branch?.drugLicenseNo && <span><strong>DL:</strong> {branch.drugLicenseNo}</span>}
+          {/* Unified Single-Row Header & Metadata */}
+          <div className="border-b border-dashed border-slate-300 pb-2.5 mb-2.5 grid grid-cols-1 sm:grid-cols-2 gap-3 items-start text-[11px]">
+            {/* Left Column: Pharmacy Branding & Legal Info */}
+            <div className="text-left space-y-0.5">
+              <h1 className="text-sm font-bold text-slate-900 tracking-wider">CONFIDOS PHARMA</h1>
+              <p className="text-xs font-semibold text-slate-800">{branch?.name || 'Central Pharmacy Branch'}</p>
+              {branch?.address && <p className="text-[10px] text-slate-600">{branch.address}</p>}
+              {branch?.phone && <p className="text-[10px] text-slate-600">Tel: {branch.phone}</p>}
+              <div className="flex flex-wrap gap-2 text-[10px] text-slate-700">
+                <span><strong>GSTIN:</strong> {branch?.gstin || 'N/A'}</span>
+                {branch?.drugLicenseNo && <span><strong>DL:</strong> {branch.drugLicenseNo}</span>}
+              </div>
+              <div className="mt-1 inline-block px-2 py-0.5 border border-slate-500 font-bold uppercase text-[9px] tracking-widest text-slate-900">
+                RETAIL TAX INVOICE
+              </div>
             </div>
-            <div className="mt-2 inline-block px-3 py-0.5 border border-slate-400 font-bold uppercase text-[10px] tracking-widest">
-              RETAIL TAX INVOICE
-            </div>
-          </div>
 
-          {/* Invoice Metadata */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px] border-b border-dashed border-slate-300 pb-3 mb-3">
-            <div>
-              <p><strong>Invoice No:</strong> {invoice.invoiceNumber}</p>
+            {/* Right Column: Invoice & Patient Metadata */}
+            <div className="sm:text-right space-y-0.5 text-slate-700">
+              <p><strong>Invoice No:</strong> <span className="font-bold text-slate-900">{invoice.invoiceNumber}</span></p>
               <p><strong>Date & Time:</strong> {formattedDate} {formattedTime}</p>
               <p><strong>Payment Mode:</strong> <span className="font-semibold text-brand-700">{invoice.paymentMethod}</span></p>
-            </div>
-            <div className="sm:text-right">
-              <p><strong>Patient/Customer:</strong> {invoice.customerName || 'Retail Customer'}</p>
+              <p><strong>Patient/Customer:</strong> <span className="font-medium text-slate-900">{invoice.customerName || 'Retail Customer'}</span></p>
               {invoice.customerPhone && <p><strong>Mobile:</strong> {invoice.customerPhone}</p>}
               {invoice.doctorName && <p><strong>Dr. Name:</strong> {invoice.doctorName}</p>}
             </div>
@@ -96,7 +95,7 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
 
           {/* Table */}
           <div className="overflow-x-auto touch-scroll">
-            <table className="w-full text-left text-[11px] mb-3 min-w-[420px]">
+            <table className="w-full text-left text-[11px] mb-2 min-w-[420px]">
               <thead>
                 <tr className="border-b border-slate-400 text-slate-900 font-bold">
                   <th className="py-1">#</th>
@@ -112,8 +111,8 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
               <tbody className="divide-y divide-slate-100">
                 {invoice.lines.map((line, idx) => (
                   <tr key={line.id || idx}>
-                    <td className="py-1.5 align-top">{idx + 1}</td>
-                    <td className="py-1.5 align-top font-sans font-medium text-slate-900">
+                    <td className="py-1 align-top">{idx + 1}</td>
+                    <td className="py-1 align-top font-sans font-medium text-slate-900">
                       {line.medicineName}
                       {line.discountPercent > 0 && (
                         <span className="block text-[10px] text-pharmagreen-700 font-mono">
@@ -121,14 +120,14 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
                         </span>
                       )}
                     </td>
-                    <td className="py-1.5 text-center align-top">{line.batchNumber}</td>
-                    <td className="py-1.5 text-center align-top">
+                    <td className="py-1 text-center align-top">{line.batchNumber}</td>
+                    <td className="py-1 text-center align-top">
                       {line.expiryDate ? new Date(line.expiryDate).toLocaleDateString('en-IN', { month: '2-digit', year: '2-digit' }) : '-'}
                     </td>
-                    <td className="py-1.5 text-center align-top">{line.hsnCode}</td>
-                    <td className="py-1.5 text-right font-bold align-top">{line.quantity}</td>
-                    <td className="py-1.5 text-right align-top">₹{line.unitMrp.toFixed(2)}</td>
-                    <td className="py-1.5 text-right font-bold align-top">₹{line.lineTotal.toFixed(2)}</td>
+                    <td className="py-1 text-center align-top">{line.hsnCode}</td>
+                    <td className="py-1 text-right font-bold align-top">{line.quantity}</td>
+                    <td className="py-1 text-right align-top">₹{line.unitMrp.toFixed(2)}</td>
+                    <td className="py-1 text-right font-bold align-top">₹{line.lineTotal.toFixed(2)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -136,7 +135,7 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
           </div>
 
           {/* Financial Totals */}
-          <div className="border-t border-dashed border-slate-300 pt-2 space-y-1 text-[11px]">
+          <div className="border-t border-dashed border-slate-300 pt-1.5 space-y-0.5 text-[11px]">
             <div className="flex justify-between">
               <span>Taxable Value:</span>
               <span>₹{invoice.subtotal.toFixed(2)}</span>
@@ -165,17 +164,17 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
                 <span>{invoice.roundOff > 0 ? `+₹${invoice.roundOff.toFixed(2)}` : `-₹${Math.abs(invoice.roundOff).toFixed(2)}`}</span>
               </div>
             )}
-            <div className="flex justify-between text-sm font-bold text-slate-900 border-t border-slate-400 pt-1.5 mt-1">
+            <div className="flex justify-between text-xs font-bold text-slate-900 border-t border-slate-400 pt-1 mt-1">
               <span>NET PAYABLE:</span>
-              <span className="text-base text-brand-900 font-black">₹{invoice.grandTotal.toFixed(2)}</span>
+              <span className="text-sm text-brand-900 font-black">₹{invoice.grandTotal.toFixed(2)}</span>
             </div>
           </div>
 
           {/* Footer terms */}
-          <div className="mt-4 pt-3 border-t border-dashed border-slate-300 text-center text-[10px] text-slate-500 space-y-0.5">
+          <div className="mt-2.5 pt-2 border-t border-dashed border-slate-300 text-center text-[9px] text-slate-500 space-y-0.5">
             <p>Medicines once sold will be taken back only within 7 days in original pack with this bill.</p>
             <p>Schedule H / H1 drugs dispensed strictly on registered medical practitioner prescription.</p>
-            <p className="font-semibold text-slate-700 mt-1">*** Thank you for choosing Confidos Pharma. Wish you a speedy recovery! ***</p>
+            <p className="font-semibold text-slate-700 mt-0.5">*** Thank you for choosing Confidos Pharma. Wish you a speedy recovery! ***</p>
           </div>
         </div>
       </div>

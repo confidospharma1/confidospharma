@@ -423,6 +423,38 @@ export const api = {
     if (endDate) q.append('endDate', endDate);
     return apiRequest(`/reports/profit-loss?${q.toString()}`);
   },
+  getProductProfitability: (params?: { branchId?: string; startDate?: string; endDate?: string; search?: string; sortBy?: string; sortOrder?: string }) => {
+    const q = new URLSearchParams();
+    if (params?.branchId) q.append('branchId', params.branchId);
+    if (params?.startDate) q.append('startDate', params.startDate);
+    if (params?.endDate) q.append('endDate', params.endDate);
+    if (params?.search) q.append('search', params.search);
+    if (params?.sortBy) q.append('sortBy', params.sortBy);
+    if (params?.sortOrder) q.append('sortOrder', params.sortOrder);
+    return apiRequest(`/reports/product-profitability?${q.toString()}`);
+  },
+  downloadProductProfitabilityExcel: async (params?: { branchId?: string; startDate?: string; endDate?: string; search?: string }): Promise<Blob> => {
+    const q = new URLSearchParams();
+    if (params?.branchId) q.append('branchId', params.branchId);
+    if (params?.startDate) q.append('startDate', params.startDate);
+    if (params?.endDate) q.append('endDate', params.endDate);
+    if (params?.search) q.append('search', params.search);
+    q.append('format', 'xlsx');
+
+    const token = getAuthToken();
+    const headers: Record<string, string> = {};
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+
+    const response = await fetch(`${BASE_URL}/reports/product-profitability?${q.toString()}`, {
+      method: 'GET',
+      headers,
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to download product profitability spreadsheet');
+    }
+    return response.blob();
+  },
 
   // Audit Logs
   getAuditLogs: (params?: { branchId?: string; action?: string; targetEntity?: string; page?: number }) => {

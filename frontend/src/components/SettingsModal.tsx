@@ -15,6 +15,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, o
   const [message, setMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
 
   const [settings, setSettings] = useState({
+    MIN_PURCHASE_DISCOUNT_PERCENT: '0.0',
+    MAX_PURCHASE_DISCOUNT_PERCENT: '20.0',
     DEFAULT_PURCHASE_DISCOUNT_PERCENT: '15.0',
     DEFAULT_CGST_RATE: '2.5',
     DEFAULT_SGST_RATE: '2.5',
@@ -31,6 +33,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, o
       const data = await api.getSettings();
       if (data && data.settings) {
         setSettings({
+          MIN_PURCHASE_DISCOUNT_PERCENT: data.settings.MIN_PURCHASE_DISCOUNT_PERCENT || '0.0',
+          MAX_PURCHASE_DISCOUNT_PERCENT: data.settings.MAX_PURCHASE_DISCOUNT_PERCENT || '20.0',
           DEFAULT_PURCHASE_DISCOUNT_PERCENT: data.settings.DEFAULT_PURCHASE_DISCOUNT_PERCENT || '15.0',
           DEFAULT_CGST_RATE: data.settings.DEFAULT_CGST_RATE || '2.5',
           DEFAULT_SGST_RATE: data.settings.DEFAULT_SGST_RATE || '2.5',
@@ -116,19 +120,80 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, o
             <div className="flex items-center gap-2">
               <Percent className="w-4 h-4 text-brand-500" />
               <h3 className="font-bold text-slate-900 text-xs uppercase tracking-wider">
-                Purchase Discount Configuration (Default 15% – 20%)
+                Purchase Discount Configuration (Customizable Limit)
               </h3>
             </div>
             <p className="text-[11px] text-slate-500">
-              Set the standard inward purchase discount applied to new purchase invoices. Pharmacists can edit this on each invoice line.
+              Configure inward purchase discount policy limits and default rate. Set custom limits (e.g. 15% - 20%, 30%, 50%) for inward supplier invoices.
             </p>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-start sm:items-center">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+              <div>
+                <label className="text-[11px] font-bold text-slate-700 block mb-1">
+                  Min Purchase Discount Limit (%)
+                </label>
+                <input
+                  type="number"
+                  step="0.5"
+                  min="0"
+                  max="100"
+                  required
+                  value={settings.MIN_PURCHASE_DISCOUNT_PERCENT}
+                  onChange={(e) =>
+                    setSettings({ ...settings, MIN_PURCHASE_DISCOUNT_PERCENT: e.target.value })
+                  }
+                  className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-lg font-mono font-bold text-slate-800 focus:ring-2 focus:ring-brand-500"
+                />
+              </div>
+
+              <div>
+                <label className="text-[11px] font-bold text-slate-700 block mb-1">
+                  Max Purchase Discount Limit (%) *
+                </label>
+                <div className="flex items-center gap-1.5">
+                  <input
+                    type="number"
+                    step="0.5"
+                    min="0"
+                    max="100"
+                    required
+                    value={settings.MAX_PURCHASE_DISCOUNT_PERCENT}
+                    onChange={(e) =>
+                      setSettings({ ...settings, MAX_PURCHASE_DISCOUNT_PERCENT: e.target.value })
+                    }
+                    className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-lg font-mono font-bold text-brand-900 focus:ring-2 focus:ring-brand-500"
+                  />
+                  <div className="flex gap-1 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => setSettings({ ...settings, MAX_PURCHASE_DISCOUNT_PERCENT: '20.0' })}
+                      className="px-1.5 py-1 bg-slate-200 hover:bg-slate-300 rounded text-[10px] font-bold text-slate-700"
+                    >
+                      20%
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSettings({ ...settings, MAX_PURCHASE_DISCOUNT_PERCENT: '30.0' })}
+                      className="px-1.5 py-1 bg-slate-200 hover:bg-slate-300 rounded text-[10px] font-bold text-slate-700"
+                    >
+                      30%
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSettings({ ...settings, MAX_PURCHASE_DISCOUNT_PERCENT: '50.0' })}
+                      className="px-1.5 py-1 bg-slate-200 hover:bg-slate-300 rounded text-[10px] font-bold text-slate-700"
+                    >
+                      50%
+                    </button>
+                  </div>
+                </div>
+              </div>
+
               <div>
                 <label className="text-[11px] font-bold text-slate-700 block mb-1">
                   Default Purchase Discount (%) *
                 </label>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1.5">
                   <input
                     type="number"
                     step="0.1"
@@ -145,21 +210,21 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, o
                     <button
                       type="button"
                       onClick={() => setSettings({ ...settings, DEFAULT_PURCHASE_DISCOUNT_PERCENT: '15.0' })}
-                      className="px-2 py-1 bg-slate-200 hover:bg-slate-300 rounded text-[10px] font-bold text-slate-700"
+                      className="px-1.5 py-1 bg-slate-200 hover:bg-slate-300 rounded text-[10px] font-bold text-slate-700"
                     >
                       15%
                     </button>
                     <button
                       type="button"
                       onClick={() => setSettings({ ...settings, DEFAULT_PURCHASE_DISCOUNT_PERCENT: '18.0' })}
-                      className="px-2 py-1 bg-slate-200 hover:bg-slate-300 rounded text-[10px] font-bold text-slate-700"
+                      className="px-1.5 py-1 bg-slate-200 hover:bg-slate-300 rounded text-[10px] font-bold text-slate-700"
                     >
                       18%
                     </button>
                     <button
                       type="button"
                       onClick={() => setSettings({ ...settings, DEFAULT_PURCHASE_DISCOUNT_PERCENT: '20.0' })}
-                      className="px-2 py-1 bg-slate-200 hover:bg-slate-300 rounded text-[10px] font-bold text-slate-700"
+                      className="px-1.5 py-1 bg-slate-200 hover:bg-slate-300 rounded text-[10px] font-bold text-slate-700"
                     >
                       20%
                     </button>

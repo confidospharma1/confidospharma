@@ -6,8 +6,9 @@ export const getBranches = async (req: Request, res: Response) => {
   try {
     if (!req.user) return res.status(401).json({ message: 'Unauthorized' });
 
-    if (req.user.role === 'SUPER_ADMIN') {
+    if (req.user.role === 'SUPER_ADMIN' || req.user.role === 'BRANCH_ADMIN') {
       const branches = await prisma.branch.findMany({
+        where: req.user.role === 'BRANCH_ADMIN' ? { isActive: true } : undefined,
         orderBy: { name: 'asc' },
         include: {
           _count: {
@@ -22,7 +23,7 @@ export const getBranches = async (req: Request, res: Response) => {
       return res.json(branches);
     }
 
-    // Branch Admin or Billing User gets only their branch
+    // Billing User gets only their branch
     const branch = await prisma.branch.findUnique({
       where: { id: req.user.branchId || '' },
       include: {

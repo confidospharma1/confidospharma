@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { api } from '../services/api';
-import { BarChart3, Download, Calendar, Filter, Receipt, Boxes, AlertTriangle, Search, X } from 'lucide-react';
+import { BarChart3, Download, Calendar, Filter, Receipt, Boxes, AlertTriangle, Search, X, FileSpreadsheet, ArrowUpDown, TrendingUp } from 'lucide-react';
 import { Badge } from '../components/Badge';
 import { FilterButton } from '../components/FilterButton';
 import { FilterField, FilterSelect, FilterInput } from '../components/FilterControls';
@@ -9,12 +9,23 @@ import { FilterField, FilterSelect, FilterInput } from '../components/FilterCont
 export const ReportsPage: React.FC = () => {
   const { currentBranch, selectedBranchId } = useAuth();
 
-  const [activeReport, setActiveReport] = useState<'DAILY_SALES' | 'VALUATION' | 'GST' | 'EXPIRY'>('DAILY_SALES');
+  const [activeReport, setActiveReport] = useState<'DAILY_SALES' | 'VALUATION' | 'GST' | 'EXPIRY' | 'PROFITABILITY'>('DAILY_SALES');
   const [loading, setLoading] = useState(false);
   const [reportData, setReportData] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
 
   const [dateFilter, setDateFilter] = useState(new Date().toISOString().split('T')[0]);
+
+  // Product Profitability Filters & Customization
+  const [profitSearch, setProfitSearch] = useState('');
+  const [profitStartDate, setProfitStartDate] = useState(() => {
+    const d = new Date();
+    return new Date(d.getFullYear(), d.getMonth(), 1).toISOString().split('T')[0];
+  });
+  const [profitEndDate, setProfitEndDate] = useState(() => new Date().toISOString().split('T')[0]);
+  const [profitSortBy, setProfitSortBy] = useState('grossProfit');
+  const [profitSortOrder, setProfitSortOrder] = useState<'desc' | 'asc'>('desc');
+  const [isExportingExcel, setIsExportingExcel] = useState(false);
 
   // Daily Sales Filters
   const [salesSearch, setSalesSearch] = useState('');
@@ -60,7 +71,7 @@ export const ReportsPage: React.FC = () => {
     setExpiryStatusFilter('');
   };
 
-  const handleTabChange = (tab: 'DAILY_SALES' | 'VALUATION' | 'GST' | 'EXPIRY') => {
+  const handleTabChange = (tab: 'DAILY_SALES' | 'VALUATION' | 'GST' | 'EXPIRY' | 'PROFITABILITY') => {
     if (tab === activeReport) return;
     setReportData(null);
     setError(null);
@@ -83,6 +94,16 @@ export const ReportsPage: React.FC = () => {
       } else if (activeReport === 'EXPIRY') {
         const data = await api.getExpiryAlerts(selectedBranchId, 90);
         setReportData(data);
+      } else if (activeReport === 'PROFITABILITY') {
+        const data = await api.getProductProfitability({
+          branchId: selectedBranchId,
+          startDate: profitStartDate,
+          endDate: profitEndDate,
+          search: profitSearch,
+          sortBy: profitSortBy,
+          sortOrder: profitSortOrder,
+        });
+        setReportData(data);
       }
     } catch (err: any) {
       // Report load error handled in setError state
@@ -95,7 +116,31 @@ export const ReportsPage: React.FC = () => {
 
   useEffect(() => {
     loadReport();
-  }, [activeReport, selectedBranchId, dateFilter]);
+  }, [activeReport, selectedBranchId, dateFilter, profitStartDate, profitEndDate, profitSortBy, profitSortOrder, profitSearch]);
+
+  const handleExportProfitabilityExcel = async () => {
+    try {
+      setIsExportingExcel(true);
+      const blob = await api.downloadProductProfitabilityExcel({
+        branchId: selectedBranchId,
+        startDate: profitStartDate,
+        endDate: profitEndDate,
+        search: profitSearch,
+      });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `confidos_product_profitability_${profitStartDate}_to_${profitEndDate}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } catch (err: any) {
+      alert(err.message || 'Failed to download Excel report');
+    } finally {
+      setIsExportingExcel(false);
+    }
+  };
 
   // Export sanitized CSV
   const exportToCSV = () => {
@@ -144,6 +189,15 @@ export const ReportsPage: React.FC = () => {
         DaysRemaining: e.daysRemaining,
         Quantity: e.quantity,
         Status: e.status,
+      }));
+    } else if (activeReport === 'PROFITABILITY' && Array.isArray(reportData.items)) {
+      rows = reportData.items.map((i: any) => ({
+        'Medicine Name': i.medicineName,
+        'Units Sold': i.unitsSold,
+        'Sales Revenue': i.salesRevenue,
+        'Acquisition COGS': i.acquisitionCOGS,
+        'Gross Profit': i.grossProfit,
+        'Gross Margin %': `${i.grossMarginPercent}%`,
       }));
     }
 
@@ -260,14 +314,26 @@ export const ReportsPage: React.FC = () => {
           </p>
         </div>
 
-        <button
-          onClick={exportToCSV}
-          disabled={!reportData}
-          className="flex items-center gap-2 px-4 py-2 bg-white hover:bg-slate-50 border border-slate-300 rounded-lg text-xs font-semibold text-slate-700 shadow-xs transition-colors self-start"
-        >
-          <Download className="w-4 h-4 text-slate-500" />
-          Export Report (CSV)
-        </button>
+        <div className="flex items-center gap-2 self-start sm:self-auto flex-wrap">
+          {activeReport === 'PROFITABILITY' && (
+            <button
+              onClick={handleExportProfitabilityExcel}
+              disabled={isExportingExcel || !reportData}
+              className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold shadow-xs transition-colors disabled:opacity-50"
+            >
+              <FileSpreadsheet className="w-4 h-4" />
+              {isExportingExcel ? 'Exporting Excel...' : 'Download Excel (.xlsx)'}
+            </button>
+          )}
+          <button
+            onClick={exportToCSV}
+            disabled={!reportData}
+            className="flex items-center gap-2 px-4 py-2 bg-white hover:bg-slate-50 border border-slate-300 rounded-lg text-xs font-semibold text-slate-700 shadow-xs transition-colors"
+          >
+            <Download className="w-4 h-4 text-slate-500" />
+            Export CSV
+          </button>
+        </div>
       </div>
 
       {/* Report Selector Tabs */}
@@ -304,6 +370,14 @@ export const ReportsPage: React.FC = () => {
             }`}
           >
             Expiry Risk Report (90d)
+          </button>
+          <button
+            onClick={() => handleTabChange('PROFITABILITY')}
+            className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all ${
+              activeReport === 'PROFITABILITY' ? 'bg-white text-emerald-700 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            Product Profitability & Margins
           </button>
         </div>
 
@@ -965,6 +1039,245 @@ export const ReportsPage: React.FC = () => {
                               <Badge variant={e.status === 'EXPIRED' ? 'danger' : 'warning'} size="sm">
                                 {e.status}
                               </Badge>
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Product Profitability & Margins Panel */}
+          {activeReport === 'PROFITABILITY' && reportData && (
+            <div className="space-y-4 animate-in fade-in">
+              {/* KPI Summary Cards */}
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+                <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs">
+                  <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider block">Unique Medicines</span>
+                  <span className="text-xl font-bold text-slate-900 mt-1 block">
+                    {reportData.summary?.uniqueMedicinesCount || 0}
+                  </span>
+                </div>
+                <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs">
+                  <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider block">Units Sold</span>
+                  <span className="text-xl font-bold text-brand-700 mt-1 block">
+                    {reportData.summary?.totalUnitsSold || 0}
+                  </span>
+                </div>
+                <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs">
+                  <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider block">Sales Revenue</span>
+                  <span className="text-xl font-bold text-slate-900 mt-1 block">
+                    ₹{Number(reportData.summary?.totalSalesRevenue || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </span>
+                </div>
+                <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs">
+                  <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider block">Acquisition COGS</span>
+                  <span className="text-xl font-bold text-slate-600 mt-1 block">
+                    ₹{Number(reportData.summary?.totalAcquisitionCOGS || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </span>
+                </div>
+                <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs">
+                  <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider block">Gross Profit</span>
+                  <span className={`text-xl font-bold mt-1 block ${
+                    Number(reportData.summary?.totalGrossProfit || 0) >= 0 ? 'text-emerald-600' : 'text-rose-600'
+                  }`}>
+                    ₹{Number(reportData.summary?.totalGrossProfit || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </span>
+                </div>
+                <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs">
+                  <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider block">Gross Margin %</span>
+                  <span className={`text-xl font-bold mt-1 block ${
+                    Number(reportData.summary?.overallGrossMarginPercent || 0) >= 0 ? 'text-emerald-700' : 'text-rose-600'
+                  }`}>
+                    {reportData.summary?.overallGrossMarginPercent || 0}%
+                  </span>
+                </div>
+              </div>
+
+              {/* Data Customization & Filters */}
+              <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs space-y-3">
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+                  {/* Search */}
+                  <div className="relative flex-1 max-w-sm">
+                    <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+                    <input
+                      type="text"
+                      placeholder="Search medicine brand name..."
+                      value={profitSearch}
+                      onChange={(e) => setProfitSearch(e.target.value)}
+                      className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-300 rounded-lg text-xs focus:ring-1 focus:ring-brand-500 focus:bg-white"
+                    />
+                    {profitSearch && (
+                      <button
+                        onClick={() => setProfitSearch('')}
+                        className="absolute right-2.5 top-2.5 text-slate-400 hover:text-slate-600"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Date Range & Quick Presets */}
+                  <div className="flex flex-wrap items-center gap-2">
+                    <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-lg">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const today = new Date().toISOString().split('T')[0];
+                          setProfitStartDate(today);
+                          setProfitEndDate(today);
+                        }}
+                        className="px-2.5 py-1 text-[11px] font-bold rounded hover:bg-white text-slate-700 transition-colors"
+                      >
+                        Today
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const d = new Date();
+                          const start = new Date(d.getFullYear(), d.getMonth(), 1).toISOString().split('T')[0];
+                          const end = new Date().toISOString().split('T')[0];
+                          setProfitStartDate(start);
+                          setProfitEndDate(end);
+                        }}
+                        className="px-2.5 py-1 text-[11px] font-bold rounded hover:bg-white text-slate-700 transition-colors"
+                      >
+                        This Month
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const d = new Date();
+                          d.setDate(d.getDate() - 30);
+                          setProfitStartDate(d.toISOString().split('T')[0]);
+                          setProfitEndDate(new Date().toISOString().split('T')[0]);
+                        }}
+                        className="px-2.5 py-1 text-[11px] font-bold rounded hover:bg-white text-slate-700 transition-colors"
+                      >
+                        Last 30 Days
+                      </button>
+                    </div>
+
+                    <div className="flex items-center gap-1.5 text-xs">
+                      <span className="font-semibold text-slate-500">From:</span>
+                      <input
+                        type="date"
+                        value={profitStartDate}
+                        onChange={(e) => setProfitStartDate(e.target.value)}
+                        className="px-2 py-1.5 bg-slate-50 border border-slate-300 rounded-lg font-mono text-xs"
+                      />
+                      <span className="font-semibold text-slate-500">To:</span>
+                      <input
+                        type="date"
+                        value={profitEndDate}
+                        onChange={(e) => setProfitEndDate(e.target.value)}
+                        className="px-2 py-1.5 bg-slate-50 border border-slate-300 rounded-lg font-mono text-xs"
+                      />
+                    </div>
+
+                    {/* Sort Options */}
+                    <div className="flex items-center gap-1 text-xs">
+                      <select
+                        value={profitSortBy}
+                        onChange={(e) => setProfitSortBy(e.target.value)}
+                        className="px-2 py-1.5 bg-slate-50 border border-slate-300 rounded-lg text-xs font-semibold text-slate-700"
+                      >
+                        <option value="grossProfit">Sort by Gross Profit</option>
+                        <option value="grossMarginPercent">Sort by Margin %</option>
+                        <option value="unitsSold">Sort by Units Sold</option>
+                        <option value="salesRevenue">Sort by Revenue</option>
+                        <option value="medicineName">Sort by Name</option>
+                      </select>
+                      <button
+                        onClick={() => setProfitSortOrder(profitSortOrder === 'desc' ? 'asc' : 'desc')}
+                        title={`Currently ${profitSortOrder.toUpperCase()}`}
+                        className="p-1.5 bg-slate-100 hover:bg-slate-200 rounded-lg text-slate-600 transition-colors"
+                      >
+                        <ArrowUpDown className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Filter info indicator */}
+                <div className="flex items-center justify-between text-xs text-slate-500 pt-1 border-t border-slate-100">
+                  <span>
+                    Showing <strong>{reportData.items?.length || 0}</strong> unique products sold between{' '}
+                    <strong>{profitStartDate}</strong> and <strong>{profitEndDate}</strong>
+                  </span>
+                  <div className="flex items-center gap-3">
+                    <button
+                      onClick={handleExportProfitabilityExcel}
+                      disabled={isExportingExcel || !reportData.items?.length}
+                      className="flex items-center gap-1.5 text-emerald-700 hover:text-emerald-800 font-bold underline"
+                    >
+                      <FileSpreadsheet className="w-3.5 h-3.5" />
+                      Download Excel (.xlsx)
+                    </button>
+                    <button
+                      onClick={exportToCSV}
+                      disabled={!reportData.items?.length}
+                      className="flex items-center gap-1.5 text-brand-700 hover:text-brand-800 font-bold underline"
+                    >
+                      <Download className="w-3.5 h-3.5" />
+                      Export CSV
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Profitability Table */}
+              <div className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
+                <div className="overflow-x-auto touch-scroll">
+                  <table className="w-full text-left text-xs min-w-[700px]">
+                    <thead className="bg-slate-50 text-slate-700 font-bold border-b border-slate-200">
+                      <tr>
+                        <th className="py-3 px-4">Medicine Name</th>
+                        <th className="py-3 px-3 text-right">Units Sold</th>
+                        <th className="py-3 px-3 text-right">Sales Revenue</th>
+                        <th className="py-3 px-3 text-right">Acquisition COGS</th>
+                        <th className="py-3 px-3 text-right">Gross Profit</th>
+                        <th className="py-3 px-4 text-right">Gross Margin %</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 font-medium">
+                      {reportData.items?.length === 0 ? (
+                        <tr>
+                          <td colSpan={6} className="py-10 text-center text-slate-400">
+                            No sales records found for this period.
+                          </td>
+                        </tr>
+                      ) : (
+                        reportData.items.map((item: any, idx: number) => (
+                          <tr key={idx} className="hover:bg-slate-50/50">
+                            <td className="py-3 px-4 font-bold text-slate-900">{item.medicineName}</td>
+                            <td className="py-3 px-3 text-right font-mono font-semibold text-slate-800">
+                              {item.unitsSold}
+                            </td>
+                            <td className="py-3 px-3 text-right font-mono text-slate-800">
+                              ₹{Number(item.salesRevenue).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </td>
+                            <td className="py-3 px-3 text-right font-mono text-slate-600">
+                              ₹{Number(item.acquisitionCOGS).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </td>
+                            <td className={`py-3 px-3 text-right font-mono font-bold ${
+                              item.grossProfit >= 0 ? 'text-emerald-700' : 'text-rose-600'
+                            }`}>
+                              ₹{Number(item.grossProfit).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </td>
+                            <td className="py-3 px-4 text-right">
+                              <span className={`inline-block px-2 py-0.5 rounded text-[11px] font-bold font-mono ${
+                                item.grossMarginPercent >= 20
+                                  ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                                  : item.grossMarginPercent >= 0
+                                  ? 'bg-amber-50 text-amber-700 border border-amber-200'
+                                  : 'bg-rose-50 text-rose-700 border border-rose-200'
+                              }`}>
+                                {item.grossMarginPercent}%
+                              </span>
                             </td>
                           </tr>
                         ))

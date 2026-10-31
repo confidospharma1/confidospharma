@@ -179,6 +179,11 @@ export const createPurchase = async (req: Request, res: Response) => {
     if (!branch.isActive) return res.status(400).json({ message: 'Target branch is inactive' });
 
     const result = await prisma.$transaction(async (tx) => {
+      const maxDiscountSetting = await tx.systemSetting.findUnique({
+        where: { key: 'MAX_PURCHASE_DISCOUNT_PERCENT' },
+      });
+      const maxAllowedDiscount = maxDiscountSetting ? parseFloat(maxDiscountSetting.value) : 20.0;
+
       // 1. Resolve or Create Supplier
       let resolvedSupplierId = supplierId;
 
@@ -433,11 +438,11 @@ export const createPurchase = async (req: Request, res: Response) => {
         // Gross line value = Quantity * Purchase Rate
         const grossLine = rateDec.times(qty);
 
-        // Line discount calculation (Max 20%, reject negative)
+        // Line discount calculation (Max allowed limit, reject negative)
         let lineDisc = new Decimal(0);
         const discPct = new Decimal(discountPercent || 0);
-        if (discPct.isNegative() || discPct.greaterThan(20)) {
-          throw new Error('Purchase discount percentage cannot exceed 20% policy limit and cannot be negative.');
+        if (discPct.isNegative() || discPct.greaterThan(maxAllowedDiscount)) {
+          throw new Error(`Purchase discount percentage cannot exceed ${maxAllowedDiscount}% policy limit and cannot be negative.`);
         }
         if (discPct.greaterThan(0)) {
           lineDisc = grossLine.times(discPct).dividedBy(100);
@@ -742,6 +747,10 @@ export const updatePurchase = async (req: Request, res: Response) => {
 
     // Atomic Stock Reconciliation & Financial Recalculation
     const updatedInvoice = await prisma.$transaction(async (tx) => {
+      const maxDiscountSetting = await tx.systemSetting.findUnique({
+        where: { key: 'MAX_PURCHASE_DISCOUNT_PERCENT' },
+      });
+      const maxAllowedDiscount = maxDiscountSetting ? parseFloat(maxDiscountSetting.value) : 20.0;
       // Build a map of old lines by batchNumber
       const oldBatchMap = new Map<string, { qty: number; freeQty: number; total: number; line: any }>();
       for (const oldLine of existingInvoice.lines) {
@@ -861,8 +870,8 @@ export const updatePurchase = async (req: Request, res: Response) => {
         const grossLine = rateDec.times(qty);
         let lineDisc = new Decimal(0);
         const discPct = new Decimal(discountPercent || 0);
-        if (discPct.isNegative() || discPct.greaterThan(20)) {
-          throw new Error('Purchase discount percentage cannot exceed 20% policy limit and cannot be negative.');
+        if (discPct.isNegative() || discPct.greaterThan(maxAllowedDiscount)) {
+          throw new Error(`Purchase discount percentage cannot exceed ${maxAllowedDiscount}% policy limit and cannot be negative.`);
         }
         if (discPct.greaterThan(0)) {
           lineDisc = grossLine.times(discPct).dividedBy(100);
@@ -1806,64 +1815,46 @@ export const downloadPurchaseTemplate = async (req: Request, res: Response) => {
 
     const templateRows = [
       {
-        'Product Name': 'Dolo 650',
         'Brand Name': 'Dolo 650',
-        'Generic Name': 'Paracetamol',
-        'Strength': '650mg',
-        'Dosage Form': 'Tablet',
-        'Manufacturer': 'Micro Labs Ltd',
-        'HSN Code': '30049099',
-        'Batch Number': 'DL-2026-X1',
-        'Expiry Date': '2028-12-31',
-        'Purchase Unit': 'Strip',
         'Quantity': 50,
         'Free Quantity': 5,
-        'Units Per Pack': 15,
+        'Batch Number': 'DL-2026-X1',
+        'Expiry Date': '2028-12-31',
+        'Manufacturer': 'Micro Labs Ltd',
         'Purchase Rate': 24.50,
         'MRP': 35.00,
         'GST Rate': 12,
-        'Discount': 10,
-        'Selling Unit': 'Tablet',
+        'HSN Code': '30049099',
+        'Barcode': '8901234567890',
+        'Category': 'OTC',
       },
       {
-        'Product Name': 'Azithral 500',
         'Brand Name': 'Azithral 500',
-        'Generic Name': 'Azithromycin',
-        'Strength': '500mg',
-        'Dosage Form': 'Tablet',
-        'Manufacturer': 'Alembic Pharmaceuticals',
-        'HSN Code': '30049099',
-        'Batch Number': 'AZ-2026-B9',
-        'Expiry Date': '2028-06-30',
-        'Purchase Unit': 'Strip',
         'Quantity': 30,
         'Free Quantity': 0,
-        'Units Per Pack': 5,
+        'Batch Number': 'AZ-2026-B9',
+        'Expiry Date': '2028-06-30',
+        'Manufacturer': 'Alembic Pharmaceuticals',
         'Purchase Rate': 85.00,
         'MRP': 125.00,
         'GST Rate': 12,
-        'Discount': 5,
-        'Selling Unit': 'Tablet',
+        'HSN Code': '30049099',
+        'Barcode': '8901117009999',
+        'Category': 'Schedule H',
       },
       {
-        'Product Name': 'Benadryl Cough Syrup',
         'Brand Name': 'Benadryl Cough Formula',
-        'Generic Name': 'Diphenhydramine + Ammonium Chloride',
-        'Strength': '100ml',
-        'Dosage Form': 'Syrup',
-        'Manufacturer': 'Johnson & Johnson',
-        'HSN Code': '30049099',
-        'Batch Number': 'BN-2026-S3',
-        'Expiry Date': '2027-11-30',
-        'Purchase Unit': 'Bottle',
         'Quantity': 20,
         'Free Quantity': 2,
-        'Units Per Pack': 1,
+        'Batch Number': 'BN-2026-S3',
+        'Expiry Date': '2027-11-30',
+        'Manufacturer': 'Johnson & Johnson',
         'Purchase Rate': 95.00,
         'MRP': 140.00,
         'GST Rate': 12,
-        'Discount': 0,
-        'Selling Unit': 'Bottle',
+        'HSN Code': '30049099',
+        'Barcode': '8901123456789',
+        'Category': 'OTC',
       },
     ];
 

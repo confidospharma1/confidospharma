@@ -9,7 +9,7 @@ import { FilterButton } from '../components/FilterButton';
 import { FilterField, FilterSelect, FilterInput } from '../components/FilterControls';
 
 export const TransfersPage: React.FC = () => {
-  const { currentBranch, selectedBranchId, branches, isBillingUser } = useAuth();
+  const { currentBranch, selectedBranchId, branches, refreshBranches, isBillingUser } = useAuth();
 
   const [transfers, setTransfers] = useState<StockTransfer[]>([]);
   const [loading, setLoading] = useState(true);
@@ -63,6 +63,9 @@ export const TransfersPage: React.FC = () => {
 
   const handleOpenTransferModal = async () => {
     try {
+      if (refreshBranches) {
+        await refreshBranches();
+      }
       const [prodRes, batchRes] = await Promise.all([
         api.getProducts({ branchId: selectedBranchId, limit: 100 }),
         api.getBatches({ branchId: selectedBranchId, status: 'ACTIVE' }),
@@ -308,7 +311,7 @@ export const TransfersPage: React.FC = () => {
                 </tr>
               ) : (
                 filteredTransfers.map((t) => {
-                  const isDestination = t.destinationBranchId === selectedBranchId;
+                  const isDestination = t.destinationBranchId === (selectedBranchId || currentBranch?.id);
                   const canReceive = isDestination && t.status === 'DISPATCHED';
 
                   return (

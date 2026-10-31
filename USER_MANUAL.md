@@ -632,13 +632,32 @@ The platform has undergone rigorous quality assurance and engineering enhancemen
 ### 7. Mobile Viewport & Counter Responsiveness
 - **Implemented Fix:** Added responsive bottom navigation bar on mobile viewports (< 1024px), mobile-optimized POS counter with segmented cart toggle, touch-scrolling enhancements, and compact branch badges.
 
-### 8. Medicine Catalogue Simplification & Staff Workflow Refinements
-- **Beside Brand Name Layout:** In Add Medicine modal, unified `Brand Name *`, `Quantity (Units)`, `Free Quantity` (bonus discount units), `Batch Number`, and `Batch Expiry Date` into a single, intuitive top row.
-- **Removed Unnecessary Clutter:** Eliminated mandatory "Generic / Active Ingredient", "Dosage Form", "Pack Size", "Default Selling Rate", separate Packaging Conversion boxes, and separate Opening Inventory section boxes. Backend safely defaults `genericName = brandName` to preserve full PostgreSQL schema integrity.
-- **Staff Accounts Safety:** Removed standalone delete trash icons under Actions in Staff Accounts; account access is controlled safely via direct Activate / Deactivate status actions.
-- **Cashier Email Exemption:** In "Create Staff User Account", email addresses are required strictly for Branch Admin and Super Admin accounts. Cashiers (`BILLING_USER`) can be created without an email address (auto-generates an internal unique handle).
-- **Inward Purchase Discount Removal:** Removed line discount percentage and discount amount inputs in "Record Inward Supplier Purchase Invoice", allowing line items and invoice totals to calculate transparently as taxable subtotal (`quantity * purchaseRate`) + GST.
-- **Bulk CSV / Excel Import Alignment:** Removed separate bulk import item from sidebar navigation. Updated catalogue import parser to support the simplified format (`Brand Name`, `Quantity`, `Free Quantity`, `Batch Number`, `Batch Expiry Date`, `Manufacturer`, `Purchase Rate`, `MRP`, `GST Rate`, `HSN Code`, `Barcode`, `Category`) while automatically and safely ignoring any extra columns in uploaded files.
+### 8. Streamlined Medicine Catalogue & Inward Purchases Workflow (Sections 4 & 6)
+- **Implemented Fix:** Simplified medicine entry and manual inward supplier invoice line items across the entire application:
+  - Harmonized to 12 core attributes: `Brand Name`, `Quantity`, `Free Quantity`, `Batch Number`, `Expiry Date`, `Manufacturer`, `Purchase Rate`, `MRP`, `GST Rate`, `HSN Code`, `Barcode`, `Category`.
+  - Removed redundant fields: `Generic Name / Active Ingredient`, `Package Unit`, `Base Unit`, `Units per Package (Factor)` (defaults to 1 unit), and `Dosage Form`.
+  - Added a quick-select registered Supplier dropdown button directly inside the "Add Medicine to Master Catalogue" modal.
+  - Aligned the manual purchase line entry in "Record Inward Supplier Purchase Invoice" with the exact same streamlined methodology.
+
+### 9. Compact Tax Invoice & Receipt Layout (Section 10)
+- **Implemented Fix:** Redesigned the printable counter receipt and GST Tax Invoice:
+  - Compacted the receipt header by positioning Pharmacy details on the left and Invoice / Patient metadata on the right in a unified single row.
+  - Centered alignment across all receipt sections with tightened vertical spacing, providing clean and detailed thermal counter and A4 printing with minimal paper usage.
+
+### 10. Customizable Purchase Discount Configuration Limits (Section 15)
+- **Implemented Fix:** Enhanced System Settings ("Pharmacy System Configuration & Defaults") with configurable `MIN_PURCHASE_DISCOUNT_PERCENT` and `MAX_PURCHASE_DISCOUNT_PERCENT` (supporting limits up to 50% or custom thresholds) replacing the previous hardcoded 20% policy limit.
+
+### 11. Dedicated Product Profitability & Margins Analytics with Excel Export (Section 13)
+- **Implemented Fix:** Added a dedicated "Product Profitability & Margins" tab and report in Reports & Analytics:
+  - Exact 6 deduplicated columns: `Medicine Name`, `Units Sold`, `Sales Revenue`, `Acquisition COGS`, `Gross Profit`, `Gross Margin %`.
+  - Guarantees zero duplicate medicine rows across batches and invoices.
+  - Interactive data customization: date range filtering, quick presets (Today, This Month, Last 30 Days), live brand search, and sorting by profit, margin, revenue, or units sold.
+  - Direct 1-click Excel (`.xlsx`) streaming download and CSV export.
+
+### 12. Inter-Branch Stock Transfers for Branch Administrators (Section 8)
+- **Implemented Fix:** Resolved empty "Destination Branch *" dropdown for Branch Admins:
+  - Scoped branch discovery allows Branch Administrators to view all active branches when selecting transfer destinations.
+  - Allowed Branch Admin 1 to dispatch stock directly to Branch Admin 2, and Branch Admin 2 to view and receive the stock in their transfers list.
 
 ---
 

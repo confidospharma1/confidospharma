@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { api } from '../services/api';
-import { MedicineProduct } from '../types';
+import { MedicineProduct, Supplier } from '../types';
 import { Pill, Plus, Search, Filter, AlertCircle, CheckCircle, Barcode, DollarSign, Edit2, Trash2, X, CheckSquare, Boxes } from 'lucide-react';
 import { Badge } from '../components/Badge';
 import { Modal } from '../components/Modal';
@@ -45,8 +45,14 @@ export const ProductsPage: React.FC = () => {
 
   // Branches for Super Admin initial stock allocation
   const [branches, setBranches] = useState<any[]>([]);
+  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
 
   useEffect(() => {
+    api.getSuppliers().then((res) => {
+      if (Array.isArray(res)) setSuppliers(res);
+      else if (res?.data && Array.isArray(res.data)) setSuppliers(res.data);
+    }).catch(() => {});
+
     if (isSuperAdmin) {
       api.getBranches().then((res) => {
         if (Array.isArray(res)) setBranches(res);
@@ -831,15 +837,45 @@ export const ProductsPage: React.FC = () => {
             </div>
           </div>
 
-          {/* Row 2: Manufacturer */}
+          {/* Row 2: Manufacturer & Supplier Dropdown */}
           <div>
-            <label className="text-xs font-bold text-slate-700 block mb-1">
-              Manufacturer <span className="text-rose-500">*</span>
-            </label>
+            <div className="flex flex-wrap items-center justify-between gap-1 mb-1">
+              <label className="text-xs font-bold text-slate-700">
+                Manufacturer / Supplier <span className="text-rose-500">*</span>
+              </label>
+              {suppliers.length > 0 && (
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[10px] text-slate-500 font-medium">Quick Select Supplier:</span>
+                  <select
+                    onChange={(e) => {
+                      if (e.target.value) {
+                        setAddForm((prev) => ({ ...prev, manufacturer: e.target.value }));
+                        if (addModalFieldErrors.manufacturer) {
+                          setAddModalFieldErrors((prev) => {
+                            const next = { ...prev };
+                            delete next.manufacturer;
+                            return next;
+                          });
+                        }
+                      }
+                    }}
+                    defaultValue=""
+                    className="text-[11px] bg-white border border-slate-300 rounded px-2 py-0.5 text-slate-800 font-semibold focus:ring-1 focus:ring-emerald-500 cursor-pointer shadow-xs"
+                  >
+                    <option value="">-- Choose Registered Supplier --</option>
+                    {suppliers.map((s) => (
+                      <option key={s.id} value={s.name}>
+                        {s.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+            </div>
             <input
               type="text"
               required
-              placeholder="e.g. Micro Labs Ltd"
+              placeholder="e.g. Micro Labs Ltd or select supplier above"
               value={addForm.manufacturer}
               onChange={(e) => {
                 setAddForm({ ...addForm, manufacturer: e.target.value });

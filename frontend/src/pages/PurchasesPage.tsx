@@ -390,10 +390,10 @@ export const PurchasesPage: React.FC<PurchasesPageProps> = ({ prefilledIndent, o
         expiryDate: '',
         quantity: 50,
         freeQuantity: 0,
-        unit: 'Box',
-        conversionFactor: 10,
+        unit: 'Unit',
+        conversionFactor: 1,
         purchaseRate: 20,
-        sellingRate: 28,
+        sellingRate: 30,
         mrp: 30,
         discountPercent: 0,
         discountAmount: 0,
@@ -454,10 +454,10 @@ export const PurchasesPage: React.FC<PurchasesPageProps> = ({ prefilledIndent, o
         expiryDate: '',
         quantity: 50,
         freeQuantity: 0,
-        unit: 'Box',
-        conversionFactor: 10,
+        unit: 'Unit',
+        conversionFactor: 1,
         purchaseRate: 20,
-        sellingRate: 28,
+        sellingRate: 30,
         mrp: 30,
         discountPercent: 0,
         discountAmount: 0,
@@ -2223,19 +2223,18 @@ export const PurchasesPage: React.FC<PurchasesPageProps> = ({ prefilledIndent, o
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100 text-slate-700">
-                        <tr><td className="p-1.5 font-bold">Product Name</td><td className="p-1.5 text-rose-600 font-bold">Mandatory</td><td className="p-1.5">Brand name or commercial medicine name</td><td className="p-1.5 font-mono">Dolo 650</td></tr>
-                        <tr><td className="p-1.5 font-bold">Generic Name</td><td className="p-1.5 text-slate-500">Optional</td><td className="p-1.5">Active pharmaceutical ingredient</td><td className="p-1.5 font-mono">Paracetamol</td></tr>
-                        <tr><td className="p-1.5 font-bold">Strength</td><td className="p-1.5 text-slate-500">Optional</td><td className="p-1.5">Potency or dosage strength</td><td className="p-1.5 font-mono">650mg</td></tr>
-                        <tr><td className="p-1.5 font-bold">Dosage Form</td><td className="p-1.5 text-slate-500">Optional</td><td className="p-1.5">Tablet, Syrup, Injection, Capsule, etc.</td><td className="p-1.5 font-mono">Tablet</td></tr>
+                        <tr><td className="p-1.5 font-bold">Brand Name</td><td className="p-1.5 text-rose-600 font-bold">Mandatory</td><td className="p-1.5">Medicine commercial brand name</td><td className="p-1.5 font-mono">Dolo 650</td></tr>
+                        <tr><td className="p-1.5 font-bold">Quantity</td><td className="p-1.5 text-rose-600 font-bold">Mandatory</td><td className="p-1.5">Total units / items billed</td><td className="p-1.5 font-mono">100</td></tr>
+                        <tr><td className="p-1.5 font-bold">Free Quantity</td><td className="p-1.5 text-slate-500">Optional</td><td className="p-1.5">Bonus / free units received</td><td className="p-1.5 font-mono">10</td></tr>
                         <tr><td className="p-1.5 font-bold">Batch Number</td><td className="p-1.5 text-rose-600 font-bold">Mandatory</td><td className="p-1.5">Manufacturer physical batch reference</td><td className="p-1.5 font-mono">DL-24A01</td></tr>
-                        <tr><td className="p-1.5 font-bold">Expiry Date</td><td className="p-1.5 text-rose-600 font-bold">Mandatory</td><td className="p-1.5">Standard expiry date (YYYY-MM-DD)</td><td className="p-1.5 font-mono">2026-12-31</td></tr>
-                        <tr><td className="p-1.5 font-bold">Quantity</td><td className="p-1.5 text-rose-600 font-bold">Mandatory</td><td className="p-1.5">Number of purchase units received</td><td className="p-1.5 font-mono">50</td></tr>
-                        <tr><td className="p-1.5 font-bold">Purchase Unit</td><td className="p-1.5 text-slate-500">Optional</td><td className="p-1.5">Box, Strip, Bottle, Sachet, Tablet</td><td className="p-1.5 font-mono">Box</td></tr>
-                        <tr><td className="p-1.5 font-bold">Units Per Pack</td><td className="p-1.5 text-slate-500">Optional</td><td className="p-1.5">Conversion factor to base units (tablets per pack)</td><td className="p-1.5 font-mono">10</td></tr>
-                        <tr><td className="p-1.5 font-bold">Purchase Rate</td><td className="p-1.5 text-rose-600 font-bold">Mandatory</td><td className="p-1.5">Purchase cost per purchase unit</td><td className="p-1.5 font-mono">20.00</td></tr>
+                        <tr><td className="p-1.5 font-bold">Expiry Date</td><td className="p-1.5 text-rose-600 font-bold">Mandatory</td><td className="p-1.5">Batch expiry date (YYYY-MM-DD or MM/YYYY)</td><td className="p-1.5 font-mono">2028-12-31</td></tr>
+                        <tr><td className="p-1.5 font-bold">Manufacturer</td><td className="p-1.5 text-slate-500">Optional</td><td className="p-1.5">Pharmaceutical company name</td><td className="p-1.5 font-mono">Micro Labs Ltd</td></tr>
+                        <tr><td className="p-1.5 font-bold">Purchase Rate</td><td className="p-1.5 text-rose-600 font-bold">Mandatory</td><td className="p-1.5">Purchase cost per unit before GST</td><td className="p-1.5 font-mono">20.00</td></tr>
                         <tr><td className="p-1.5 font-bold">MRP</td><td className="p-1.5 text-slate-500">Optional</td><td className="p-1.5">Maximum Retail Price per unit</td><td className="p-1.5 font-mono">30.00</td></tr>
                         <tr><td className="p-1.5 font-bold">GST Rate</td><td className="p-1.5 text-slate-500">Optional</td><td className="p-1.5">GST percentage (0%, 5%, 12%, 18%, 28%)</td><td className="p-1.5 font-mono">5.0</td></tr>
-                        <tr><td className="p-1.5 font-bold">Discount</td><td className="p-1.5 text-slate-500">Optional</td><td className="p-1.5">Trade discount percent on invoice line</td><td className="p-1.5 font-mono">15.0</td></tr>
+                        <tr><td className="p-1.5 font-bold">HSN Code</td><td className="p-1.5 text-slate-500">Optional</td><td className="p-1.5">HSN classification code</td><td className="p-1.5 font-mono">30049099</td></tr>
+                        <tr><td className="p-1.5 font-bold">Barcode</td><td className="p-1.5 text-slate-500">Optional</td><td className="p-1.5">EAN / UPC product barcode</td><td className="p-1.5 font-mono">8901234567890</td></tr>
+                        <tr><td className="p-1.5 font-bold">Category</td><td className="p-1.5 text-slate-500">Optional</td><td className="p-1.5">Prescription schedule category (defaults to OTC)</td><td className="p-1.5 font-mono">OTC</td></tr>
                       </tbody>
                     </table>
                   </div>
@@ -2522,10 +2521,11 @@ export const PurchasesPage: React.FC<PurchasesPageProps> = ({ prefilledIndent, o
 
                     return (
                       <div key={idx} className="p-3 bg-slate-50 rounded-xl border border-slate-200 text-xs space-y-2">
+                        {/* Primary Row: Medicine Brand Name, Quantity, Free Quantity, Batch Number, Batch Expiry Date */}
                         <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-12 gap-2 items-end">
-                          <div className="col-span-2 sm:col-span-4 lg:col-span-3">
+                          <div className="col-span-2 sm:col-span-4 lg:col-span-4">
                             <div className="flex items-center justify-between mb-0.5">
-                              <label className="text-[10px] font-bold text-slate-600">Medicine *</label>
+                              <label className="text-[10px] font-bold text-slate-700">Medicine Brand Name *</label>
                               <button
                                 type="button"
                                 onClick={() => {
@@ -2534,7 +2534,7 @@ export const PurchasesPage: React.FC<PurchasesPageProps> = ({ prefilledIndent, o
                                 }}
                                 className="text-[10px] text-emerald-600 hover:text-emerald-800 font-bold flex items-center gap-0.5"
                               >
-                                <Plus className="w-2.5 h-2.5" /> New Item
+                                <Plus className="w-2.5 h-2.5" /> Quick Add
                               </button>
                             </div>
                             <select
@@ -2546,67 +2546,14 @@ export const PurchasesPage: React.FC<PurchasesPageProps> = ({ prefilledIndent, o
                               <option value="">-- Choose Catalogue Medicine --</option>
                               {products.map((p) => (
                                 <option key={p.id} value={p.id}>
-                                  {p.brandName} ({p.strength}) - Pack {p.packageUnit || 'Box'}
+                                  {p.brandName}
                                 </option>
                               ))}
                             </select>
                           </div>
 
                           <div className="col-span-1 sm:col-span-2 lg:col-span-2">
-                            <label className="text-[10px] font-bold text-slate-600 block mb-0.5">Batch # *</label>
-                            <input
-                              type="text"
-                              required
-                              placeholder="e.g. DL-24A01"
-                              value={l.batchNumber}
-                              onChange={(e) => updateLine(idx, 'batchNumber', e.target.value)}
-                              className="w-full px-2 py-1.5 text-xs bg-white border border-slate-300 rounded font-mono font-bold"
-                            />
-                          </div>
-
-                          <div className="col-span-1 sm:col-span-2 lg:col-span-2">
-                            <label className="text-[10px] font-bold text-slate-600 block mb-0.5">Expiry Date *</label>
-                            <input
-                              type="date"
-                              required
-                              value={l.expiryDate}
-                              onChange={(e) => updateLine(idx, 'expiryDate', e.target.value)}
-                              className="w-full px-2 py-1.5 text-xs bg-white border border-slate-300 rounded font-mono"
-                            />
-                          </div>
-
-                          <div className="col-span-1 sm:col-span-1 lg:col-span-1">
-                            <label className="text-[10px] font-bold text-slate-600 block mb-0.5">Unit</label>
-                            <select
-                              value={l.unit || 'Box'}
-                              onChange={(e) => updateLine(idx, 'unit', e.target.value)}
-                              className="w-full px-1.5 py-1.5 text-xs bg-white border border-slate-300 rounded font-semibold text-slate-800"
-                            >
-                              <option value="Box">Box</option>
-                              <option value="Strip">Strip</option>
-                              <option value="Tablet">Tablet</option>
-                              <option value="Capsule">Capsule</option>
-                              <option value="Sachet">Sachet</option>
-                              <option value="Bottle">Bottle</option>
-                              <option value="Pack">Pack</option>
-                            </select>
-                          </div>
-
-                          <div className="col-span-1 sm:col-span-1 lg:col-span-1">
-                            <label className="text-[10px] font-bold text-slate-600 block mb-0.5" title="Units per Pack/Box">Units/Pk</label>
-                            <input
-                              type="number"
-                              min="1"
-                              required
-                              value={l.conversionFactor || 10}
-                              onChange={(e) => updateLine(idx, 'conversionFactor', e.target.value)}
-                              className="w-full px-1.5 py-1.5 text-xs bg-white border border-slate-300 rounded font-mono text-center font-bold"
-                              title="Units per Pack"
-                            />
-                          </div>
-
-                          <div className="col-span-1 sm:col-span-1 lg:col-span-1">
-                            <label className="text-[10px] font-bold text-slate-600 block mb-0.5">Qty *</label>
+                            <label className="text-[10px] font-bold text-slate-700 block mb-0.5">Quantity (Units) *</label>
                             <input
                               type="number"
                               min="1"
@@ -2617,23 +2564,47 @@ export const PurchasesPage: React.FC<PurchasesPageProps> = ({ prefilledIndent, o
                             />
                           </div>
 
-                          <div className="col-span-1 sm:col-span-1 lg:col-span-1">
-                            <label className="text-[10px] font-bold text-emerald-700 block mb-0.5">Free</label>
+                          <div className="col-span-1 sm:col-span-2 lg:col-span-2">
+                            <label className="text-[10px] font-bold text-emerald-700 block mb-0.5">Free Quantity</label>
                             <input
                               type="number"
                               min="0"
                               value={l.freeQuantity}
                               onChange={(e) => updateLine(idx, 'freeQuantity', e.target.value)}
                               className="w-full px-1.5 py-1.5 text-xs bg-white border border-emerald-300 rounded font-mono text-center text-emerald-800 font-bold"
+                              placeholder="0"
                             />
                           </div>
 
-                          <div className="col-span-2 sm:col-span-4 lg:col-span-1 flex items-center justify-end">
+                          <div className="col-span-1 sm:col-span-2 lg:col-span-2">
+                            <label className="text-[10px] font-bold text-slate-700 block mb-0.5">Batch # *</label>
+                            <input
+                              type="text"
+                              required
+                              placeholder="e.g. DL-24A01"
+                              value={l.batchNumber}
+                              onChange={(e) => updateLine(idx, 'batchNumber', e.target.value)}
+                              className="w-full px-2 py-1.5 text-xs bg-white border border-slate-300 rounded font-mono font-bold"
+                            />
+                          </div>
+
+                          <div className="col-span-1 sm:col-span-1 lg:col-span-2">
+                            <label className="text-[10px] font-bold text-slate-700 block mb-0.5">Expiry Date *</label>
+                            <input
+                              type="date"
+                              required
+                              value={l.expiryDate}
+                              onChange={(e) => updateLine(idx, 'expiryDate', e.target.value)}
+                              className="w-full px-2 py-1.5 text-xs bg-white border border-slate-300 rounded font-mono"
+                            />
+                          </div>
+
+                          <div className="col-span-2 sm:col-span-1 lg:col-span-1 flex items-center justify-end">
                             {lines.length > 1 && (
                               <button
                                 type="button"
                                 onClick={() => removeLine(idx)}
-                                className="text-rose-600 hover:text-rose-800 p-1"
+                                className="text-rose-600 hover:text-rose-800 p-1 text-base font-bold"
                                 title="Remove Line"
                               >
                                 &times;
@@ -2642,10 +2613,10 @@ export const PurchasesPage: React.FC<PurchasesPageProps> = ({ prefilledIndent, o
                           </div>
                         </div>
 
-                        {/* Secondary Row: Rates, Discounts, GST, Margins */}
-                        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-12 gap-2 pt-1 border-t border-slate-200/60 items-center text-[11px]">
-                          <div className="col-span-1 sm:col-span-1 lg:col-span-2">
-                            <label className="text-[10px] text-blue-900 block font-bold">Pur Rate (₹) *</label>
+                        {/* Secondary Row: Rates, GST, Line Total */}
+                        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-12 gap-2 pt-1 border-t border-slate-200/60 items-center text-[11px]">
+                          <div className="col-span-1 sm:col-span-2 lg:col-span-3">
+                            <label className="text-[10px] text-blue-900 block font-bold">Purchase Rate (₹) *</label>
                             <input
                               type="number"
                               step="0.01"
@@ -2656,8 +2627,8 @@ export const PurchasesPage: React.FC<PurchasesPageProps> = ({ prefilledIndent, o
                             />
                           </div>
 
-                          <div className="col-span-1 sm:col-span-1 lg:col-span-2">
-                            <label className="text-[10px] text-slate-500 block">Printed MRP (₹)</label>
+                          <div className="col-span-1 sm:col-span-2 lg:col-span-3">
+                            <label className="text-[10px] text-slate-700 block font-bold">Maximum Retail Price (MRP) *</label>
                             <input
                               type="number"
                               step="0.01"
@@ -2668,21 +2639,9 @@ export const PurchasesPage: React.FC<PurchasesPageProps> = ({ prefilledIndent, o
                             />
                           </div>
 
-                          <div className="col-span-1 sm:col-span-1 lg:col-span-2">
-                            <label className="text-[10px] text-slate-500 block">Selling Rate (₹)</label>
-                            <input
-                              type="number"
-                              step="0.01"
-                              required
-                              value={l.sellingRate}
-                              onChange={(e) => updateLine(idx, 'sellingRate', e.target.value)}
-                              className="w-full px-2 py-1 bg-white border border-emerald-300 rounded font-mono text-xs font-semibold text-emerald-900"
-                            />
-                          </div>
-
-                          <div className="col-span-1 sm:col-span-1 lg:col-span-2">
-                            <label className="text-[10px] text-slate-500 block">
-                              GST ({l.gstRate}%)
+                          <div className="col-span-1 sm:col-span-2 lg:col-span-3">
+                            <label className="text-[10px] text-slate-700 block font-bold">
+                              GST Rate ({l.gstRate}%)
                             </label>
                             <select
                               value={l.gstRate}
@@ -2697,15 +2656,13 @@ export const PurchasesPage: React.FC<PurchasesPageProps> = ({ prefilledIndent, o
                             </select>
                           </div>
 
-                          <div className="col-span-2 sm:col-span-1 lg:col-span-2 flex flex-col items-end sm:items-start lg:items-end justify-center font-mono text-[10px] text-slate-600">
-                            <span className="font-bold text-slate-800">
-                              Base: {baseNormalizedQty} units
+                          <div className="col-span-1 sm:col-span-2 lg:col-span-3 flex flex-col items-end justify-center font-mono text-xs">
+                            <span className="text-[10px] text-slate-500 font-sans">Line Total (incl. GST)</span>
+                            <span className="font-bold text-emerald-800 font-mono text-sm">
+                              ₹{(taxable + lineTax).toFixed(2)}
                             </span>
-                            <span className="text-slate-500 font-semibold">
-                              Cost: ₹{(effectiveUnitCost / (factor || 1)).toFixed(2)}/u
-                            </span>
-                            <span className="text-emerald-700 font-bold">
-                              Margin: {expectedMarginPct.toFixed(1)}%
+                            <span className="text-[10px] text-slate-400">
+                              Base: {totalUnits} units @ ₹{effectiveUnitCost.toFixed(2)}/u
                             </span>
                           </div>
                         </div>

@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import Decimal from 'decimal.js';
+import * as xlsx from 'xlsx';
 import prisma from '../../database/prisma';
 
 export const getDailySalesReport = async (req: Request, res: Response) => {
@@ -560,6 +561,173 @@ export const getProfitLossReport = async (req: Request, res: Response) => {
   } catch (error: any) {
     console.error('Profit & Loss calculation error:', error);
     return res.status(500).json({ message: error.message || 'Failed to generate Profit & Loss report' });
+  }
+};
+
+/**
+ * Product-wise Profitability & Margin Analysis (with Excel export and zero duplicates)
+ * Columns: Medicine Name, Units Sold, Sales Revenue, Acquisition COGS, Gross Profit, Gross Margin %
+ */
+export const getProductProfitabilityReport = async (req: Request, res: Response) => {
+  try {
+    if (!req.user) return res.status(401).json({ message: 'Unauthorized' });
+
+    if (req.user.role === 'BILLING_USER') {
+      return res.status(403).json({ message: 'Billing users are not authorized to view margin analytics.' });
+    }
+
+    const { branchId, startDate, endDate, search, sortBy = 'grossProfit', sortOrder = 'desc', format } = req.query;
+    const targetBranchId = req.user.role === 'SUPER_ADMIN' ? (branchId as string) : req.user.branchId;
+
+    let start: Date;
+    let end: Date;
+
+    if (startDate) {
+      start = new Date(startDate as string);
+      start.setHours(0, 0, 0, 0);
+    } else {
+      const now = new Date();
+      start = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
+    }
+
+    if (endDate) {
+      end = new Date(endDate as string);
+      end.setHours(23, 59, 59, 999);
+    } else {
+      end = new Date();
+      end.setHours(23, 59, 59, 999);
+    }
+
+    const invoiceWhere: any = {
+      status: 'COMPLETED',
+      createdAt: { gte: start, lte: end },
+    };
+    if (targetBranchId) invoiceWhere.branchId = targetBranchId;
+
+    const invoiceLines = await prisma.salesInvoiceLine.findMany({
+      where: {
+        invoice: invoiceWhere,
+      },
+      include: {
+        medicine: {
+          select: {
+            id: true,
+            brandName: true,
+            genericName: true,
+            defaultPurchaseRate: true,
+          },
+        },
+      },
+    });
+
+    // Group strictly by normalized unique Medicine Name (prevents duplicate rows)
+    const productMap = new Map<string, {
+      medicineName: string;
+      unitsSold: number;
+      revenue: Decimal;
+      cogs: Decimal;
+    }>();
+
+    for (const line of invoiceLines) {
+      const uniqueName = (line.medicine?.brandName || line.medicineName || 'Unknown Medicine').trim();
+      const mapKey = uniqueName.toLowerCase();
+
+      if (!productMap.has(mapKey)) {
+        productMap.set(mapKey, {
+          medicineName: uniqueName,
+          unitsSold: 0,
+          revenue: new Decimal(0),
+          cogs: new Decimal(0),
+        });
+      }
+
+      const item = productMap.get(mapKey)!;
+      item.unitsSold += line.quantity;
+      item.revenue = item.revenue.plus(line.lineTotal);
+
+      let unitCost = line.purchaseRate;
+      if (unitCost === null || unitCost === undefined) {
+        unitCost = line.medicine?.defaultPurchaseRate || 0;
+      }
+      const lineCogs = new Decimal(unitCost).times(line.quantity);
+      item.cogs = item.cogs.plus(lineCogs);
+    }
+
+    let items = Array.from(productMap.values()).map((p) => {
+      const grossProfitDec = p.revenue.minus(p.cogs);
+      const grossMarginPct = p.revenue.greaterThan(0)
+        ? grossProfitDec.dividedBy(p.revenue).times(100).toDecimalPlaces(2).toNumber()
+        : 0;
+
+      return {
+        medicineName: p.medicineName,
+        unitsSold: p.unitsSold,
+        salesRevenue: p.revenue.toDecimalPlaces(2).toNumber(),
+        acquisitionCOGS: p.cogs.toDecimalPlaces(2).toNumber(),
+        grossProfit: grossProfitDec.toDecimalPlaces(2).toNumber(),
+        grossMarginPercent: grossMarginPct,
+      };
+    });
+
+    // Optional text filter
+    if (search) {
+      const q = (search as string).toLowerCase().trim();
+      items = items.filter((it) => it.medicineName.toLowerCase().includes(q));
+    }
+
+    // Dynamic sorting
+    items.sort((a: any, b: any) => {
+      const fieldA = a[sortBy as string] ?? a.grossProfit;
+      const fieldB = b[sortBy as string] ?? b.grossProfit;
+      return sortOrder === 'asc' ? fieldA - fieldB : fieldB - fieldA;
+    });
+
+    // Total summary metrics
+    const totalUnitsSold = items.reduce((acc, it) => acc + it.unitsSold, 0);
+    const totalRevenue = items.reduce((acc, it) => acc + it.salesRevenue, 0);
+    const totalCOGS = items.reduce((acc, it) => acc + it.acquisitionCOGS, 0);
+    const totalGrossProfit = totalRevenue - totalCOGS;
+    const overallMarginPercent = totalRevenue > 0
+      ? Number(((totalGrossProfit / totalRevenue) * 100).toFixed(2))
+      : 0;
+
+    // Excel export format
+    if (format === 'xlsx') {
+      const exportRows = items.map((it) => ({
+        'Medicine Name': it.medicineName,
+        'Units Sold': it.unitsSold,
+        'Sales Revenue': it.salesRevenue,
+        'Acquisition COGS': it.acquisitionCOGS,
+        'Gross Profit': it.grossProfit,
+        'Gross Margin %': `${it.grossMarginPercent}%`,
+      }));
+
+      const worksheet = xlsx.utils.json_to_sheet(exportRows);
+      const workbook = xlsx.utils.book_new();
+      xlsx.utils.book_append_sheet(workbook, worksheet, 'Product_Profitability');
+      const buffer = xlsx.write(workbook, { type: 'buffer', bookType: 'xlsx' });
+
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      res.setHeader('Content-Disposition', `attachment; filename="confidos_product_profitability_${new Date().toISOString().split('T')[0]}.xlsx"`);
+      return res.send(buffer);
+    }
+
+    return res.json({
+      summary: {
+        totalUnitsSold,
+        totalRevenue: Number(totalRevenue.toFixed(2)),
+        totalCOGS: Number(totalCOGS.toFixed(2)),
+        totalGrossProfit: Number(totalGrossProfit.toFixed(2)),
+        overallMarginPercent,
+        uniqueProductsCount: items.length,
+      },
+      startDate: start.toISOString().split('T')[0],
+      endDate: end.toISOString().split('T')[0],
+      items,
+    });
+  } catch (error: any) {
+    console.error('Product profitability report error:', error);
+    return res.status(500).json({ message: error.message || 'Failed to generate product profitability report' });
   }
 };
 

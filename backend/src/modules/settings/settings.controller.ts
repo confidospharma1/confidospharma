@@ -3,6 +3,14 @@ import prisma from '../../database/prisma';
 import { logAuditEvent } from '../../utils/audit';
 
 const DEFAULT_SETTINGS: Record<string, { value: string; description: string }> = {
+  MIN_PURCHASE_DISCOUNT_PERCENT: {
+    value: '0.0',
+    description: 'Minimum allowable inward purchase discount limit (percentage)',
+  },
+  MAX_PURCHASE_DISCOUNT_PERCENT: {
+    value: '20.0',
+    description: 'Maximum allowable inward purchase discount limit (customizable policy limit)',
+  },
   DEFAULT_PURCHASE_DISCOUNT_PERCENT: {
     value: '15.0',
     description: 'Default discount percentage applied on inward purchase invoices (15%-20%)',
@@ -88,6 +96,20 @@ export const updateSettings = async (req: Request, res: Response) => {
     const updatedKeys: string[] = [];
 
     // Validation for financial and tax defaults
+    if (settings.MIN_PURCHASE_DISCOUNT_PERCENT !== undefined) {
+      const minDisc = parseFloat(settings.MIN_PURCHASE_DISCOUNT_PERCENT);
+      if (isNaN(minDisc) || minDisc < 0 || minDisc > 100) {
+        return res.status(400).json({ message: 'Minimum purchase discount must be between 0% and 100%' });
+      }
+    }
+
+    if (settings.MAX_PURCHASE_DISCOUNT_PERCENT !== undefined) {
+      const maxDisc = parseFloat(settings.MAX_PURCHASE_DISCOUNT_PERCENT);
+      if (isNaN(maxDisc) || maxDisc < 0 || maxDisc > 100) {
+        return res.status(400).json({ message: 'Maximum purchase discount limit must be between 0% and 100%' });
+      }
+    }
+
     if (settings.DEFAULT_PURCHASE_DISCOUNT_PERCENT !== undefined) {
       const disc = parseFloat(settings.DEFAULT_PURCHASE_DISCOUNT_PERCENT);
       if (isNaN(disc) || disc < 0 || disc > 100) {
