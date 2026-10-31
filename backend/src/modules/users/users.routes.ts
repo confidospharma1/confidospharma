@@ -3,6 +3,7 @@ import {
   getUsers,
   createUser,
   updateUser,
+  toggleUserStatus,
   deleteUser,
   getProfile,
   updateProfile,
@@ -21,6 +22,7 @@ router.post('/bulk-delete', bulkDeleteUsers);
 router.get('/', getUsers);
 router.post('/', createUser);
 router.put('/:id', updateUser);
+router.patch('/:id/status', toggleUserStatus);
 router.delete('/:id', deleteUser);
 
 export default router;

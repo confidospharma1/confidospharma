@@ -66,7 +66,10 @@ export async function apiRequest<T = any>(
   const data = await response.json().catch(() => ({}));
 
   if (!response.ok) {
-    throw new Error(data.message || `Request failed with status ${response.status}`);
+    const error: any = new Error(data.message || `Request failed with status ${response.status}`);
+    error.data = data;
+    error.status = response.status;
+    throw error;
   }
 
   return data;
@@ -92,6 +95,7 @@ export const api = {
   getUsers: () => apiRequest('/users'),
   createUser: (data: any) => apiRequest('/users', { method: 'POST', body: JSON.stringify(data) }),
   updateUser: (id: string, data: any) => apiRequest(`/users/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  toggleUserStatus: (id: string, isActive: boolean) => apiRequest(`/users/${id}/status`, { method: 'PATCH', body: JSON.stringify({ isActive }) }),
   deleteUser: (id: string) => apiRequest(`/users/${id}`, { method: 'DELETE' }),
   bulkDeleteUsers: (userIds: string[]) => apiRequest('/users/bulk-delete', { method: 'POST', body: JSON.stringify({ ids: userIds, userIds }) }),
   getProfile: () => apiRequest('/users/profile'),

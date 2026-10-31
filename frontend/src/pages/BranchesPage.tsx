@@ -9,7 +9,8 @@ import { FilterButton } from '../components/FilterButton';
 import { FilterField, FilterSelect, FilterInput } from '../components/FilterControls';
 
 export const BranchesPage: React.FC = () => {
-  const { isSuperAdmin } = useAuth();
+  const { isSuperAdmin, refreshBranches } = useAuth();
+  const [isDeletingBranch, setIsDeletingBranch] = useState(false);
   const [branches, setBranches] = useState<Branch[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -64,7 +65,7 @@ export const BranchesPage: React.FC = () => {
   const loadBranches = async () => {
     setLoading(true);
     try {
-      const data = await api.getBranches();
+      const data = await refreshBranches();
       setBranches(data || []);
     } catch (e) {
       // Branches load error handled in UI
@@ -102,7 +103,9 @@ export const BranchesPage: React.FC = () => {
         gstin: '',
         drugLicenseNo: '',
       });
-      loadBranches();
+      await refreshBranches();
+      window.dispatchEvent(new CustomEvent('pharmacy:branches-updated'));
+      await loadBranches();
     } catch (err: any) {
       setMessage({ text: err.message || 'Failed to create branch.', type: 'error' });
     }
@@ -144,16 +147,21 @@ export const BranchesPage: React.FC = () => {
   };
 
   const handleDeleteBranch = async () => {
-    if (!deleteTarget) return;
+    if (!deleteTarget || isDeletingBranch) return;
     setMessage(null);
+    setIsDeletingBranch(true);
     try {
       const res = await api.deleteBranch(deleteTarget.id);
-      setMessage({ text: res.message || `Branch '${deleteTarget.name}' archived/removed successfully.`, type: 'success' });
+      setMessage({ text: res.message || `Branch '${deleteTarget.name}' processed successfully.`, type: 'success' });
       setShowDeleteModal(false);
       setDeleteTarget(null);
-      loadBranches();
+      await refreshBranches();
+      window.dispatchEvent(new CustomEvent('pharmacy:branches-updated'));
+      await loadBranches();
     } catch (err: any) {
       setMessage({ text: err.message || 'Failed to delete/archive branch.', type: 'error' });
+    } finally {
+      setIsDeletingBranch(false);
     }
   };
 
@@ -642,17 +650,17 @@ export const BranchesPage: React.FC = () => {
       </Modal>
 
       {/* Modal: Delete/Archive Confirmation */}
-      <Modal isOpen={showDeleteModal} onClose={() => setShowDeleteModal(false)} title="Confirm Branch Deactivation / Archival" maxWidth="md">
+      <Modal isOpen={showDeleteModal} onClose={() => !isDeletingBranch && setShowDeleteModal(false)} title="Confirm Branch Deletion / Archival" maxWidth="md">
         <div className="space-y-4">
           <div className="flex items-start gap-3 p-3 bg-rose-50 border border-rose-200 rounded-lg text-rose-800 text-xs">
             <AlertCircle className="w-5 h-5 flex-shrink-0 text-rose-600 mt-0.5" />
             <div>
-              <p className="font-bold mb-1">Are you sure you want to deactivate or remove this branch?</p>
+              <p className="font-bold mb-1">Are you sure you want to delete or archive this branch?</p>
               <p>
                 Branch: <strong className="font-semibold text-slate-900">{deleteTarget?.name}</strong> ({deleteTarget?.code})
               </p>
               <p className="text-[11px] text-rose-700 mt-1">
-                If this branch has active users, inventory batches, or invoices, it will be safely deactivated/archived to protect financial and tax audits. If completely unreferenced, it will be deleted.
+                If this branch has associated staff accounts, inventory batches, or sales invoices, it will be safely deactivated to protect audit trails and business records. If completely unreferenced, it will be permanently deleted.
               </p>
             </div>
           </div>
@@ -660,17 +668,26 @@ export const BranchesPage: React.FC = () => {
           <div className="flex justify-end gap-2 pt-2 border-t border-slate-200">
             <button
               type="button"
+              disabled={isDeletingBranch}
               onClick={() => setShowDeleteModal(false)}
-              className="px-4 py-2 border border-slate-300 rounded-lg text-xs font-semibold text-slate-600"
+              className="px-4 py-2 border border-slate-300 rounded-lg text-xs font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-50"
             >
               Cancel
             </button>
             <button
               type="button"
+              disabled={isDeletingBranch}
               onClick={handleDeleteBranch}
-              className="px-5 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-xs font-bold"
+              className="px-5 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-xs font-bold shadow-xs disabled:opacity-50 flex items-center gap-1.5"
             >
-              Confirm Deactivate / Remove
+              {isDeletingBranch ? (
+                <>
+                  <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  <span>Processing...</span>
+                </>
+              ) : (
+                'Confirm Delete / Archive'
+              )}
             </button>
           </div>
         </div>

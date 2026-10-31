@@ -304,6 +304,13 @@ describe('Bulk Import Unit & Integration Tests', { timeout: 35000 }, () => {
     it('successfully uploads and stages Stock Receipt for existing catalogue medicines without HTTP 500', async () => {
       if (!superAdminToken || !branchId) return;
 
+      await prisma.stockMovement.deleteMany({
+        where: { batch: { batchNumber: { in: ['DEMO-PARA-001', 'DEMO-CET-002', 'DEMO-ORS-003'] } } },
+      }).catch(() => {});
+      await prisma.stockBatch.deleteMany({
+        where: { batchNumber: { in: ['DEMO-PARA-001', 'DEMO-CET-002', 'DEMO-ORS-003'] } },
+      }).catch(() => {});
+
       const stockReceiptCsv = [
         'brand_name,batch_number,expiry_date,quantity,purchase_rate,mrp',
         'Paracetamol 500 mg Tablet,DEMO-PARA-001,2027-12-31,100,1.2,2.0',

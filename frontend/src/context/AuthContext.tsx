@@ -11,6 +11,7 @@ interface AuthContextType {
   login: (token: string, userData: User) => void;
   logout: () => void;
   refreshProfile: () => Promise<void>;
+  refreshBranches: () => Promise<Branch[]>;
   isSuperAdmin: boolean;
   isBranchAdmin: boolean;
   isBillingUser: boolean;
@@ -60,8 +61,47 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const refreshBranches = async (): Promise<Branch[]> => {
+    try {
+      const branchList = await api.getBranches();
+      const list: Branch[] = branchList || [];
+      setBranches(list);
+
+      setSelectedBranchId((prev) => {
+        if (!prev) {
+          return list.length > 0 ? list[0].id : '';
+        }
+        if (!list.some((b: Branch) => b.id === prev)) {
+          return list.length > 0 ? list[0].id : '';
+        }
+        return prev;
+      });
+      return list;
+    } catch {
+      return branches;
+    }
+  };
+
   useEffect(() => {
     fetchProfile();
+
+    const handleSyncEvent = () => {
+      refreshBranches();
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible' && getAuthToken()) {
+        refreshBranches();
+      }
+    };
+
+    window.addEventListener('pharmacy:branches-updated', handleSyncEvent);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      window.removeEventListener('pharmacy:branches-updated', handleSyncEvent);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
   }, []);
 
   const handleBranchSelect = (id: string) => {
@@ -105,6 +145,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         login,
         logout,
         refreshProfile: fetchProfile,
+        refreshBranches,
         isSuperAdmin,
         isBranchAdmin,
         isBillingUser,

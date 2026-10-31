@@ -153,8 +153,28 @@ export const createProduct = async (req: Request, res: Response) => {
       branchId,
     } = req.body;
 
-    if (!brandName || !genericName || !dosageForm || !manufacturer || gstRate === undefined || mrp === undefined) {
-      return res.status(400).json({ message: 'Missing required product information.' });
+    const missingFields: string[] = [];
+    const missingKeys: string[] = [];
+    if (!brandName || !String(brandName).trim()) { missingFields.push('Brand Name'); missingKeys.push('brandName'); }
+    if (!genericName || !String(genericName).trim()) { missingFields.push('Generic / Active Ingredient'); missingKeys.push('genericName'); }
+    if (!dosageForm || !String(dosageForm).trim()) { missingFields.push('Dosage Form'); missingKeys.push('dosageForm'); }
+    if (!manufacturer || !String(manufacturer).trim()) { missingFields.push('Manufacturer'); missingKeys.push('manufacturer'); }
+    if (gstRate === undefined || gstRate === null || String(gstRate).trim() === '') { missingFields.push('GST Rate'); missingKeys.push('gstRate'); }
+    if (mrp === undefined || mrp === null || String(mrp).trim() === '' || isNaN(Number(mrp))) { missingFields.push('Maximum Retail Price (MRP)'); missingKeys.push('mrp'); }
+
+    if (missingFields.length > 0) {
+      return res.status(400).json({
+        message: `Please complete all required fields before saving the medicine: ${missingFields.join(', ')}.`,
+        missingFields: missingKeys,
+        missingFieldLabels: missingFields,
+      });
+    }
+
+    if (Number(mrp) < 0) {
+      return res.status(400).json({
+        message: 'Maximum Retail Price (MRP) cannot be negative.',
+        missingFields: ['mrp'],
+      });
     }
 
     // Safely extract or preserve strength from combined Generic / Active Ingredient input

@@ -220,6 +220,13 @@ export const deleteBranch = async (req: Request, res: Response) => {
             batches: true,
             salesInvoices: true,
             purchaseInvoices: true,
+            movements: true,
+            transfersOut: true,
+            transfersIn: true,
+            expenses: true,
+            stockAdjustments: true,
+            purchaseReturns: true,
+            purchaseIndents: true,
           },
         },
       },
@@ -229,10 +236,20 @@ export const deleteBranch = async (req: Request, res: Response) => {
       return res.status(404).json({ message: 'Branch not found' });
     }
 
-    const hasDependencies = branch._count.users > 0 ||
-      branch._count.batches > 0 ||
-      branch._count.salesInvoices > 0 ||
-      branch._count.purchaseInvoices > 0;
+    const counts = branch._count;
+    const reasons: string[] = [];
+    if (counts.users > 0) reasons.push(`${counts.users} staff user(s)`);
+    if (counts.batches > 0) reasons.push(`${counts.batches} inventory batch(es)`);
+    if (counts.salesInvoices > 0) reasons.push(`${counts.salesInvoices} sales invoice(s)`);
+    if (counts.purchaseInvoices > 0) reasons.push(`${counts.purchaseInvoices} purchase invoice(s)`);
+    if (counts.movements > 0) reasons.push(`${counts.movements} stock movement(s)`);
+    if (counts.transfersOut > 0 || counts.transfersIn > 0) reasons.push(`${counts.transfersOut + counts.transfersIn} transfer(s)`);
+    if (counts.expenses > 0) reasons.push(`${counts.expenses} expense record(s)`);
+    if (counts.stockAdjustments > 0) reasons.push(`${counts.stockAdjustments} stock adjustment(s)`);
+    if (counts.purchaseReturns > 0) reasons.push(`${counts.purchaseReturns} return(s)`);
+    if (counts.purchaseIndents > 0) reasons.push(`${counts.purchaseIndents} indent(s)`);
+
+    const hasDependencies = reasons.length > 0;
 
     if (hasDependencies) {
       const archived = await prisma.branch.update({
@@ -245,16 +262,22 @@ export const deleteBranch = async (req: Request, res: Response) => {
         action: 'BRANCH_ARCHIVE',
         targetEntity: 'BRANCH',
         entityId: archived.id,
-        details: { code: archived.code, name: archived.name, reason: 'Archived due to associated staff or historical transactions' },
+        details: { code: archived.code, name: archived.name, reason: `Archived due to associated ${reasons.join(', ')}` },
         req,
       });
 
       return res.json({
-        message: `Branch '${branch.name}' (${branch.code}) has been archived/deactivated to preserve historical transaction audit trails.`,
+        message: `Branch '${branch.name}' (${branch.code}) has associated ${reasons.join(', ')}. It has been deactivated and archived to preserve transaction history and audit compliance.`,
         branch: archived,
         archived: true,
       });
     }
+
+    // Unlink non-business audit events pointing to this empty test branch
+    await prisma.auditEvent.updateMany({
+      where: { branchId: id },
+      data: { branchId: null },
+    });
 
     await prisma.branch.delete({ where: { id } });
 
@@ -268,7 +291,7 @@ export const deleteBranch = async (req: Request, res: Response) => {
     });
 
     return res.json({
-      message: `Branch '${branch.name}' (${branch.code}) deleted permanently.`,
+      message: `Branch '${branch.name}' (${branch.code}) has been permanently deleted.`,
       deleted: true,
     });
   } catch (error: any) {

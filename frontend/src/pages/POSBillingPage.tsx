@@ -299,21 +299,41 @@ export const POSBillingPage: React.FC = () => {
     return supportedUnits[0].unit;
   };
 
-  // Focus search input on mount and F2 key press
+  // Focus search input on mount, F2 shortcut, and global custom events
   useEffect(() => {
     searchInputRef.current?.focus();
+
+    const handleFocusSearch = () => {
+      searchInputRef.current?.focus();
+      searchInputRef.current?.select();
+    };
+
+    const handleCheckout = () => {
+      if (billItems.length > 0 && !isSubmitting) {
+        handleCompleteBill();
+      }
+    };
 
     const handleGlobalKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'F2') {
         e.preventDefault();
-        searchInputRef.current?.focus();
-        searchInputRef.current?.select();
+        handleFocusSearch();
+      } else if (e.key === 'F4') {
+        e.preventDefault();
+        handleCheckout();
       }
     };
 
+    window.addEventListener('pharmacy:focus-pos-search', handleFocusSearch);
+    window.addEventListener('pharmacy:pos-checkout', handleCheckout);
     window.addEventListener('keydown', handleGlobalKeyDown);
-    return () => window.removeEventListener('keydown', handleGlobalKeyDown);
-  }, []);
+
+    return () => {
+      window.removeEventListener('pharmacy:focus-pos-search', handleFocusSearch);
+      window.removeEventListener('pharmacy:pos-checkout', handleCheckout);
+      window.removeEventListener('keydown', handleGlobalKeyDown);
+    };
+  }, [billItems, isSubmitting]);
 
   // Debounced product search
   useEffect(() => {
@@ -653,7 +673,7 @@ export const POSBillingPage: React.FC = () => {
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 onKeyDown={handleSearchKeyDown}
-                placeholder="Search medicine by Brand, Generic name, or Scan Barcode... (F2 to focus)"
+                placeholder="Search medicine by Brand, Generic name, or Scan Barcode... (F2: Focus, F4: Checkout)"
                 className="w-full pl-11 pr-20 sm:pr-24 py-2.5 text-xs sm:text-sm bg-slate-50 border border-slate-300 rounded-lg focus:bg-white focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 font-medium text-slate-900 transition-all placeholder:text-slate-400"
               />
               <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1.5 text-xs text-slate-400">

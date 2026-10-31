@@ -57,6 +57,21 @@ export const ProductsPage: React.FC = () => {
 
   // Add Product Modal
   const [showAddModal, setShowAddModal] = useState(false);
+  const [addModalError, setAddModalError] = useState<string | null>(null);
+  const [addModalFieldErrors, setAddModalFieldErrors] = useState<Record<string, string>>({});
+  const [isSavingProduct, setIsSavingProduct] = useState(false);
+
+  const handleOpenAddModal = () => {
+    setAddModalError(null);
+    setAddModalFieldErrors({});
+    setShowAddModal(true);
+  };
+
+  const handleCloseAddModal = () => {
+    setShowAddModal(false);
+    setAddModalError(null);
+    setAddModalFieldErrors({});
+  };
   const initialAddForm = {
     internalCode: '',
     brandName: '',
@@ -177,7 +192,58 @@ export const ProductsPage: React.FC = () => {
 
   const handleCreateProduct = async (e: React.FormEvent) => {
     e.preventDefault();
-    setMessage(null);
+    if (isSavingProduct) return;
+    setAddModalError(null);
+    setAddModalFieldErrors({});
+
+    // Client-side required field and format validation
+    const fieldErrors: Record<string, string> = {};
+    const missingLabels: string[] = [];
+
+    if (!addForm.brandName.trim()) {
+      fieldErrors.brandName = 'Brand Name is required.';
+      missingLabels.push('Brand Name');
+    }
+    if (!addForm.genericName.trim()) {
+      fieldErrors.genericName = 'Generic / Active Ingredient is required.';
+      missingLabels.push('Generic / Active Ingredient');
+    }
+    if (!addForm.dosageForm.trim()) {
+      fieldErrors.dosageForm = 'Dosage Form is required.';
+      missingLabels.push('Dosage Form');
+    }
+    if (!addForm.manufacturer.trim()) {
+      fieldErrors.manufacturer = 'Manufacturer is required.';
+      missingLabels.push('Manufacturer');
+    }
+    if (!addForm.mrp.trim() || isNaN(Number(addForm.mrp))) {
+      fieldErrors.mrp = 'Maximum Retail Price (MRP) must be a valid number.';
+      missingLabels.push('Maximum Retail Price (MRP)');
+    } else if (Number(addForm.mrp) < 0) {
+      fieldErrors.mrp = 'MRP cannot be negative.';
+    }
+
+    if (addForm.defaultPurchaseRate && (isNaN(Number(addForm.defaultPurchaseRate)) || Number(addForm.defaultPurchaseRate) < 0)) {
+      fieldErrors.defaultPurchaseRate = 'Purchase rate cannot be negative.';
+    }
+    if (addForm.defaultSellingRate && (isNaN(Number(addForm.defaultSellingRate)) || Number(addForm.defaultSellingRate) < 0)) {
+      fieldErrors.defaultSellingRate = 'Selling rate cannot be negative.';
+    }
+    if (addForm.conversionFactor && (isNaN(Number(addForm.conversionFactor)) || Number(addForm.conversionFactor) < 1)) {
+      fieldErrors.conversionFactor = 'Package factor must be at least 1.';
+    }
+
+    if (Object.keys(fieldErrors).length > 0) {
+      setAddModalFieldErrors(fieldErrors);
+      if (missingLabels.length > 0) {
+        setAddModalError(`Please complete all required fields before saving the medicine: ${missingLabels.join(', ')}.`);
+      } else {
+        setAddModalError('Please correct the invalid input fields before saving.');
+      }
+      return;
+    }
+
+    setIsSavingProduct(true);
     try {
       const res = await api.createProduct({
         ...addForm,
@@ -198,9 +264,35 @@ export const ProductsPage: React.FC = () => {
       setMessage({ text: `Medicine '${addForm.brandName}' added to master catalogue${stockMsg}`, type: 'success' });
       setShowAddModal(false);
       setAddForm(initialAddForm);
+      setAddModalError(null);
+      setAddModalFieldErrors({});
       loadProducts();
     } catch (err: any) {
-      setMessage({ text: err.message || 'Failed to create medicine.', type: 'error' });
+      const backendData = err.data;
+      if (backendData?.missingFields && Array.isArray(backendData.missingFields)) {
+        const mappedErrors: Record<string, string> = {};
+        backendData.missingFields.forEach((f: string) => {
+          mappedErrors[f] = `${f} is required or invalid.`;
+        });
+        setAddModalFieldErrors(mappedErrors);
+      }
+      const errMessage = backendData?.message || err.message || 'Failed to create medicine.';
+      if (err.status === 409) {
+        setAddModalError(`Duplicate product detected: ${errMessage}`);
+        setAddModalFieldErrors((prev) => ({
+          ...prev,
+          brandName: prev.brandName || 'Brand name matches an existing record.',
+          genericName: prev.genericName || 'Active ingredient matches an existing record.',
+        }));
+      } else if (err.status === 400 || err.status === 422) {
+        setAddModalError(errMessage);
+      } else if (typeof navigator !== 'undefined' && !navigator.onLine) {
+        setAddModalError('Network error: You appear to be offline. Please verify your connection.');
+      } else {
+        setAddModalError(errMessage || 'A server error occurred while saving. Please try again.');
+      }
+    } finally {
+      setIsSavingProduct(false);
     }
   };
 
@@ -297,7 +389,7 @@ export const ProductsPage: React.FC = () => {
 
         {!isBillingUser && (
           <button
-            onClick={() => setShowAddModal(true)}
+            onClick={handleOpenAddModal}
             className="flex items-center justify-center gap-2 px-4 py-2 bg-brand-500 hover:bg-brand-600 active:bg-brand-700 text-white rounded-lg text-xs font-bold shadow-xs transition-colors self-stretch sm:self-start"
           >
             <Plus className="w-4 h-4" />
@@ -556,7 +648,7 @@ export const ProductsPage: React.FC = () => {
                     <p className="text-xs text-slate-500 mt-1">Add a medicine to begin managing your inventory catalogue.</p>
                     {!isBillingUser && (
                       <button
-                        onClick={() => setShowAddModal(true)}
+                        onClick={handleOpenAddModal}
                         className="mt-3 inline-flex items-center gap-1.5 px-3 py-1.5 bg-brand-500 hover:bg-brand-600 text-white rounded-lg text-xs font-bold transition-colors"
                       >
                         <Plus className="w-3.5 h-3.5" />
@@ -683,40 +775,111 @@ export const ProductsPage: React.FC = () => {
       </div>
 
       {/* Modal: Add New Medicine */}
-      <Modal isOpen={showAddModal} onClose={() => setShowAddModal(false)} title="Add Medicine to Master Catalogue" maxWidth="2xl">
-        <form onSubmit={handleCreateProduct} className="space-y-4">
+      <Modal isOpen={showAddModal} onClose={handleCloseAddModal} title="Add Medicine to Master Catalogue" maxWidth="2xl">
+        <form onSubmit={handleCreateProduct} noValidate className="space-y-4">
+          {addModalError && (
+            <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-rose-800 text-xs flex items-start gap-2.5">
+              <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+              <div className="flex-1">
+                <p className="font-bold text-rose-900">{addModalError}</p>
+                {Object.keys(addModalFieldErrors).length > 0 && (
+                  <ul className="mt-1 list-disc list-inside text-[11px] text-rose-700 space-y-0.5 font-medium">
+                    {Object.values(addModalFieldErrors).map((msg, i) => (
+                      <li key={i}>{msg}</li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            </div>
+          )}
+
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <label className="text-xs font-bold text-slate-700 block mb-1">Brand Name *</label>
+              <label className="text-xs font-bold text-slate-700 block mb-1">
+                Brand Name <span className="text-rose-500">*</span>
+              </label>
               <input
                 type="text"
                 required
                 placeholder="e.g. Dolo 650"
                 value={addForm.brandName}
-                onChange={(e) => setAddForm({ ...addForm, brandName: e.target.value })}
-                className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-300 rounded-lg focus:bg-white focus:ring-2 focus:ring-emerald-500 font-medium"
+                onChange={(e) => {
+                  setAddForm({ ...addForm, brandName: e.target.value });
+                  if (addModalFieldErrors.brandName) {
+                    setAddModalFieldErrors((prev) => {
+                      const next = { ...prev };
+                      delete next.brandName;
+                      return next;
+                    });
+                  }
+                }}
+                className={`w-full px-3 py-2 text-xs bg-slate-50 border rounded-lg focus:bg-white focus:ring-2 font-medium ${
+                  addModalFieldErrors.brandName
+                    ? 'border-rose-400 bg-rose-50/20 focus:ring-rose-500'
+                    : 'border-slate-300 focus:ring-emerald-500'
+                }`}
               />
+              {addModalFieldErrors.brandName && (
+                <span className="text-[11px] text-rose-600 font-semibold block mt-1">
+                  {addModalFieldErrors.brandName}
+                </span>
+              )}
             </div>
             <div>
-              <label className="text-xs font-bold text-slate-700 block mb-1">Generic / Active Ingredient *</label>
+              <label className="text-xs font-bold text-slate-700 block mb-1">
+                Generic / Active Ingredient <span className="text-rose-500">*</span>
+              </label>
               <input
                 type="text"
                 required
                 placeholder="e.g. Paracetamol 650 mg"
                 value={addForm.genericName}
-                onChange={(e) => setAddForm({ ...addForm, genericName: e.target.value })}
-                className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-300 rounded-lg focus:bg-white focus:ring-2 focus:ring-emerald-500"
+                onChange={(e) => {
+                  setAddForm({ ...addForm, genericName: e.target.value });
+                  if (addModalFieldErrors.genericName) {
+                    setAddModalFieldErrors((prev) => {
+                      const next = { ...prev };
+                      delete next.genericName;
+                      return next;
+                    });
+                  }
+                }}
+                className={`w-full px-3 py-2 text-xs bg-slate-50 border rounded-lg focus:bg-white focus:ring-2 ${
+                  addModalFieldErrors.genericName
+                    ? 'border-rose-400 bg-rose-50/20 focus:ring-rose-500'
+                    : 'border-slate-300 focus:ring-emerald-500'
+                }`}
               />
+              {addModalFieldErrors.genericName && (
+                <span className="text-[11px] text-rose-600 font-semibold block mt-1">
+                  {addModalFieldErrors.genericName}
+                </span>
+              )}
             </div>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <label className="text-xs font-bold text-slate-700 block mb-1">Dosage Form *</label>
+              <label className="text-xs font-bold text-slate-700 block mb-1">
+                Dosage Form <span className="text-rose-500">*</span>
+              </label>
               <select
                 value={addForm.dosageForm}
-                onChange={(e) => setAddForm({ ...addForm, dosageForm: e.target.value })}
-                className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-300 rounded-lg focus:bg-white focus:ring-2 focus:ring-emerald-500"
+                onChange={(e) => {
+                  setAddForm({ ...addForm, dosageForm: e.target.value });
+                  if (addModalFieldErrors.dosageForm) {
+                    setAddModalFieldErrors((prev) => {
+                      const next = { ...prev };
+                      delete next.dosageForm;
+                      return next;
+                    });
+                  }
+                }}
+                className={`w-full px-3 py-2 text-xs bg-slate-50 border rounded-lg focus:bg-white focus:ring-2 ${
+                  addModalFieldErrors.dosageForm
+                    ? 'border-rose-400 bg-rose-50/20 focus:ring-rose-500'
+                    : 'border-slate-300 focus:ring-emerald-500'
+                }`}
               >
                 <option value="Tablet">Tablet</option>
                 <option value="Capsule">Capsule</option>
@@ -725,17 +888,42 @@ export const ProductsPage: React.FC = () => {
                 <option value="Ointment">Ointment</option>
                 <option value="Drops">Drops</option>
               </select>
+              {addModalFieldErrors.dosageForm && (
+                <span className="text-[11px] text-rose-600 font-semibold block mt-1">
+                  {addModalFieldErrors.dosageForm}
+                </span>
+              )}
             </div>
             <div>
-              <label className="text-xs font-bold text-slate-700 block mb-1">Manufacturer *</label>
+              <label className="text-xs font-bold text-slate-700 block mb-1">
+                Manufacturer <span className="text-rose-500">*</span>
+              </label>
               <input
                 type="text"
                 required
                 placeholder="e.g. Micro Labs Ltd"
                 value={addForm.manufacturer}
-                onChange={(e) => setAddForm({ ...addForm, manufacturer: e.target.value })}
-                className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-300 rounded-lg focus:bg-white focus:ring-2 focus:ring-emerald-500"
+                onChange={(e) => {
+                  setAddForm({ ...addForm, manufacturer: e.target.value });
+                  if (addModalFieldErrors.manufacturer) {
+                    setAddModalFieldErrors((prev) => {
+                      const next = { ...prev };
+                      delete next.manufacturer;
+                      return next;
+                    });
+                  }
+                }}
+                className={`w-full px-3 py-2 text-xs bg-slate-50 border rounded-lg focus:bg-white focus:ring-2 ${
+                  addModalFieldErrors.manufacturer
+                    ? 'border-rose-400 bg-rose-50/20 focus:ring-rose-500'
+                    : 'border-slate-300 focus:ring-emerald-500'
+                }`}
               />
+              {addModalFieldErrors.manufacturer && (
+                <span className="text-[11px] text-rose-600 font-semibold block mt-1">
+                  {addModalFieldErrors.manufacturer}
+                </span>
+              )}
             </div>
           </div>
 
@@ -772,7 +960,9 @@ export const ProductsPage: React.FC = () => {
                 <span className="text-[10px] text-slate-500 block mt-0.5 leading-tight">The usual price charged to the customer for one unit. This is a default value, not necessarily the final billed price.</span>
               </div>
               <div>
-                <label className="text-xs font-bold text-amber-900 block mb-1">Maximum Retail Price (MRP) *</label>
+                <label className="text-xs font-bold text-amber-900 block mb-1">
+                  Maximum Retail Price (MRP) <span className="text-rose-500">*</span>
+                </label>
                 <input
                   type="number"
                   step="0.01"
@@ -780,9 +970,27 @@ export const ProductsPage: React.FC = () => {
                   required
                   placeholder="e.g., 25.00"
                   value={addForm.mrp}
-                  onChange={(e) => setAddForm({ ...addForm, mrp: e.target.value })}
-                  className="w-full px-3 py-2 text-xs bg-white border border-amber-300 rounded-lg font-mono font-bold text-slate-900 focus:ring-2 focus:ring-amber-500"
+                  onChange={(e) => {
+                    setAddForm({ ...addForm, mrp: e.target.value });
+                    if (addModalFieldErrors.mrp) {
+                      setAddModalFieldErrors((prev) => {
+                        const next = { ...prev };
+                        delete next.mrp;
+                        return next;
+                      });
+                    }
+                  }}
+                  className={`w-full px-3 py-2 text-xs bg-white border rounded-lg font-mono font-bold text-slate-900 focus:ring-2 ${
+                    addModalFieldErrors.mrp
+                      ? 'border-rose-400 bg-rose-50/20 focus:ring-rose-500'
+                      : 'border-amber-300 focus:ring-amber-500'
+                  }`}
                 />
+                {addModalFieldErrors.mrp && (
+                  <span className="text-[11px] text-rose-600 font-semibold block mt-1">
+                    {addModalFieldErrors.mrp}
+                  </span>
+                )}
                 <span className="text-[10px] text-slate-500 block mt-0.5 leading-tight">The maximum retail price printed on the medicine packaging for the specified pack or unit.</span>
               </div>
             </div>
@@ -1026,16 +1234,25 @@ export const ProductsPage: React.FC = () => {
           <div className="flex justify-end gap-2 pt-4 border-t border-slate-200">
             <button
               type="button"
-              onClick={() => setShowAddModal(false)}
-              className="px-4 py-2 border border-slate-300 rounded-lg text-xs font-semibold text-slate-600 hover:bg-slate-50"
+              disabled={isSavingProduct}
+              onClick={handleCloseAddModal}
+              className="px-4 py-2 border border-slate-300 rounded-lg text-xs font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-50"
             >
               Cancel
             </button>
             <button
               type="submit"
-              className="px-5 py-2 bg-brand-500 hover:bg-brand-600 active:bg-brand-700 text-white rounded-lg text-xs font-bold shadow-xs transition-colors"
+              disabled={isSavingProduct}
+              className="px-5 py-2 bg-brand-500 hover:bg-brand-600 active:bg-brand-700 text-white rounded-lg text-xs font-bold shadow-xs transition-colors disabled:opacity-50 flex items-center gap-1.5"
             >
-              Save Medicine to Catalogue
+              {isSavingProduct ? (
+                <>
+                  <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  <span>Saving Medicine...</span>
+                </>
+              ) : (
+                'Save Medicine to Catalogue'
+              )}
             </button>
           </div>
         </form>

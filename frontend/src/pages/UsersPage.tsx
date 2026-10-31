@@ -2,14 +2,15 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { api } from '../services/api';
 import { User } from '../types';
-import { Users, Plus, ShieldCheck, Mail, Building2, CheckCircle2, Edit2, Trash2, AlertCircle, Search, Filter, X, CheckSquare } from 'lucide-react';
+import { Users, Plus, ShieldCheck, Mail, Building2, CheckCircle2, Edit2, Trash2, AlertCircle, Search, Filter, X, CheckSquare, UserCheck, UserX } from 'lucide-react';
 import { Badge } from '../components/Badge';
 import { Modal } from '../components/Modal';
 import { FilterButton } from '../components/FilterButton';
 import { FilterField, FilterSelect, FilterInput } from '../components/FilterControls';
 
 export const UsersPage: React.FC = () => {
-  const { isSuperAdmin, isBranchAdmin, branches, selectedBranchId } = useAuth();
+  const { isSuperAdmin, isBranchAdmin, branches, selectedBranchId, refreshBranches } = useAuth();
+  const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
 
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
@@ -55,11 +56,29 @@ export const UsersPage: React.FC = () => {
     isActive: true,
   });
 
-  // Delete/Deactivate Confirmation Modal
+  // Delete Confirmation Modal
   const [deleteTarget, setDeleteTarget] = useState<User | null>(null);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
-  const [isDeactivatingUser, setIsDeactivatingUser] = useState(false);
-  const [deactivateError, setDeactivateError] = useState<string | null>(null);
+  const [isDeletingUser, setIsDeletingUser] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  const handleToggleUserStatus = async (target: User) => {
+    setMessage(null);
+    setIsUpdatingStatus(true);
+    try {
+      const newStatus = target.isActive === false;
+      const res = await api.toggleUserStatus(target.id, newStatus);
+      setMessage({
+        text: res.message || `User account '${target.fullName}' has been ${newStatus ? 'activated' : 'deactivated'} successfully.`,
+        type: 'success',
+      });
+      await loadUsers();
+    } catch (err: any) {
+      setMessage({ text: err.message || 'Failed to update account status.', type: 'error' });
+    } finally {
+      setIsUpdatingStatus(false);
+    }
+  };
 
   // Super Admin Bulk Operations
   const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
@@ -117,6 +136,13 @@ export const UsersPage: React.FC = () => {
 
   useEffect(() => {
     loadUsers();
+    refreshBranches();
+
+    const handleBranchesUpdated = () => {
+      refreshBranches();
+    };
+    window.addEventListener('pharmacy:branches-updated', handleBranchesUpdated);
+    return () => window.removeEventListener('pharmacy:branches-updated', handleBranchesUpdated);
   }, []);
 
   const handleCreateUser = async (e: React.FormEvent) => {
@@ -175,19 +201,19 @@ export const UsersPage: React.FC = () => {
   };
 
   const handleDeleteUser = async () => {
-    if (!deleteTarget) return;
-    setDeactivateError(null);
-    setIsDeactivatingUser(true);
+    if (!deleteTarget || isDeletingUser) return;
+    setDeleteError(null);
+    setIsDeletingUser(true);
     try {
       const res = await api.deleteUser(deleteTarget.id);
-      setMessage({ text: res.message || `User account '${deleteTarget.fullName}' deactivated.`, type: 'success' });
+      setMessage({ text: res.message || `User account '${deleteTarget.fullName}' deleted successfully.`, type: 'success' });
       setShowDeleteModal(false);
       setDeleteTarget(null);
-      loadUsers();
+      await loadUsers();
     } catch (err: any) {
-      setDeactivateError(err.message || 'Failed to deactivate user.');
+      setDeleteError(err.message || 'Failed to delete user.');
     } finally {
-      setIsDeactivatingUser(false);
+      setIsDeletingUser(false);
     }
   };
 
@@ -242,7 +268,7 @@ export const UsersPage: React.FC = () => {
 
         {(isSuperAdmin || isBranchAdmin) && (
           <button
-            onClick={() => setShowModal(true)}
+            onClick={async () => { await refreshBranches(); setShowModal(true); }}
             className="flex items-center gap-2 px-4 py-2 bg-brand-500 hover:bg-brand-600 active:bg-brand-700 text-white rounded-lg text-xs font-bold shadow-xs transition-colors"
           >
             <Plus className="w-4 h-4" />
@@ -501,14 +527,35 @@ export const UsersPage: React.FC = () => {
                           >
                             <Edit2 className="w-3.5 h-3.5" />
                           </button>
+                          {u.isActive !== false ? (
+                            <button
+                              type="button"
+                              disabled={isUpdatingStatus}
+                              onClick={() => handleToggleUserStatus(u)}
+                              title="Deactivate Staff Account"
+                              className="p-1.5 text-amber-600 hover:bg-amber-50 rounded-md transition-colors disabled:opacity-50"
+                            >
+                              <UserX className="w-3.5 h-3.5" />
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              disabled={isUpdatingStatus}
+                              onClick={() => handleToggleUserStatus(u)}
+                              title="Activate Staff Account"
+                              className="p-1.5 text-emerald-600 hover:bg-emerald-50 rounded-md transition-colors disabled:opacity-50"
+                            >
+                              <UserCheck className="w-3.5 h-3.5" />
+                            </button>
+                          )}
                           <button
                             type="button"
                             onClick={() => {
                               setDeleteTarget(u);
-                              setDeactivateError(null);
+                              setDeleteError(null);
                               setShowDeleteModal(true);
                             }}
-                            title="Deactivate / Remove User"
+                            title="Delete Staff Account"
                             className="p-1.5 text-rose-600 hover:bg-rose-50 rounded-md transition-colors"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
@@ -734,35 +781,35 @@ export const UsersPage: React.FC = () => {
         </form>
       </Modal>
 
-      {/* Modal: Delete/Deactivate Confirmation */}
+      {/* Modal: Delete Staff Account Confirmation */}
       <Modal
         isOpen={showDeleteModal}
         onClose={() => {
-          if (!isDeactivatingUser) {
+          if (!isDeletingUser) {
             setShowDeleteModal(false);
-            setDeactivateError(null);
+            setDeleteError(null);
           }
         }}
-        title="Confirm User Account Deactivation"
+        title="Confirm Staff Account Deletion"
         maxWidth="md"
       >
         <div className="space-y-4">
-          {deactivateError && (
+          {deleteError && (
             <div className="p-3 bg-rose-50 border border-rose-200 rounded-lg text-rose-800 text-xs font-semibold flex items-center gap-2">
               <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
-              <span>{deactivateError}</span>
+              <span>{deleteError}</span>
             </div>
           )}
 
           <div className="flex items-start gap-3 p-3 bg-rose-50 border border-rose-200 rounded-lg text-rose-800 text-xs">
             <AlertCircle className="w-5 h-5 flex-shrink-0 text-rose-600 mt-0.5" />
             <div>
-              <p className="font-bold mb-1">Are you sure you want to deactivate or remove this user account?</p>
+              <p className="font-bold mb-1">Are you sure you want to delete this staff user account?</p>
               <p>
                 Staff User: <strong className="font-semibold text-slate-900">{deleteTarget?.fullName}</strong> ({deleteTarget?.username})
               </p>
               <p className="text-[11px] text-rose-700 mt-1">
-                Deactivated accounts will immediately lose login privileges. Historical invoices, audit logs, and sales created by this staff member remain safely preserved.
+                Accounts without transaction history will be permanently deleted. If this staff account is referenced by historical sales or stock movements, it will be safely deactivated to preserve regulatory audit trails.
               </p>
             </div>
           </div>
@@ -770,22 +817,29 @@ export const UsersPage: React.FC = () => {
           <div className="flex justify-end gap-2 pt-2 border-t border-slate-200">
             <button
               type="button"
-              disabled={isDeactivatingUser}
+              disabled={isDeletingUser}
               onClick={() => {
                 setShowDeleteModal(false);
-                setDeactivateError(null);
+                setDeleteError(null);
               }}
-              className="px-4 py-2 border border-slate-300 rounded-lg text-xs font-semibold text-slate-600 disabled:opacity-50"
+              className="px-4 py-2 border border-slate-300 rounded-lg text-xs font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-50"
             >
               Cancel
             </button>
             <button
               type="button"
-              disabled={isDeactivatingUser}
+              disabled={isDeletingUser}
               onClick={handleDeleteUser}
               className="px-5 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-xs font-bold shadow-xs disabled:opacity-50 flex items-center gap-1.5"
             >
-              {isDeactivatingUser ? 'Deactivating...' : 'Confirm Deactivation'}
+              {isDeletingUser ? (
+                <>
+                  <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  <span>Deleting...</span>
+                </>
+              ) : (
+                'Delete Staff Account'
+              )}
             </button>
           </div>
         </div>
@@ -795,7 +849,7 @@ export const UsersPage: React.FC = () => {
       <Modal
         isOpen={showBulkDeleteUsersModal}
         onClose={() => setShowBulkDeleteUsersModal(false)}
-        title="Confirm Bulk Staff Account Deactivation"
+        title="Confirm Bulk Staff Account Deletion"
         maxWidth="md"
       >
         <div className="space-y-4">
@@ -803,10 +857,10 @@ export const UsersPage: React.FC = () => {
             <AlertCircle className="w-5 h-5 flex-shrink-0 text-rose-600 mt-0.5" />
             <div>
               <p className="font-bold mb-1">
-                Are you sure you want to delete or deactivate {selectedUserIds.length} selected staff accounts?
+                Are you sure you want to delete {selectedUserIds.length} selected staff accounts?
               </p>
               <p className="text-[11px] text-rose-700 mt-1">
-                Accounts will be safely deactivated or removed. Active accounts will lose immediate access. Historical transactions, sales, and audit trails remain preserved.
+                Accounts without transaction records will be permanently deleted. Accounts with historical sales or stock movements will be safely deactivated to protect audit trails.
               </p>
             </div>
           </div>
@@ -836,7 +890,7 @@ export const UsersPage: React.FC = () => {
               type="button"
               disabled={isBulkDeletingUsers}
               onClick={() => setShowBulkDeleteUsersModal(false)}
-              className="px-4 py-2 border border-slate-300 rounded-lg text-xs font-semibold text-slate-600 disabled:opacity-50"
+              className="px-4 py-2 border border-slate-300 rounded-lg text-xs font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-50"
             >
               Cancel
             </button>
@@ -847,7 +901,7 @@ export const UsersPage: React.FC = () => {
               className="px-5 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-xs font-bold shadow-xs flex items-center gap-1.5 disabled:opacity-50"
             >
               <Trash2 className="w-3.5 h-3.5" />
-              {isBulkDeletingUsers ? 'Processing Deactivations...' : `Deactivate ${selectedUserIds.length} Accounts`}
+              {isBulkDeletingUsers ? 'Deleting Accounts...' : `Delete ${selectedUserIds.length} Accounts`}
             </button>
           </div>
         </div>

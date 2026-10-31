@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useRef, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import {
   LayoutDashboard,
@@ -28,39 +28,58 @@ interface SidebarProps {
   onCloseMobile?: () => void;
 }
 
-export const Sidebar: React.FC<SidebarProps> = ({
+interface NavigationContentProps {
+  activeTab: string;
+  handleItemClick: (tab: string) => void;
+  isBillingUser: boolean;
+  isSuperAdmin: boolean;
+  isBranchAdmin: boolean;
+  branches: any[];
+  selectedBranchId: string;
+  setSelectedBranchId: (id: string) => void;
+  currentBranch: any;
+  isMobileDrawer?: boolean;
+}
+
+const navItemClass = (active: boolean) => `
+  group w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-xs font-semibold transition-all text-left
+  ${
+    active
+      ? 'bg-brand-50 text-brand-700 border-l-4 border-brand-500 shadow-xs font-bold'
+      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50 active:bg-slate-100'
+  }
+`;
+
+const iconClass = (active: boolean) => `
+  w-4 h-4 transition-colors shrink-0
+  ${active ? 'text-brand-500' : 'text-slate-400 group-hover:text-slate-600'}
+`;
+
+const NavigationContent: React.FC<NavigationContentProps> = ({
   activeTab,
-  setActiveTab,
-  isOpenMobile = false,
-  onCloseMobile,
+  handleItemClick,
+  isBillingUser,
+  isSuperAdmin,
+  isBranchAdmin,
+  branches,
+  selectedBranchId,
+  setSelectedBranchId,
+  currentBranch,
+  isMobileDrawer = false,
 }) => {
-  const { user, isSuperAdmin, isBranchAdmin, isBillingUser, branches, selectedBranchId, setSelectedBranchId, currentBranch } = useAuth();
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
 
-  const handleItemClick = (tab: string) => {
-    setActiveTab(tab);
-    if (onCloseMobile) {
-      onCloseMobile();
+  // Preserve scroll state and gently ensure active tab is in view without jumping
+  useEffect(() => {
+    const activeEl = scrollContainerRef.current?.querySelector('[data-active="true"]');
+    if (activeEl) {
+      activeEl.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
     }
-  };
+  }, [activeTab]);
 
-  const navItemClass = (tab: string) => `
-    group w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-xs font-semibold transition-all text-left
-    ${
-      activeTab === tab
-        ? 'bg-brand-50 text-brand-700 border-l-4 border-brand-500 shadow-xs font-bold'
-        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50 active:bg-slate-100'
-    }
-  `;
-
-  const iconClass = (tab: string) => `
-    w-4 h-4 transition-colors shrink-0
-    ${activeTab === tab ? 'text-brand-500' : 'text-slate-400 group-hover:text-slate-600'}
-  `;
-
-  // Reusable navigation contents
-  const NavigationContent = ({ isMobileDrawer = false }: { isMobileDrawer?: boolean }) => (
+  return (
     <div className="flex flex-col justify-between h-full">
-      <div className="p-4 space-y-5 overflow-y-auto flex-1">
+      <div ref={scrollContainerRef} className="p-4 space-y-5 overflow-y-auto flex-1 touch-scroll">
         {/* Mobile branch switcher */}
         {isMobileDrawer && (
           <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-2 mb-2">
@@ -100,16 +119,18 @@ export const Sidebar: React.FC<SidebarProps> = ({
           <nav className="space-y-1">
             <button
               onClick={() => handleItemClick('pos')}
-              className={navItemClass('pos')}
+              data-active={activeTab === 'pos'}
+              className={navItemClass(activeTab === 'pos')}
             >
-              <ShoppingCart className={iconClass('pos')} />
+              <ShoppingCart className={iconClass(activeTab === 'pos')} />
               <span>POS Billing Counter</span>
             </button>
             <button
               onClick={() => handleItemClick('invoices')}
-              className={navItemClass('invoices')}
+              data-active={activeTab === 'invoices'}
+              className={navItemClass(activeTab === 'invoices')}
             >
-              <Receipt className={iconClass('invoices')} />
+              <Receipt className={iconClass(activeTab === 'invoices')} />
               <span>Sales Invoices</span>
             </button>
           </nav>
@@ -119,134 +140,153 @@ export const Sidebar: React.FC<SidebarProps> = ({
         {!isBillingUser && (
           <div>
             <p className="px-3 text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">
-              Pharmacy Inventory
+              Pharmacy & Stock
             </p>
             <nav className="space-y-1">
               <button
                 onClick={() => handleItemClick('dashboard')}
-                className={navItemClass('dashboard')}
+                data-active={activeTab === 'dashboard'}
+                className={navItemClass(activeTab === 'dashboard')}
               >
-                <LayoutDashboard className={iconClass('dashboard')} />
-                <span>Branch Dashboard</span>
-              </button>
-              <button
-                onClick={() => handleItemClick('inventory')}
-                className={navItemClass('inventory')}
-              >
-                <Layers className={iconClass('inventory')} />
-                <span>Inventory Management</span>
+                <LayoutDashboard className={iconClass(activeTab === 'dashboard')} />
+                <span>Executive Dashboard</span>
               </button>
               <button
                 onClick={() => handleItemClick('stock-monitoring')}
-                className={navItemClass('stock-monitoring')}
+                data-active={activeTab === 'stock-monitoring'}
+                className={navItemClass(activeTab === 'stock-monitoring')}
               >
-                <Boxes className={iconClass('stock-monitoring')} />
+                <Layers className={iconClass(activeTab === 'stock-monitoring')} />
                 <span>Stock Monitoring</span>
               </button>
               <button
-                onClick={() => handleItemClick('catalogue')}
-                className={navItemClass('catalogue')}
+                onClick={() => handleItemClick('inventory')}
+                data-active={activeTab === 'inventory'}
+                className={navItemClass(activeTab === 'inventory')}
               >
-                <Pill className={iconClass('catalogue')} />
+                <Boxes className={iconClass(activeTab === 'inventory')} />
+                <span>Stock Batches (FEFO)</span>
+              </button>
+              <button
+                onClick={() => handleItemClick('catalogue')}
+                data-active={activeTab === 'catalogue'}
+                className={navItemClass(activeTab === 'catalogue')}
+              >
+                <Pill className={iconClass(activeTab === 'catalogue')} />
                 <span>Medicine Catalogue</span>
               </button>
               <button
                 onClick={() => handleItemClick('purchases')}
-                className={navItemClass('purchases')}
+                data-active={activeTab === 'purchases'}
+                className={navItemClass(activeTab === 'purchases')}
               >
-                <Truck className={iconClass('purchases')} />
-                <span>Purchases & Suppliers</span>
+                <Truck className={iconClass(activeTab === 'purchases')} />
+                <span>Procurement & Purchases</span>
               </button>
               <button
                 onClick={() => handleItemClick('transfers')}
-                className={navItemClass('transfers')}
+                data-active={activeTab === 'transfers'}
+                className={navItemClass(activeTab === 'transfers')}
               >
-                <ArrowLeftRight className={iconClass('transfers')} />
+                <ArrowLeftRight className={iconClass(activeTab === 'transfers')} />
                 <span>Branch Transfers</span>
               </button>
               <button
                 onClick={() => handleItemClick('imports')}
-                className={navItemClass('imports')}
+                data-active={activeTab === 'imports'}
+                className={navItemClass(activeTab === 'imports')}
               >
-                <FileSpreadsheet className={iconClass('imports')} />
-                <span>Bulk Inward Import</span>
-              </button>
-              <button
-                onClick={() => handleItemClick('reports')}
-                className={navItemClass('reports')}
-              >
-                <BarChart3 className={iconClass('reports')} />
-                <span>Reports & GST Summary</span>
-              </button>
-              <button
-                onClick={() => handleItemClick('profit-loss')}
-                className={navItemClass('profit-loss')}
-              >
-                <TrendingUp className={iconClass('profit-loss')} />
-                <span>Profit & Loss Statement</span>
+                <FileSpreadsheet className={iconClass(activeTab === 'imports')} />
+                <span>Bulk CSV / Excel Import</span>
               </button>
             </nav>
           </div>
         )}
 
-        {/* Administration Section */}
-        {(isSuperAdmin || isBranchAdmin) && (
+        {/* Reports & Financial Analytics */}
+        {!isBillingUser && (
           <div>
             <p className="px-3 text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">
-              Administration
+              Financial & Audit
             </p>
             <nav className="space-y-1">
               <button
-                onClick={() => handleItemClick('users')}
-                className={navItemClass('users')}
+                onClick={() => handleItemClick('reports')}
+                data-active={activeTab === 'reports'}
+                className={navItemClass(activeTab === 'reports')}
               >
-                <Users className={iconClass('users')} />
-                <span>Staff & Cashiers</span>
+                <BarChart3 className={iconClass(activeTab === 'reports')} />
+                <span>Reports & Analytics</span>
+              </button>
+              <button
+                onClick={() => handleItemClick('profit-loss')}
+                data-active={activeTab === 'profit-loss'}
+                className={navItemClass(activeTab === 'profit-loss')}
+              >
+                <TrendingUp className={iconClass(activeTab === 'profit-loss')} />
+                <span>P&L / Profit Statement</span>
               </button>
               {isSuperAdmin && (
-                <>
-                  <button
-                    onClick={() => handleItemClick('branches')}
-                    className={navItemClass('branches')}
-                  >
-                    <Building className={iconClass('branches')} />
-                    <span>Branches Setup</span>
-                  </button>
-                  <button
-                    onClick={() => handleItemClick('audit')}
-                    className={navItemClass('audit')}
-                  >
-                    <ShieldCheck className={iconClass('audit')} />
-                    <span>Security & Audit Logs</span>
-                  </button>
-                </>
+                <button
+                  onClick={() => handleItemClick('audit')}
+                  data-active={activeTab === 'audit'}
+                  className={navItemClass(activeTab === 'audit')}
+                >
+                  <ShieldCheck className={iconClass(activeTab === 'audit')} />
+                  <span>Audit Event Log</span>
+                </button>
               )}
             </nav>
           </div>
         )}
 
-        {/* Compliance & Legal */}
-        <div>
-          <p className="px-3 text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">
-            Governance & Legal
-          </p>
-          <nav className="space-y-1">
-            <button
-              onClick={() => handleItemClick('legal')}
-              className={navItemClass('legal')}
-            >
-              <Scale className={iconClass('legal')} />
-              <span>Policies & Privacy Portal</span>
-            </button>
-          </nav>
-        </div>
+        {/* Administration & Configuration */}
+        {!isBillingUser && (
+          <div>
+            <p className="px-3 text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">
+              Administration
+            </p>
+            <nav className="space-y-1">
+              {(isSuperAdmin || isBranchAdmin) && (
+                <button
+                  onClick={() => handleItemClick('users')}
+                  data-active={activeTab === 'users'}
+                  className={navItemClass(activeTab === 'users')}
+                >
+                  <Users className={iconClass(activeTab === 'users')} />
+                  <span>Staff & Cashiers</span>
+                </button>
+              )}
+              {isSuperAdmin && (
+                <button
+                  onClick={() => handleItemClick('branches')}
+                  data-active={activeTab === 'branches'}
+                  className={navItemClass(activeTab === 'branches')}
+                >
+                  <Building className={iconClass(activeTab === 'branches')} />
+                  <span>Pharmacy Branches</span>
+                </button>
+              )}
+              <button
+                onClick={() => handleItemClick('legal')}
+                data-active={activeTab === 'legal'}
+                className={navItemClass(activeTab === 'legal')}
+              >
+                <Scale className={iconClass(activeTab === 'legal')} />
+                <span>Compliance & Legal</span>
+              </button>
+            </nav>
+          </div>
+        )}
       </div>
 
-      {/* Footer Info */}
-      <div className="p-4 border-t border-slate-200 bg-slate-50/60 text-[11px] text-slate-500 space-y-1 shrink-0">
-        <div className="flex items-center justify-between font-mono">
-          <span>v1.0.0-PROD</span>
-          <span className="flex items-center gap-1 text-pharmagreen-600 font-bold">
+      {/* Footer Info / Regulatory Notice */}
+      <div className="p-4 border-t border-slate-200 bg-slate-50/50">
+        <div className="flex items-center justify-between mb-1.5">
+          <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+            CDSCO / GST Ready
+          </span>
+          <span className="flex items-center gap-1 text-[10px] font-bold text-pharmagreen-700 bg-pharmagreen-50 px-2 py-0.5 rounded-full border border-pharmagreen-200/50">
             <span className="w-1.5 h-1.5 rounded-full bg-pharmagreen-500 animate-pulse"></span>
             Online
           </span>
@@ -257,12 +297,39 @@ export const Sidebar: React.FC<SidebarProps> = ({
       </div>
     </div>
   );
+};
+
+export const Sidebar: React.FC<SidebarProps> = ({
+  activeTab,
+  setActiveTab,
+  isOpenMobile = false,
+  onCloseMobile,
+}) => {
+  const { isSuperAdmin, isBranchAdmin, isBillingUser, branches, selectedBranchId, setSelectedBranchId, currentBranch } = useAuth();
+
+  const handleItemClick = (tab: string) => {
+    setActiveTab(tab);
+    if (onCloseMobile) {
+      onCloseMobile();
+    }
+  };
 
   return (
     <>
       {/* 1. Desktop Persistent Sidebar (Laptop & Desktop screens >= 1024px) */}
       <aside className="hidden lg:flex w-64 bg-white border-r border-slate-200 flex-col justify-between h-[calc(100vh-4rem)] select-none shrink-0">
-        <NavigationContent />
+        <NavigationContent
+          activeTab={activeTab}
+          handleItemClick={handleItemClick}
+          isBillingUser={isBillingUser}
+          isSuperAdmin={isSuperAdmin}
+          isBranchAdmin={isBranchAdmin}
+          branches={branches}
+          selectedBranchId={selectedBranchId}
+          setSelectedBranchId={setSelectedBranchId}
+          currentBranch={currentBranch}
+          isMobileDrawer={false}
+        />
       </aside>
 
       {/* 2. Mobile & Tablet Off-Canvas Backdrop */}
@@ -302,10 +369,20 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
         {/* Drawer Scrollable Navigation */}
         <div className="flex-1 overflow-hidden">
-          <NavigationContent isMobileDrawer />
+          <NavigationContent
+            activeTab={activeTab}
+            handleItemClick={handleItemClick}
+            isBillingUser={isBillingUser}
+            isSuperAdmin={isSuperAdmin}
+            isBranchAdmin={isBranchAdmin}
+            branches={branches}
+            selectedBranchId={selectedBranchId}
+            setSelectedBranchId={setSelectedBranchId}
+            currentBranch={currentBranch}
+            isMobileDrawer={true}
+          />
         </div>
       </aside>
     </>
   );
 };
-

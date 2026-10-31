@@ -50,6 +50,84 @@ const MainLayout: React.FC = () => {
     setIsSidebarOpen(false);
   };
 
+  // Global Keyboard Shortcuts Suite
+  useEffect(() => {
+    const handleGlobalShortcuts = (e: KeyboardEvent) => {
+      // F2: From ANY page/section, jump to POS Billing Counter and focus search
+      if (e.key === 'F2') {
+        e.preventDefault();
+        handleSelectTab('pos');
+        setTimeout(() => {
+          window.dispatchEvent(new CustomEvent('pharmacy:focus-pos-search'));
+        }, 60);
+        return;
+      }
+
+      // F3: Quick search / jump to Medicine Master Catalogue
+      if (e.key === 'F3') {
+        e.preventDefault();
+        if (!isBillingUser) {
+          handleSelectTab('catalogue');
+        }
+        return;
+      }
+
+      // F4: Trigger checkout in POS
+      if (e.key === 'F4') {
+        e.preventDefault();
+        if (activeTab === 'pos') {
+          window.dispatchEvent(new CustomEvent('pharmacy:pos-checkout'));
+        } else {
+          handleSelectTab('pos');
+        }
+        return;
+      }
+
+      // F6: Quick jump to Sales Invoices list
+      if (e.key === 'F6') {
+        e.preventDefault();
+        handleSelectTab('invoices');
+        return;
+      }
+
+      // F7: Quick jump to Stock Batches (FEFO Inventory)
+      if (e.key === 'F7') {
+        e.preventDefault();
+        if (!isBillingUser) {
+          handleSelectTab('inventory');
+        }
+        return;
+      }
+
+      // Alt + 1: Quick jump to Counter Operations / POS
+      if (e.altKey && e.key === '1') {
+        e.preventDefault();
+        handleSelectTab('pos');
+        setTimeout(() => {
+          window.dispatchEvent(new CustomEvent('pharmacy:focus-pos-search'));
+        }, 60);
+        return;
+      }
+
+      // Alt + 2: Quick jump to Medicine Catalogue
+      if (e.altKey && e.key === '2') {
+        e.preventDefault();
+        if (!isBillingUser) {
+          handleSelectTab('catalogue');
+        }
+        return;
+      }
+
+      // Ctrl + Enter: Submit active modal / primary action
+      if (e.ctrlKey && e.key === 'Enter') {
+        window.dispatchEvent(new CustomEvent('pharmacy:ctrl-enter'));
+      }
+    };
+
+    window.addEventListener('keydown', handleGlobalShortcuts);
+    return () => window.removeEventListener('keydown', handleGlobalShortcuts);
+  }, [activeTab, isBillingUser]);
+
   if (loading) {
     return (
       <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center text-slate-500 text-xs">
