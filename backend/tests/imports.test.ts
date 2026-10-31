@@ -239,8 +239,7 @@ describe('Bulk Import Unit & Integration Tests', { timeout: 35000 }, () => {
       expect(res.headers['content-type']).toContain('text/csv');
       expect(res.headers['content-disposition']).toContain('attachment');
       expect(res.text).toContain('Brand Name');
-      expect(res.text).toContain('Generic Name');
-      expect(res.text).toContain('Telma 20');
+            expect(res.text).toContain('Telma 20');
     });
 
     it('downloads Stock Receipt CSV template with authorized session', async () => {

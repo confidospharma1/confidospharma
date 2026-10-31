@@ -1037,13 +1037,10 @@ export const InventoryPage: React.FC = () => {
                           </span>
                         </td>
 
-                        {/* 2. Medicine & Generic Name */}
+                        {/* 2. Medicine Name */}
                         <td className="py-3 px-4">
                           <div className="font-bold text-slate-900 leading-snug">
                             {m.medicine.brandName}
-                          </div>
-                          <div className="text-[11px] text-slate-500 truncate max-w-xs">
-                            {m.medicine.genericName}
                           </div>
                           <div className="text-[10px] text-slate-400 mt-0.5">
                             {m.medicine.dosageForm} • Base: <strong>{m.medicine.baseUnit}</strong>
@@ -1261,7 +1258,6 @@ export const InventoryPage: React.FC = () => {
                         <tr key={b.id} className="hover:bg-slate-50/70 transition-colors">
                           <td className="py-3 px-4">
                             <div className="font-bold text-slate-900">{b.medicine?.brandName}</div>
-                            <div className="text-[10px] text-slate-400">{b.medicine?.genericName}</div>
                           </td>
                           <td className="py-3 px-4 font-mono font-semibold text-slate-800">
                             {b.batchNumber}
@@ -1505,7 +1501,7 @@ export const InventoryPage: React.FC = () => {
           {adjustBatch && (
             <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg text-slate-600 space-y-1">
               <div className="font-semibold text-slate-800">
-                {adjustBatch.medicine?.brandName} ({adjustBatch.medicine?.genericName})
+                {adjustBatch.medicine?.brandName}
               </div>
               <div className="text-[11px]">
                 Current Available Quantity: <strong className="text-slate-900">{adjustBatch.availableQuantity} units</strong>
@@ -1581,7 +1577,7 @@ export const InventoryPage: React.FC = () => {
               <input
                 type="text"
                 disabled
-                value={`${editingBatch.medicine?.brandName} (${editingBatch.medicine?.genericName})`}
+                value={editingBatch.medicine?.brandName || ''}
                 className="w-full px-3 py-2 bg-slate-100 border border-slate-300 rounded-lg text-xs text-slate-500 cursor-not-allowed"
               />
             </div>

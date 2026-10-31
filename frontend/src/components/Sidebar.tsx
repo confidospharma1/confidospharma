@@ -14,7 +14,6 @@ import {
   Building,
   Scale,
   ShieldCheck,
-  FileSpreadsheet,
   Layers,
   X,
   Building2,
@@ -140,7 +139,7 @@ const NavigationContent: React.FC<NavigationContentProps> = ({
         {!isBillingUser && (
           <div>
             <p className="px-3 text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">
-              Pharmacy & Stock
+              Pharmacy Inventory
             </p>
             <nav className="space-y-1">
               <button
@@ -149,7 +148,7 @@ const NavigationContent: React.FC<NavigationContentProps> = ({
                 className={navItemClass(activeTab === 'dashboard')}
               >
                 <LayoutDashboard className={iconClass(activeTab === 'dashboard')} />
-                <span>Executive Dashboard</span>
+                <span>Branch Dashboard</span>
               </button>
               <button
                 onClick={() => handleItemClick('stock-monitoring')}
@@ -165,7 +164,7 @@ const NavigationContent: React.FC<NavigationContentProps> = ({
                 className={navItemClass(activeTab === 'inventory')}
               >
                 <Boxes className={iconClass(activeTab === 'inventory')} />
-                <span>Stock Batches (FEFO)</span>
+                <span>Inventory Management</span>
               </button>
               <button
                 onClick={() => handleItemClick('catalogue')}
@@ -181,7 +180,7 @@ const NavigationContent: React.FC<NavigationContentProps> = ({
                 className={navItemClass(activeTab === 'purchases')}
               >
                 <Truck className={iconClass(activeTab === 'purchases')} />
-                <span>Procurement & Purchases</span>
+                <span>Purchases & Suppliers</span>
               </button>
               <button
                 onClick={() => handleItemClick('transfers')}
@@ -190,14 +189,6 @@ const NavigationContent: React.FC<NavigationContentProps> = ({
               >
                 <ArrowLeftRight className={iconClass(activeTab === 'transfers')} />
                 <span>Branch Transfers</span>
-              </button>
-              <button
-                onClick={() => handleItemClick('imports')}
-                data-active={activeTab === 'imports'}
-                className={navItemClass(activeTab === 'imports')}
-              >
-                <FileSpreadsheet className={iconClass(activeTab === 'imports')} />
-                <span>Bulk CSV / Excel Import</span>
               </button>
             </nav>
           </div>
@@ -224,7 +215,7 @@ const NavigationContent: React.FC<NavigationContentProps> = ({
                 className={navItemClass(activeTab === 'profit-loss')}
               >
                 <TrendingUp className={iconClass(activeTab === 'profit-loss')} />
-                <span>P&L / Profit Statement</span>
+                <span>Profit & Loss Statement</span>
               </button>
               {isSuperAdmin && (
                 <button

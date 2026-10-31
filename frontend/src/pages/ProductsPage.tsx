@@ -75,27 +75,18 @@ export const ProductsPage: React.FC = () => {
   const initialAddForm = {
     internalCode: '',
     brandName: '',
-    genericName: '',
-    dosageForm: 'Tablet',
-    manufacturer: '',
-    packSize: '10 Strips',
-    baseUnit: 'Strip',
-    packageUnit: 'Box',
-    conversionFactor: '10',
-    hsnCode: '',
-    gstRate: '5',
-    mrp: '',
-    defaultPurchaseRate: '',
-    defaultSellingRate: '',
-    reorderLevel: '10',
-    barcode: '',
-    prescriptionType: 'Schedule H',
-    storageNotes: '',
-    // Initial Stock fields
-    initialQuantity: '',
-    quantityUnit: 'Box',
+    quantity: '',
+    freeQuantity: '',
     batchNumber: '',
     expiryDate: '',
+    manufacturer: '',
+    defaultPurchaseRate: '',
+    mrp: '',
+    gstRate: '5',
+    hsnCode: '',
+    barcode: '',
+    reorderLevel: '10',
+    prescriptionType: 'OTC',
     targetBranchId: '',
   };
   const [addForm, setAddForm] = useState(initialAddForm);
@@ -105,22 +96,14 @@ export const ProductsPage: React.FC = () => {
   const [editingProduct, setEditingProduct] = useState<MedicineProduct | null>(null);
   const [editForm, setEditForm] = useState({
     brandName: '',
-    genericName: '',
-    dosageForm: 'Tablet',
     manufacturer: '',
-    packSize: '10 Strips',
-    baseUnit: 'Strip',
-    packageUnit: 'Box',
-    conversionFactor: '10',
-    hsnCode: '',
-    gstRate: '5',
-    mrp: '',
     defaultPurchaseRate: '',
-    defaultSellingRate: '',
-    reorderLevel: '10',
+    mrp: '',
+    gstRate: '5',
+    hsnCode: '',
     barcode: '',
-    prescriptionType: 'Schedule H',
-    storageNotes: '',
+    reorderLevel: '10',
+    prescriptionType: 'OTC',
     isActive: true,
   });
 
@@ -204,14 +187,6 @@ export const ProductsPage: React.FC = () => {
       fieldErrors.brandName = 'Brand Name is required.';
       missingLabels.push('Brand Name');
     }
-    if (!addForm.genericName.trim()) {
-      fieldErrors.genericName = 'Generic / Active Ingredient is required.';
-      missingLabels.push('Generic / Active Ingredient');
-    }
-    if (!addForm.dosageForm.trim()) {
-      fieldErrors.dosageForm = 'Dosage Form is required.';
-      missingLabels.push('Dosage Form');
-    }
     if (!addForm.manufacturer.trim()) {
       fieldErrors.manufacturer = 'Manufacturer is required.';
       missingLabels.push('Manufacturer');
@@ -226,11 +201,11 @@ export const ProductsPage: React.FC = () => {
     if (addForm.defaultPurchaseRate && (isNaN(Number(addForm.defaultPurchaseRate)) || Number(addForm.defaultPurchaseRate) < 0)) {
       fieldErrors.defaultPurchaseRate = 'Purchase rate cannot be negative.';
     }
-    if (addForm.defaultSellingRate && (isNaN(Number(addForm.defaultSellingRate)) || Number(addForm.defaultSellingRate) < 0)) {
-      fieldErrors.defaultSellingRate = 'Selling rate cannot be negative.';
+    if (addForm.quantity && (isNaN(Number(addForm.quantity)) || Number(addForm.quantity) < 0)) {
+      fieldErrors.quantity = 'Quantity cannot be negative.';
     }
-    if (addForm.conversionFactor && (isNaN(Number(addForm.conversionFactor)) || Number(addForm.conversionFactor) < 1)) {
-      fieldErrors.conversionFactor = 'Package factor must be at least 1.';
+    if (addForm.freeQuantity && (isNaN(Number(addForm.freeQuantity)) || Number(addForm.freeQuantity) < 0)) {
+      fieldErrors.freeQuantity = 'Free discount quantity cannot be negative.';
     }
 
     if (Object.keys(fieldErrors).length > 0) {
@@ -246,20 +221,31 @@ export const ProductsPage: React.FC = () => {
     setIsSavingProduct(true);
     try {
       const res = await api.createProduct({
-        ...addForm,
-        conversionFactor: parseInt(addForm.conversionFactor) || 10,
+        brandName: addForm.brandName.trim(),
+        genericName: addForm.brandName.trim(),
+        dosageForm: 'Tablet',
+        manufacturer: addForm.manufacturer.trim(),
+        packSize: '1 Unit',
+        baseUnit: 'Unit',
+        packageUnit: 'Unit',
+        conversionFactor: 1,
         hsnCode: addForm.hsnCode.trim() || undefined,
+        gstRate: parseFloat(addForm.gstRate) || 5,
+        mrp: parseFloat(addForm.mrp),
         defaultPurchaseRate: addForm.defaultPurchaseRate ? parseFloat(addForm.defaultPurchaseRate) : undefined,
-        defaultSellingRate: addForm.defaultSellingRate ? parseFloat(addForm.defaultSellingRate) : undefined,
         reorderLevel: addForm.reorderLevel ? parseInt(addForm.reorderLevel) : 10,
-        initialQuantity: addForm.initialQuantity ? parseInt(addForm.initialQuantity) : 0,
-        quantityUnit: addForm.quantityUnit || addForm.packageUnit || 'Box',
+        barcode: addForm.barcode.trim() || undefined,
+        prescriptionType: addForm.prescriptionType || 'OTC',
+        initialQuantity: addForm.quantity ? parseInt(addForm.quantity) : 0,
+        freeQuantity: addForm.freeQuantity ? parseInt(addForm.freeQuantity) : 0,
+        quantityUnit: 'Unit',
         batchNumber: addForm.batchNumber.trim() || undefined,
         expiryDate: addForm.expiryDate || undefined,
         branchId: addForm.targetBranchId || undefined,
       });
-      const stockMsg = (res?.totalAvailableStock || 0) > 0
-        ? ` with ${res.totalAvailableStock} ${addForm.baseUnit || 'units'} opening stock.`
+      const totalUnits = ((res?.totalAvailableStock || 0) > 0) ? res.totalAvailableStock : ((parseInt(addForm.quantity) || 0) + (parseInt(addForm.freeQuantity) || 0));
+      const stockMsg = totalUnits > 0
+        ? ` with ${totalUnits} units opening stock.`
         : ' (Out of Stock).';
       setMessage({ text: `Medicine '${addForm.brandName}' added to master catalogue${stockMsg}`, type: 'success' });
       setShowAddModal(false);
@@ -282,7 +268,6 @@ export const ProductsPage: React.FC = () => {
         setAddModalFieldErrors((prev) => ({
           ...prev,
           brandName: prev.brandName || 'Brand name matches an existing record.',
-          genericName: prev.genericName || 'Active ingredient matches an existing record.',
         }));
       } else if (err.status === 400 || err.status === 422) {
         setAddModalError(errMessage);
@@ -301,28 +286,17 @@ export const ProductsPage: React.FC = () => {
       setShowPermissionModal(true);
       return;
     }
-    const combinedGeneric = p.strength && p.strength !== 'Standard' && !p.genericName?.toLowerCase().includes(p.strength.toLowerCase())
-      ? `${p.genericName} ${p.strength}`
-      : p.genericName;
     setEditingProduct(p);
     setEditForm({
       brandName: p.brandName,
-      genericName: combinedGeneric,
-      dosageForm: p.dosageForm,
       manufacturer: p.manufacturer,
-      packSize: p.packSize || '10 Strips',
-      baseUnit: p.baseUnit || 'Strip',
-      packageUnit: p.packageUnit || 'Box',
-      conversionFactor: String(p.conversionFactor || 10),
       hsnCode: p.hsnCode || '',
       gstRate: String(p.gstRate ?? 5),
       mrp: String(p.mrp ?? 0),
       defaultPurchaseRate: p.defaultPurchaseRate !== undefined && p.defaultPurchaseRate !== null ? String(p.defaultPurchaseRate) : '',
-      defaultSellingRate: p.defaultSellingRate !== undefined && p.defaultSellingRate !== null ? String(p.defaultSellingRate) : '',
       reorderLevel: String(p.reorderLevel || 10),
       barcode: p.barcode || '',
-      prescriptionType: p.prescriptionType || 'Schedule H',
-      storageNotes: p.storageNotes || '',
+      prescriptionType: p.prescriptionType || 'OTC',
       isActive: p.isActive !== false,
     });
     setShowEditModal(true);
@@ -334,14 +308,17 @@ export const ProductsPage: React.FC = () => {
     setMessage(null);
     try {
       await api.updateProduct(editingProduct.id, {
-        ...editForm,
-        conversionFactor: parseInt(editForm.conversionFactor) || 10,
+        brandName: editForm.brandName.trim(),
+        genericName: editForm.brandName.trim(),
+        manufacturer: editForm.manufacturer.trim(),
         hsnCode: editForm.hsnCode.trim() || undefined,
         defaultPurchaseRate: editForm.defaultPurchaseRate ? parseFloat(editForm.defaultPurchaseRate) : null,
-        defaultSellingRate: editForm.defaultSellingRate ? parseFloat(editForm.defaultSellingRate) : null,
         reorderLevel: editForm.reorderLevel ? parseInt(editForm.reorderLevel) : 10,
         mrp: parseFloat(editForm.mrp),
         gstRate: parseFloat(editForm.gstRate),
+        barcode: editForm.barcode.trim() || undefined,
+        prescriptionType: editForm.prescriptionType || 'OTC',
+        isActive: editForm.isActive,
       });
       setMessage({ text: `Medicine '${editForm.brandName}' updated successfully.`, type: 'success' });
       setShowEditModal(false);
@@ -383,7 +360,7 @@ export const ProductsPage: React.FC = () => {
         <div>
           <h1 className="text-xl font-bold text-slate-900">Medicine Master Catalogue</h1>
           <p className="text-xs text-slate-500 mt-0.5">
-            Central pharmaceutical master data with distinct MRP, Default Purchase Rate, Default Selling Rate, and optional HSN.
+            Central pharmaceutical master data with distinct MRP, Default Purchase Rate, and optional HSN.
           </p>
         </div>
 
@@ -422,7 +399,7 @@ export const ProductsPage: React.FC = () => {
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search by Brand Name, Generic, Manufacturer, Barcode..."
+              placeholder="Search by Brand Name, Manufacturer, Barcode..."
               className="w-full pl-10 pr-3 py-2 text-xs bg-slate-50 border border-slate-300 rounded-lg focus:bg-white focus:ring-2 focus:ring-brand-500 focus:border-brand-500 font-medium"
             />
           </div>
@@ -619,15 +596,12 @@ export const ProductsPage: React.FC = () => {
                   </th>
                 )}
                 <th className="py-3 px-4">Internal Code</th>
-                <th className="py-3 px-4">Brand & Generic Name</th>
-                <th className="py-3 px-3">Strength & Form</th>
+                <th className="py-3 px-4">Medicine Brand Name</th>
                 <th className="py-3 px-3">Manufacturer</th>
-                <th className="py-3 px-3 text-center">Packaging & Units</th>
-                <th className="py-3 px-3 text-center bg-emerald-50/50 text-emerald-900">Branch Stock</th>
+                <th className="py-3 px-3 text-center bg-emerald-50/50 text-emerald-900">Available Stock</th>
                 <th className="py-3 px-3 text-center">HSN Code</th>
                 <th className="py-3 px-3 text-center">GST</th>
                 <th className="py-3 px-3 text-right bg-blue-50/50 text-blue-900">Default Pur Rate</th>
-                <th className="py-3 px-3 text-right bg-brand-50/50 text-brand-900">Default Sell Rate</th>
                 <th className="py-3 px-3 text-right bg-amber-50/50 text-amber-900">Standard MRP</th>
                 <th className="py-3 px-3 text-center">Reorder Lvl</th>
                 <th className="py-3 px-4 text-center">Category</th>
@@ -637,13 +611,13 @@ export const ProductsPage: React.FC = () => {
             <tbody className="divide-y divide-slate-100 font-medium">
               {loading ? (
                 <tr>
-                  <td colSpan={isSuperAdmin ? (isBillingUser ? 14 : 15) : (isBillingUser ? 13 : 14)} className="py-8 text-center text-slate-400">
+                  <td colSpan={isSuperAdmin ? (isBillingUser ? 10 : 11) : (isBillingUser ? 9 : 10)} className="py-8 text-center text-slate-400">
                     Loading medicines catalogue...
                   </td>
                 </tr>
               ) : filteredProducts.length === 0 ? (
                 <tr>
-                  <td colSpan={isSuperAdmin ? (isBillingUser ? 14 : 15) : (isBillingUser ? 13 : 14)} className="py-12 text-center text-slate-500">
+                  <td colSpan={isSuperAdmin ? (isBillingUser ? 10 : 11) : (isBillingUser ? 9 : 10)} className="py-12 text-center text-slate-500">
                     <p className="text-sm font-bold text-slate-800">No medicines found.</p>
                     <p className="text-xs text-slate-500 mt-1">Add a medicine to begin managing your inventory catalogue.</p>
                     {!isBillingUser && (
@@ -673,38 +647,15 @@ export const ProductsPage: React.FC = () => {
                     <td className="py-3 px-4 font-mono font-bold text-slate-800">{p.internalCode}</td>
                     <td className="py-3 px-4">
                       <span className="font-bold text-slate-900 block">{p.brandName}</span>
-                      <span className="text-[11px] text-slate-500">
-                        {p.genericName}
-                        {p.strength && p.strength !== 'Standard' && !p.genericName?.toLowerCase().includes(p.strength.toLowerCase()) ? ` (${p.strength})` : ''}
-                      </span>
-                    </td>
-                    <td className="py-3 px-3 font-mono text-slate-700">
-                      <div>{p.dosageForm}</div>
-                      {p.strength && p.strength !== 'Standard' && !p.genericName?.toLowerCase().includes(p.strength.toLowerCase()) && (
-                        <span className="text-[10px] text-slate-500 font-sans">{p.strength}</span>
-                      )}
                     </td>
                     <td className="py-3 px-3 text-slate-600 truncate max-w-[140px]">{p.manufacturer}</td>
-                    <td className="py-3 px-3 text-center">
-                      <span className="font-semibold text-slate-800 block">{p.packageUnit || 'Box'}</span>
-                      <span className="text-[10px] text-slate-500 font-mono">
-                        1 {p.packageUnit || 'Box'} = {p.conversionFactor || 10} {p.baseUnit || 'Strip'}s
-                      </span>
-                    </td>
                     <td className="py-3 px-3 text-center bg-emerald-50/10">
                       {(p.totalAvailableStock || 0) > 0 ? (
-                        <div>
-                          <Badge variant="brandGreen" size="sm">
-                            {p.totalAvailableStock} {p.baseUnit || 'Strips'}
-                          </Badge>
-                          {p.conversionFactor && p.conversionFactor > 1 && (
-                            <span className="text-[10px] text-slate-500 block font-mono mt-0.5">
-                              (~{((p.totalAvailableStock || 0) / p.conversionFactor).toFixed(1)} {p.packageUnit || 'Box'}s)
-                            </span>
-                          )}
-                        </div>
+                        <Badge variant="brandGreen" size="sm">
+                          {p.totalAvailableStock} Units
+                        </Badge>
                       ) : (
-                        <span className="text-slate-400 font-mono text-[11px]">0 {p.baseUnit || 'Strips'}</span>
+                        <span className="text-slate-400 font-mono text-[11px]">0 Units</span>
                       )}
                     </td>
                     <td className="py-3 px-3 text-center font-mono text-slate-600">
@@ -713,9 +664,6 @@ export const ProductsPage: React.FC = () => {
                     <td className="py-3 px-3 text-center font-mono font-bold text-slate-800">{p.gstRate}%</td>
                     <td className="py-3 px-3 text-right font-mono text-blue-800 bg-blue-50/20">
                       {p.defaultPurchaseRate ? `₹${p.defaultPurchaseRate.toFixed(2)}` : <span className="text-slate-400">—</span>}
-                    </td>
-                    <td className="py-3 px-3 text-right font-mono font-semibold text-brand-900 bg-brand-50/20">
-                      {p.defaultSellingRate ? `₹${p.defaultSellingRate.toFixed(2)}` : <span className="text-slate-400">—</span>}
                     </td>
                     <td className="py-3 px-3 text-right font-mono font-bold text-slate-900 bg-amber-50/20">
                       ₹{p.mrp.toFixed(2)}
@@ -793,8 +741,9 @@ export const ProductsPage: React.FC = () => {
             </div>
           )}
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div>
+          {/* Row 1: Brand Name, Quantity, Free Quantity, Batch Number, Batch Expiry Date */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+            <div className="sm:col-span-2 lg:col-span-1">
               <label className="text-xs font-bold text-slate-700 block mb-1">
                 Brand Name <span className="text-rose-500">*</span>
               </label>
@@ -825,114 +774,102 @@ export const ProductsPage: React.FC = () => {
                 </span>
               )}
             </div>
+
             <div>
               <label className="text-xs font-bold text-slate-700 block mb-1">
-                Generic / Active Ingredient <span className="text-rose-500">*</span>
+                Quantity (Units)
+              </label>
+              <input
+                type="number"
+                min="0"
+                step="1"
+                placeholder="e.g. 100"
+                value={addForm.quantity}
+                onChange={(e) => setAddForm({ ...addForm, quantity: e.target.value })}
+                className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-300 rounded-lg font-mono font-bold text-slate-900 focus:bg-white focus:ring-2 focus:ring-emerald-500"
+              />
+            </div>
+
+            <div>
+              <label className="text-xs font-bold text-emerald-800 block mb-1">
+                Free Quantity
+              </label>
+              <input
+                type="number"
+                min="0"
+                step="1"
+                placeholder="e.g. 10 (Free)"
+                value={addForm.freeQuantity}
+                onChange={(e) => setAddForm({ ...addForm, freeQuantity: e.target.value })}
+                className="w-full px-3 py-2 text-xs bg-emerald-50/50 border border-emerald-300 rounded-lg font-mono font-bold text-emerald-900 focus:bg-white focus:ring-2 focus:ring-emerald-500"
+              />
+            </div>
+
+            <div>
+              <label className="text-xs font-bold text-slate-700 block mb-1">
+                Batch Number
               </label>
               <input
                 type="text"
-                required
-                placeholder="e.g. Paracetamol 650 mg"
-                value={addForm.genericName}
-                onChange={(e) => {
-                  setAddForm({ ...addForm, genericName: e.target.value });
-                  if (addModalFieldErrors.genericName) {
-                    setAddModalFieldErrors((prev) => {
-                      const next = { ...prev };
-                      delete next.genericName;
-                      return next;
-                    });
-                  }
-                }}
-                className={`w-full px-3 py-2 text-xs bg-slate-50 border rounded-lg focus:bg-white focus:ring-2 ${
-                  addModalFieldErrors.genericName
-                    ? 'border-rose-400 bg-rose-50/20 focus:ring-rose-500'
-                    : 'border-slate-300 focus:ring-emerald-500'
-                }`}
+                placeholder="e.g. OPN-001"
+                value={addForm.batchNumber}
+                onChange={(e) => setAddForm({ ...addForm, batchNumber: e.target.value })}
+                className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-300 rounded-lg font-mono focus:bg-white focus:ring-2 focus:ring-emerald-500"
               />
-              {addModalFieldErrors.genericName && (
-                <span className="text-[11px] text-rose-600 font-semibold block mt-1">
-                  {addModalFieldErrors.genericName}
-                </span>
-              )}
             </div>
-          </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="text-xs font-bold text-slate-700 block mb-1">
-                Dosage Form <span className="text-rose-500">*</span>
-              </label>
-              <select
-                value={addForm.dosageForm}
-                onChange={(e) => {
-                  setAddForm({ ...addForm, dosageForm: e.target.value });
-                  if (addModalFieldErrors.dosageForm) {
-                    setAddModalFieldErrors((prev) => {
-                      const next = { ...prev };
-                      delete next.dosageForm;
-                      return next;
-                    });
-                  }
-                }}
-                className={`w-full px-3 py-2 text-xs bg-slate-50 border rounded-lg focus:bg-white focus:ring-2 ${
-                  addModalFieldErrors.dosageForm
-                    ? 'border-rose-400 bg-rose-50/20 focus:ring-rose-500'
-                    : 'border-slate-300 focus:ring-emerald-500'
-                }`}
-              >
-                <option value="Tablet">Tablet</option>
-                <option value="Capsule">Capsule</option>
-                <option value="Syrup">Syrup</option>
-                <option value="Injection">Injection</option>
-                <option value="Ointment">Ointment</option>
-                <option value="Drops">Drops</option>
-              </select>
-              {addModalFieldErrors.dosageForm && (
-                <span className="text-[11px] text-rose-600 font-semibold block mt-1">
-                  {addModalFieldErrors.dosageForm}
-                </span>
-              )}
-            </div>
-            <div>
-              <label className="text-xs font-bold text-slate-700 block mb-1">
-                Manufacturer <span className="text-rose-500">*</span>
+                Batch Expiry Date
               </label>
               <input
-                type="text"
-                required
-                placeholder="e.g. Micro Labs Ltd"
-                value={addForm.manufacturer}
-                onChange={(e) => {
-                  setAddForm({ ...addForm, manufacturer: e.target.value });
-                  if (addModalFieldErrors.manufacturer) {
-                    setAddModalFieldErrors((prev) => {
-                      const next = { ...prev };
-                      delete next.manufacturer;
-                      return next;
-                    });
-                  }
-                }}
-                className={`w-full px-3 py-2 text-xs bg-slate-50 border rounded-lg focus:bg-white focus:ring-2 ${
-                  addModalFieldErrors.manufacturer
-                    ? 'border-rose-400 bg-rose-50/20 focus:ring-rose-500'
-                    : 'border-slate-300 focus:ring-emerald-500'
-                }`}
+                type="date"
+                value={addForm.expiryDate}
+                onChange={(e) => setAddForm({ ...addForm, expiryDate: e.target.value })}
+                className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-300 rounded-lg font-mono focus:bg-white focus:ring-2 focus:ring-emerald-500"
               />
-              {addModalFieldErrors.manufacturer && (
-                <span className="text-[11px] text-rose-600 font-semibold block mt-1">
-                  {addModalFieldErrors.manufacturer}
-                </span>
-              )}
             </div>
           </div>
 
-          {/* Pricing & GST Classification Section */}
+          {/* Row 2: Manufacturer */}
+          <div>
+            <label className="text-xs font-bold text-slate-700 block mb-1">
+              Manufacturer <span className="text-rose-500">*</span>
+            </label>
+            <input
+              type="text"
+              required
+              placeholder="e.g. Micro Labs Ltd"
+              value={addForm.manufacturer}
+              onChange={(e) => {
+                setAddForm({ ...addForm, manufacturer: e.target.value });
+                if (addModalFieldErrors.manufacturer) {
+                  setAddModalFieldErrors((prev) => {
+                    const next = { ...prev };
+                    delete next.manufacturer;
+                    return next;
+                  });
+                }
+              }}
+              className={`w-full px-3 py-2 text-xs bg-slate-50 border rounded-lg focus:bg-white focus:ring-2 ${
+                addModalFieldErrors.manufacturer
+                  ? 'border-rose-400 bg-rose-50/20 focus:ring-rose-500'
+                  : 'border-slate-300 focus:ring-emerald-500'
+              }`}
+            />
+            {addModalFieldErrors.manufacturer && (
+              <span className="text-[11px] text-rose-600 font-semibold block mt-1">
+                {addModalFieldErrors.manufacturer}
+              </span>
+            )}
+          </div>
+
+          {/* Pricing Structure: Default Purchase Rate & MRP (Default Selling Rate completely removed) */}
           <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-3">
             <p className="text-[11px] font-bold text-slate-700 uppercase tracking-wider">
-              Pricing Structure & Rates (Kept Strictly Separate)
+              Pricing Structure & Rates
             </p>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className="text-xs font-bold text-blue-900 block mb-1">Default Purchase Rate</label>
                 <input
@@ -944,20 +881,7 @@ export const ProductsPage: React.FC = () => {
                   onChange={(e) => setAddForm({ ...addForm, defaultPurchaseRate: e.target.value })}
                   className="w-full px-3 py-2 text-xs bg-white border border-blue-200 rounded-lg font-mono font-bold text-blue-900 focus:ring-2 focus:ring-blue-500"
                 />
-                <span className="text-[10px] text-slate-500 block mt-0.5 leading-tight">The usual price paid to purchase one unit of this medicine from a supplier. Enter the amount in your currency.</span>
-              </div>
-              <div>
-                <label className="text-xs font-bold text-emerald-900 block mb-1">Default Selling Rate</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  placeholder="e.g., 20.00"
-                  value={addForm.defaultSellingRate}
-                  onChange={(e) => setAddForm({ ...addForm, defaultSellingRate: e.target.value })}
-                  className="w-full px-3 py-2 text-xs bg-white border border-emerald-200 rounded-lg font-mono font-bold text-emerald-900 focus:ring-2 focus:ring-emerald-500"
-                />
-                <span className="text-[10px] text-slate-500 block mt-0.5 leading-tight">The usual price charged to the customer for one unit. This is a default value, not necessarily the final billed price.</span>
+                <span className="text-[10px] text-slate-500 block mt-0.5 leading-tight">Price paid to purchase one unit from a supplier.</span>
               </div>
               <div>
                 <label className="text-xs font-bold text-amber-900 block mb-1">
@@ -991,182 +915,13 @@ export const ProductsPage: React.FC = () => {
                     {addModalFieldErrors.mrp}
                   </span>
                 )}
-                <span className="text-[10px] text-slate-500 block mt-0.5 leading-tight">The maximum retail price printed on the medicine packaging for the specified pack or unit.</span>
+                <span className="text-[10px] text-slate-500 block mt-0.5 leading-tight">Maximum retail price printed on the medicine packaging.</span>
               </div>
             </div>
           </div>
 
-          <div className="bg-slate-50 p-3 rounded-lg border border-slate-200">
-            <h4 className="text-xs font-bold text-slate-800 mb-2 flex items-center gap-1.5">
-              <Pill className="w-3.5 h-3.5 text-brand-600" />
-              Packaging & Unit Conversion (FEFO / POS / Inventory)
-            </h4>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <div>
-                <label className="text-xs font-bold text-slate-700 block mb-1">Package Unit (Purchased As)</label>
-                <select
-                  value={addForm.packageUnit}
-                  onChange={(e) => setAddForm({ ...addForm, packageUnit: e.target.value })}
-                  className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-lg font-medium"
-                >
-                  <option value="Box">Box</option>
-                  <option value="Strip">Strip</option>
-                  <option value="Bottle">Bottle</option>
-                  <option value="Carton">Carton</option>
-                  <option value="Pack">Pack</option>
-                  <option value="Vial">Vial</option>
-                  <option value="Ampoule">Ampoule</option>
-                </select>
-                <span className="text-[10px] text-slate-500 block mt-0.5">Bulk purchase container</span>
-              </div>
-              <div>
-                <label className="text-xs font-bold text-slate-700 block mb-1">Base Unit (Sold / Dispensed As)</label>
-                <select
-                  value={addForm.baseUnit}
-                  onChange={(e) => setAddForm({ ...addForm, baseUnit: e.target.value })}
-                  className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-lg font-medium"
-                >
-                  <option value="Strip">Strip</option>
-                  <option value="Tablet">Tablet</option>
-                  <option value="Capsule">Capsule</option>
-                  <option value="Bottle">Bottle</option>
-                  <option value="Vial">Vial</option>
-                  <option value="Ampoule">Ampoule</option>
-                  <option value="Piece">Piece</option>
-                  <option value="Sachet">Sachet</option>
-                </select>
-                <span className="text-[10px] text-slate-500 block mt-0.5">Base dispensing unit</span>
-              </div>
-              <div>
-                <label className="text-xs font-bold text-slate-700 block mb-1">Units per Package (Factor) *</label>
-                <input
-                  type="number"
-                  min="1"
-                  step="1"
-                  placeholder="10"
-                  value={addForm.conversionFactor}
-                  onChange={(e) => setAddForm({ ...addForm, conversionFactor: e.target.value })}
-                  className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-lg font-mono font-bold"
-                />
-                <span className="text-[10px] text-slate-500 block mt-0.5">1 {addForm.packageUnit || 'Box'} = {addForm.conversionFactor || 10} {addForm.baseUnit || 'Strips'}</span>
-              </div>
-            </div>
-          </div>
-
-          {/* Initial Stock / Opening Inventory Section */}
-          <div className="p-3.5 bg-emerald-50/40 rounded-xl border border-emerald-200/70 space-y-3">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-1.5">
-                <Boxes className="w-4 h-4 text-emerald-700" />
-                <span className="text-xs font-bold text-emerald-900 uppercase tracking-wider">
-                  Initial Stock / Opening Inventory (Optional)
-                </span>
-              </div>
-              <span className="text-[10px] text-emerald-700 font-medium bg-emerald-100/70 px-2 py-0.5 rounded-full">
-                Live Inventory Inward
-              </span>
-            </div>
-
-            <p className="text-[11px] text-slate-600 leading-relaxed">
-              Enter initial physical quantity to record opening stock for your pharmacy immediately, or leave blank / 0 to create catalogue record only (Out of Stock).
-            </p>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 sm:grid-cols-4 gap-3">
-              <div>
-                <label className="text-xs font-bold text-slate-700 block mb-1">Initial Quantity</label>
-                <input
-                  type="number"
-                  min="0"
-                  step="1"
-                  placeholder="0 (Out of Stock)"
-                  value={addForm.initialQuantity}
-                  onChange={(e) => setAddForm({ ...addForm, initialQuantity: e.target.value })}
-                  className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-lg font-mono font-bold text-slate-900 focus:ring-2 focus:ring-emerald-500"
-                />
-              </div>
-
-              <div>
-                <label className="text-xs font-bold text-slate-700 block mb-1">Quantity Unit</label>
-                <select
-                  value={addForm.quantityUnit}
-                  onChange={(e) => setAddForm({ ...addForm, quantityUnit: e.target.value })}
-                  className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-lg font-medium"
-                >
-                  <option value={addForm.packageUnit || 'Box'}>Package ({addForm.packageUnit || 'Box'})</option>
-                  <option value={addForm.baseUnit || 'Strip'}>Base Unit ({addForm.baseUnit || 'Strip'})</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="text-xs font-bold text-slate-700 block mb-1">Batch Number</label>
-                <input
-                  type="text"
-                  placeholder="e.g. OPN-001 (Auto if empty)"
-                  value={addForm.batchNumber}
-                  onChange={(e) => setAddForm({ ...addForm, batchNumber: e.target.value })}
-                  className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-lg font-mono"
-                />
-              </div>
-
-              <div>
-                <label className="text-xs font-bold text-slate-700 block mb-1">Batch Expiry Date</label>
-                <input
-                  type="date"
-                  value={addForm.expiryDate}
-                  onChange={(e) => setAddForm({ ...addForm, expiryDate: e.target.value })}
-                  className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-lg font-mono"
-                />
-              </div>
-            </div>
-
-            {isSuperAdmin && branches.length > 0 && (
-              <div>
-                <label className="text-xs font-bold text-slate-700 block mb-1">Target Branch for Initial Stock</label>
-                <select
-                  value={addForm.targetBranchId}
-                  onChange={(e) => setAddForm({ ...addForm, targetBranchId: e.target.value })}
-                  className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-lg font-medium"
-                >
-                  <option value="">Default Branch ({branches[0]?.name || 'Primary Branch'})</option>
-                  {branches.map((b) => (
-                    <option key={b.id} value={b.id}>{b.name} ({b.code})</option>
-                  ))}
-                </select>
-              </div>
-            )}
-
-            {parseInt(addForm.initialQuantity) > 0 && (
-              <div className="p-2.5 bg-emerald-100/60 rounded-lg border border-emerald-300/60 text-xs text-emerald-900 flex items-center justify-between">
-                <div>
-                  <span className="font-bold">Opening Stock Conversion: </span>
-                  {addForm.quantityUnit === (addForm.packageUnit || 'Box') ? (
-                    <span>
-                      {parseInt(addForm.initialQuantity)} {addForm.packageUnit || 'Box'}(s) × {parseInt(addForm.conversionFactor) || 10} = <strong className="font-mono">{parseInt(addForm.initialQuantity) * (parseInt(addForm.conversionFactor) || 10)} {addForm.baseUnit || 'Strip'}s</strong>
-                    </span>
-                  ) : (
-                    <span>
-                      <strong className="font-mono">{parseInt(addForm.initialQuantity)} {addForm.baseUnit || 'Strip'}s</strong> in base dispensing units
-                    </span>
-                  )}
-                </div>
-                <span className="text-[11px] font-mono text-emerald-800">
-                  Batch: {addForm.batchNumber.trim() || 'Auto-generated'}
-                </span>
-              </div>
-            )}
-          </div>
-
+          {/* Classification & Details */}
           <div className="grid grid-cols-1 sm:grid-cols-2 sm:grid-cols-4 gap-3">
-            <div>
-              <label className="text-xs font-bold text-slate-700 block mb-1">Pack Size *</label>
-              <input
-                type="text"
-                placeholder="15 Tablets"
-                value={addForm.packSize}
-                onChange={(e) => setAddForm({ ...addForm, packSize: e.target.value })}
-                className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-300 rounded-lg font-mono"
-              />
-            </div>
             <div>
               <label className="text-xs font-bold text-slate-700 block mb-1 flex items-center gap-1">
                 HSN Code <span className="text-[10px] text-emerald-600 font-normal">(Optional)</span>
@@ -1194,6 +949,16 @@ export const ProductsPage: React.FC = () => {
               </select>
             </div>
             <div>
+              <label className="text-xs font-bold text-slate-700 block mb-1">Barcode / EAN</label>
+              <input
+                type="text"
+                placeholder="8901117001014"
+                value={addForm.barcode}
+                onChange={(e) => setAddForm({ ...addForm, barcode: e.target.value })}
+                className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-300 rounded-lg font-mono"
+              />
+            </div>
+            <div>
               <label className="text-xs font-bold text-slate-700 block mb-1">Reorder Alert (Qty)</label>
               <input
                 type="number"
@@ -1207,16 +972,6 @@ export const ProductsPage: React.FC = () => {
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <label className="text-xs font-bold text-slate-700 block mb-1">Barcode / EAN</label>
-              <input
-                type="text"
-                placeholder="8901117001014"
-                value={addForm.barcode}
-                onChange={(e) => setAddForm({ ...addForm, barcode: e.target.value })}
-                className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-300 rounded-lg font-mono"
-              />
-            </div>
-            <div>
               <label className="text-xs font-bold text-slate-700 block mb-1">Schedule / Restriction</label>
               <select
                 value={addForm.prescriptionType}
@@ -1229,6 +984,21 @@ export const ProductsPage: React.FC = () => {
                 <option value="Schedule X">Schedule X (Narcotic/Restricted)</option>
               </select>
             </div>
+            {isSuperAdmin && branches.length > 0 && (
+              <div>
+                <label className="text-xs font-bold text-slate-700 block mb-1">Target Branch for Stock</label>
+                <select
+                  value={addForm.targetBranchId}
+                  onChange={(e) => setAddForm({ ...addForm, targetBranchId: e.target.value })}
+                  className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-300 rounded-lg font-medium"
+                >
+                  <option value="">Default Branch ({branches[0]?.name || 'Primary Branch'})</option>
+                  {branches.map((b) => (
+                    <option key={b.id} value={b.id}>{b.name} ({b.code})</option>
+                  ))}
+                </select>
+              </div>
+            )}
           </div>
 
           <div className="flex justify-end gap-2 pt-4 border-t border-slate-200">
@@ -1273,35 +1043,6 @@ export const ProductsPage: React.FC = () => {
               />
             </div>
             <div>
-              <label className="text-xs font-bold text-slate-700 block mb-1">Generic / Active Ingredient *</label>
-              <input
-                type="text"
-                required
-                placeholder="e.g. Paracetamol 650 mg"
-                value={editForm.genericName}
-                onChange={(e) => setEditForm({ ...editForm, genericName: e.target.value })}
-                className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-300 rounded-lg focus:bg-white focus:ring-2 focus:ring-emerald-500"
-              />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div>
-              <label className="text-xs font-bold text-slate-700 block mb-1">Dosage Form *</label>
-              <select
-                value={editForm.dosageForm}
-                onChange={(e) => setEditForm({ ...editForm, dosageForm: e.target.value })}
-                className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-300 rounded-lg focus:bg-white focus:ring-2 focus:ring-emerald-500"
-              >
-                <option value="Tablet">Tablet</option>
-                <option value="Capsule">Capsule</option>
-                <option value="Syrup">Syrup</option>
-                <option value="Injection">Injection</option>
-                <option value="Ointment">Ointment</option>
-                <option value="Drops">Drops</option>
-              </select>
-            </div>
-            <div>
               <label className="text-xs font-bold text-slate-700 block mb-1">Manufacturer *</label>
               <input
                 type="text"
@@ -1313,12 +1054,12 @@ export const ProductsPage: React.FC = () => {
             </div>
           </div>
 
-          {/* Pricing & GST Classification Section */}
+          {/* Pricing Structure: Default Purchase Rate & MRP (Default Selling Rate completely removed) */}
           <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-3">
             <p className="text-[11px] font-bold text-slate-700 uppercase tracking-wider">
-              Pricing Structure & Rates (Kept Strictly Separate)
+              Pricing Structure & Rates
             </p>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className="text-xs font-bold text-blue-900 block mb-1">Default Purchase Rate</label>
                 <input
@@ -1330,20 +1071,7 @@ export const ProductsPage: React.FC = () => {
                   onChange={(e) => setEditForm({ ...editForm, defaultPurchaseRate: e.target.value })}
                   className="w-full px-3 py-2 text-xs bg-white border border-blue-200 rounded-lg font-mono font-bold text-blue-900 focus:ring-2 focus:ring-blue-500"
                 />
-                <span className="text-[10px] text-slate-500 block mt-0.5 leading-tight">The usual price paid to purchase one unit of this medicine from a supplier. Enter the amount in your currency.</span>
-              </div>
-              <div>
-                <label className="text-xs font-bold text-emerald-900 block mb-1">Default Selling Rate</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  placeholder="e.g., 20.00"
-                  value={editForm.defaultSellingRate}
-                  onChange={(e) => setEditForm({ ...editForm, defaultSellingRate: e.target.value })}
-                  className="w-full px-3 py-2 text-xs bg-white border border-emerald-200 rounded-lg font-mono font-bold text-emerald-900 focus:ring-2 focus:ring-emerald-500"
-                />
-                <span className="text-[10px] text-slate-500 block mt-0.5 leading-tight">The usual price charged to the customer for one unit. This is a default value, not necessarily the final billed price.</span>
+                <span className="text-[10px] text-slate-500 block mt-0.5 leading-tight">The price paid to purchase one unit from a supplier.</span>
               </div>
               <div>
                 <label className="text-xs font-bold text-amber-900 block mb-1">Maximum Retail Price (MRP) *</label>
@@ -1357,78 +1085,12 @@ export const ProductsPage: React.FC = () => {
                   onChange={(e) => setEditForm({ ...editForm, mrp: e.target.value })}
                   className="w-full px-3 py-2 text-xs bg-white border border-amber-300 rounded-lg font-mono font-bold text-slate-900 focus:ring-2 focus:ring-amber-500"
                 />
-                <span className="text-[10px] text-slate-500 block mt-0.5 leading-tight">The maximum retail price printed on the medicine packaging for the specified pack or unit.</span>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-slate-50 p-3 rounded-lg border border-slate-200">
-            <h4 className="text-xs font-bold text-slate-800 mb-2 flex items-center gap-1.5">
-              <Pill className="w-3.5 h-3.5 text-brand-600" />
-              Packaging & Unit Conversion (FEFO / POS / Inventory)
-            </h4>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <div>
-                <label className="text-xs font-bold text-slate-700 block mb-1">Package Unit (Purchased As)</label>
-                <select
-                  value={editForm.packageUnit}
-                  onChange={(e) => setEditForm({ ...editForm, packageUnit: e.target.value })}
-                  className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-lg font-medium"
-                >
-                  <option value="Box">Box</option>
-                  <option value="Strip">Strip</option>
-                  <option value="Bottle">Bottle</option>
-                  <option value="Carton">Carton</option>
-                  <option value="Pack">Pack</option>
-                  <option value="Vial">Vial</option>
-                  <option value="Ampoule">Ampoule</option>
-                </select>
-                <span className="text-[10px] text-slate-500 block mt-0.5">Bulk purchase container</span>
-              </div>
-              <div>
-                <label className="text-xs font-bold text-slate-700 block mb-1">Base Unit (Sold / Dispensed As)</label>
-                <select
-                  value={editForm.baseUnit}
-                  onChange={(e) => setEditForm({ ...editForm, baseUnit: e.target.value })}
-                  className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-lg font-medium"
-                >
-                  <option value="Strip">Strip</option>
-                  <option value="Tablet">Tablet</option>
-                  <option value="Capsule">Capsule</option>
-                  <option value="Bottle">Bottle</option>
-                  <option value="Vial">Vial</option>
-                  <option value="Ampoule">Ampoule</option>
-                  <option value="Piece">Piece</option>
-                  <option value="Sachet">Sachet</option>
-                </select>
-                <span className="text-[10px] text-slate-500 block mt-0.5">Base dispensing unit</span>
-              </div>
-              <div>
-                <label className="text-xs font-bold text-slate-700 block mb-1">Units per Package (Factor) *</label>
-                <input
-                  type="number"
-                  min="1"
-                  step="1"
-                  placeholder="10"
-                  value={editForm.conversionFactor}
-                  onChange={(e) => setEditForm({ ...editForm, conversionFactor: e.target.value })}
-                  className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-lg font-mono font-bold"
-                />
-                <span className="text-[10px] text-slate-500 block mt-0.5">1 {editForm.packageUnit || 'Box'} = {editForm.conversionFactor || 10} {editForm.baseUnit || 'Strips'}</span>
+                <span className="text-[10px] text-slate-500 block mt-0.5 leading-tight">The maximum retail price printed on packaging.</span>
               </div>
             </div>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 sm:grid-cols-4 gap-3">
-            <div>
-              <label className="text-xs font-bold text-slate-700 block mb-1">Pack Size *</label>
-              <input
-                type="text"
-                value={editForm.packSize}
-                onChange={(e) => setEditForm({ ...editForm, packSize: e.target.value })}
-                className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-300 rounded-lg font-mono"
-              />
-            </div>
             <div>
               <label className="text-xs font-bold text-slate-700 block mb-1 flex items-center gap-1">
                 HSN Code <span className="text-[10px] text-emerald-600 font-normal">(Optional)</span>
@@ -1455,6 +1117,15 @@ export const ProductsPage: React.FC = () => {
               </select>
             </div>
             <div>
+              <label className="text-xs font-bold text-slate-700 block mb-1">Barcode / EAN</label>
+              <input
+                type="text"
+                value={editForm.barcode}
+                onChange={(e) => setEditForm({ ...editForm, barcode: e.target.value })}
+                className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-300 rounded-lg font-mono"
+              />
+            </div>
+            <div>
               <label className="text-xs font-bold text-slate-700 block mb-1">Reorder Alert (Qty)</label>
               <input
                 type="number"
@@ -1467,15 +1138,6 @@ export const ProductsPage: React.FC = () => {
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <label className="text-xs font-bold text-slate-700 block mb-1">Barcode / EAN</label>
-              <input
-                type="text"
-                value={editForm.barcode}
-                onChange={(e) => setEditForm({ ...editForm, barcode: e.target.value })}
-                className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-300 rounded-lg font-mono"
-              />
-            </div>
-            <div>
               <label className="text-xs font-bold text-slate-700 block mb-1">Schedule / Restriction</label>
               <select
                 value={editForm.prescriptionType}
@@ -1487,6 +1149,18 @@ export const ProductsPage: React.FC = () => {
                 <option value="Schedule H1">Schedule H1 (Controlled Drug)</option>
                 <option value="Schedule X">Schedule X (Narcotic/Restricted)</option>
               </select>
+            </div>
+            <div className="flex items-center gap-2 pt-5">
+              <input
+                type="checkbox"
+                id="editProductActive"
+                checked={editForm.isActive}
+                onChange={(e) => setEditForm({ ...editForm, isActive: e.target.checked })}
+                className="rounded text-brand-600 focus:ring-brand-500 cursor-pointer"
+              />
+              <label htmlFor="editProductActive" className="text-xs font-bold text-slate-700 cursor-pointer">
+                Active in Medicine Master Catalogue
+              </label>
             </div>
           </div>
 

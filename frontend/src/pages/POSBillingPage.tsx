@@ -673,7 +673,7 @@ export const POSBillingPage: React.FC = () => {
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 onKeyDown={handleSearchKeyDown}
-                placeholder="Search medicine by Brand, Generic name, or Scan Barcode... (F2: Focus, F4: Checkout)"
+                placeholder="Search medicine by Brand name, or Scan Barcode... (F2: Focus, F4: Checkout)"
                 className="w-full pl-11 pr-20 sm:pr-24 py-2.5 text-xs sm:text-sm bg-slate-50 border border-slate-300 rounded-lg focus:bg-white focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 font-medium text-slate-900 transition-all placeholder:text-slate-400"
               />
               <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1.5 text-xs text-slate-400">
@@ -704,7 +704,6 @@ export const POSBillingPage: React.FC = () => {
                     <div>
                       <div className="flex items-center gap-2">
                         <span className="font-bold text-sm text-slate-900">{prod.brandName}</span>
-                        <span className="text-xs text-slate-500 font-medium">({prod.genericName} - {prod.strength})</span>
                         <span className="px-1.5 py-0.5 rounded text-[10px] bg-slate-100 text-slate-600 font-semibold">
                           {prod.dosageForm}
                         </span>
@@ -819,7 +818,6 @@ export const POSBillingPage: React.FC = () => {
                         <div className="flex items-start justify-between gap-2">
                           <div className="min-w-0 flex-1">
                             <p className="font-bold text-slate-900 text-sm leading-tight">{item.brandName}</p>
-                            <p className="text-[11px] text-slate-500 font-medium">({item.genericName} - {item.strength})</p>
                           </div>
                           <button
                             type="button"

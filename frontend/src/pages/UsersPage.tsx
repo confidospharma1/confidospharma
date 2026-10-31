@@ -548,18 +548,6 @@ export const UsersPage: React.FC = () => {
                               <UserCheck className="w-3.5 h-3.5" />
                             </button>
                           )}
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setDeleteTarget(u);
-                              setDeleteError(null);
-                              setShowDeleteModal(true);
-                            }}
-                            title="Delete Staff Account"
-                            className="p-1.5 text-rose-600 hover:bg-rose-50 rounded-md transition-colors"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
                         </div>
                       </td>
                     )}
@@ -599,11 +587,13 @@ export const UsersPage: React.FC = () => {
               />
             </div>
             <div>
-              <label className="text-xs font-bold text-slate-700 block mb-1">Email *</label>
+              <label className="text-xs font-bold text-slate-700 block mb-1">
+                Email {formData.role === 'BILLING_USER' ? <span className="text-slate-400 font-normal">(Optional for Cashier)</span> : '*'}
+              </label>
               <input
                 type="email"
-                required
-                placeholder="ramesh@confidospharma.com"
+                required={formData.role !== 'BILLING_USER'}
+                placeholder={formData.role === 'BILLING_USER' ? "Optional (Leave blank to auto-generate)" : "ramesh@confidospharma.com"}
                 value={formData.email}
                 onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                 className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-300 rounded-lg focus:bg-white"
@@ -699,10 +689,12 @@ export const UsersPage: React.FC = () => {
               />
             </div>
             <div>
-              <label className="text-xs font-bold text-slate-700 block mb-1">Email *</label>
+              <label className="text-xs font-bold text-slate-700 block mb-1">
+                Email {editUserForm.role === 'BILLING_USER' ? <span className="text-slate-400 font-normal">(Optional for Cashier)</span> : '*'}
+              </label>
               <input
                 type="email"
-                required
+                required={editUserForm.role !== 'BILLING_USER'}
                 value={editUserForm.email}
                 onChange={(e) => setEditUserForm({ ...editUserForm, email: e.target.value })}
                 className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-300 rounded-lg focus:bg-white"

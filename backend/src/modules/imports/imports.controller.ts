@@ -103,12 +103,12 @@ export const uploadAndPreviewImport = async (req: Request, res: Response) => {
 
       if (importType === 'CATALOGUE') {
         const brandName = (mapped.brandName || mapped.productName || '').toString().trim();
-        const genericNameRaw = (mapped.genericName || '').toString().trim();
-        const rawStrength = (mapped.strength || '').toString().trim();
+        const genericNameRaw = (mapped.genericName || brandName).toString().trim();
+        const rawStrength = (mapped.strength || 'Standard').toString().trim();
         const { genericName, strength } = extractOrPreserveStrength(genericNameRaw, rawStrength);
         const dosageForm = (mapped.dosageForm || 'Tablet').toString().trim();
         const manufacturer = (mapped.manufacturer || 'Standard Pharma').toString().trim();
-        const packSize = (mapped.packSize || '10 Tablets').toString().trim();
+        const packSize = (mapped.packSize || '1 Unit').toString().trim();
         const rawHsn = (mapped.hsnCode || '').toString().trim();
         const hsnCode = rawHsn ? rawHsn : null;
         const gstRate = parseCleanNumber(mapped.gstRate, 5);
@@ -117,15 +117,18 @@ export const uploadAndPreviewImport = async (req: Request, res: Response) => {
         const defaultSellingRate = parseCleanNumber(mapped.defaultSellingRate, NaN);
         const reorderLevel = parseCleanInt(mapped.reorderLevel, 10);
         const barcode = (mapped.barcode || '').toString().trim();
-        const prescriptionType = (mapped.prescriptionType || 'Schedule H').toString().trim();
+        const prescriptionType = (mapped.prescriptionType || 'OTC').toString().trim();
+
+        const quantity = parseCleanInt(mapped.quantity, 0);
+        const freeQuantity = parseCleanInt(mapped.freeQuantity, 0);
+        const batchNumber = (mapped.batchNumber || '').toString().trim();
+        const expiryDate = (mapped.expiryDate || '').toString().trim();
 
         if (!brandName) errors.push('Brand Name is required');
-        if (!genericName) errors.push('Generic / Active ingredient is required');
-        if (!strength) errors.push('Strength is required');
         if (isNaN(mrp) || mrp <= 0) errors.push('Valid positive MRP is required');
         if (isNaN(gstRate) || gstRate < 0) errors.push('Valid GST Rate is required');
 
-        const dedupKey = `${brandName.toLowerCase()}_${genericName.toLowerCase()}_${strength.toLowerCase()}_${dosageForm.toLowerCase()}`;
+        const dedupKey = brandName.toLowerCase();
         if (seenKeys.has(dedupKey)) {
           duplicateCount++;
           errors.push('Duplicate row within uploaded file');
@@ -141,11 +144,11 @@ export const uploadAndPreviewImport = async (req: Request, res: Response) => {
         const processed = {
           rowIndex,
           brandName,
-          genericName,
-          strength,
-          dosageForm,
+          genericName: genericName || brandName,
+          strength: strength || 'Standard',
+          dosageForm: dosageForm || 'Tablet',
           manufacturer: manufacturer || 'Standard Pharma',
-          packSize,
+          packSize: packSize || '1 Unit',
           hsnCode,
           gstRate: isNaN(gstRate) ? 5 : gstRate,
           mrp: isNaN(mrp) ? 0 : mrp,
@@ -153,7 +156,11 @@ export const uploadAndPreviewImport = async (req: Request, res: Response) => {
           defaultSellingRate: isNaN(defaultSellingRate) ? null : defaultSellingRate,
           reorderLevel: isNaN(reorderLevel) ? 10 : reorderLevel,
           barcode: barcode || null,
-          prescriptionType,
+          prescriptionType: prescriptionType || 'OTC',
+          quantity: isNaN(quantity) ? 0 : Math.max(0, quantity),
+          freeQuantity: isNaN(freeQuantity) ? 0 : Math.max(0, freeQuantity),
+          batchNumber: batchNumber || (quantity > 0 ? `OPN-${Date.now().toString().slice(-6)}` : null),
+          expiryDate: expiryDate || null,
           status: errors.length > 0 ? 'ERROR' : 'READY',
           errors,
           warnings,
@@ -500,6 +507,9 @@ export const commitImportJob = async (req: Request, res: Response) => {
           completedAt: new Date(),
         },
       });
+    }, {
+      maxWait: 10000,
+      timeout: 30000,
     });
 
     await logAuditEvent({
@@ -561,16 +571,17 @@ export const downloadTemplate = async (req: Request, res: Response) => {
     templateData = [
       {
         'Brand Name': 'Telma 20',
-        'Generic Name': 'Telmisartan',
-        'Strength': '20 mg',
-        'Dosage Form': 'Tablet',
+        'Quantity': 100,
+        'Free Quantity': 10,
+        'Batch Number': 'TLM-2026-01',
+        'Batch Expiry Date': '2028-12-31',
         'Manufacturer': 'Glenmark',
-        'Pack Size': '15 Tablets',
-        'HSN Code': '30049099',
-        'GST Rate': 5,
+        'Purchase Rate': 75.00,
         'MRP': 98.00,
+        'GST Rate': 5,
+        'HSN Code': '30049099',
         'Barcode': '8901117009999',
-        'Prescription Type': 'Schedule H',
+        'Category': 'OTC',
       },
     ];
   } else {

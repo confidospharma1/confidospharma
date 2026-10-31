@@ -135,7 +135,7 @@ export const createProduct = async (req: Request, res: Response) => {
       packSize,
       baseUnit = 'Strip',
       packageUnit = 'Box',
-      conversionFactor = 10,
+      conversionFactor = 1,
       hsnCode,
       gstRate,
       mrp,
@@ -143,21 +143,27 @@ export const createProduct = async (req: Request, res: Response) => {
       defaultSellingRate,
       reorderLevel,
       barcode,
-      prescriptionType = 'Schedule H',
+      prescriptionType = 'OTC',
       storageNotes,
       // Initial Stock entry fields
+      quantity,
       initialQuantity,
+      freeQuantity,
       quantityUnit,
       batchNumber,
       expiryDate,
       branchId,
     } = req.body;
 
+    const effectiveBrandName = brandName ? String(brandName).trim() : '';
+    const effectiveGeneric = genericName && String(genericName).trim() ? String(genericName).trim() : effectiveBrandName;
+    const effectiveDosageForm = dosageForm && String(dosageForm).trim() ? String(dosageForm).trim() : 'Tablet';
+    const effectivePackSize = packSize && String(packSize).trim() ? String(packSize).trim() : '1 Unit';
+    const effectivePrescriptionType = prescriptionType || 'OTC';
+
     const missingFields: string[] = [];
     const missingKeys: string[] = [];
-    if (!brandName || !String(brandName).trim()) { missingFields.push('Brand Name'); missingKeys.push('brandName'); }
-    if (!genericName || !String(genericName).trim()) { missingFields.push('Generic / Active Ingredient'); missingKeys.push('genericName'); }
-    if (!dosageForm || !String(dosageForm).trim()) { missingFields.push('Dosage Form'); missingKeys.push('dosageForm'); }
+    if (!effectiveBrandName) { missingFields.push('Brand Name'); missingKeys.push('brandName'); }
     if (!manufacturer || !String(manufacturer).trim()) { missingFields.push('Manufacturer'); missingKeys.push('manufacturer'); }
     if (gstRate === undefined || gstRate === null || String(gstRate).trim() === '') { missingFields.push('GST Rate'); missingKeys.push('gstRate'); }
     if (mrp === undefined || mrp === null || String(mrp).trim() === '' || isNaN(Number(mrp))) { missingFields.push('Maximum Retail Price (MRP)'); missingKeys.push('mrp'); }
@@ -177,29 +183,20 @@ export const createProduct = async (req: Request, res: Response) => {
       });
     }
 
-    // Safely extract or preserve strength from combined Generic / Active Ingredient input
-    const { genericName: resolvedGeneric, strength: resolvedStrength } = extractOrPreserveStrength(genericName, strength);
+    // Safely extract or preserve strength
+    const { genericName: resolvedGeneric, strength: resolvedStrength } = extractOrPreserveStrength(effectiveGeneric, strength);
 
     // Duplicate detection check (PRD Section 4.3)
     const duplicate = await prisma.medicineProduct.findFirst({
       where: {
-        brandName: { equals: brandName.trim(), mode: 'insensitive' },
-        dosageForm: { equals: dosageForm.trim(), mode: 'insensitive' },
-        OR: [
-          { genericName: { equals: resolvedGeneric.trim(), mode: 'insensitive' } },
-          {
-            AND: [
-              { genericName: { contains: resolvedGeneric.trim().split(' ')[0], mode: 'insensitive' } },
-              { strength: { equals: resolvedStrength.trim(), mode: 'insensitive' } },
-            ],
-          },
-        ],
+        brandName: { equals: effectiveBrandName, mode: 'insensitive' },
+        isActive: true,
       },
     });
 
     if (duplicate) {
       return res.status(409).json({
-        message: `Likely duplicate product detected: '${duplicate.brandName}' (${duplicate.genericName} ${duplicate.strength} ${duplicate.dosageForm}) already exists with code ${duplicate.internalCode}.`,
+        message: `Likely duplicate product detected: '${duplicate.brandName}' already exists with code ${duplicate.internalCode}.`,
         duplicateId: duplicate.id,
       });
     }
@@ -217,19 +214,21 @@ export const createProduct = async (req: Request, res: Response) => {
       }
     }
 
-    // Validate initial stock quantity if provided
-    const parsedInitialQty = initialQuantity !== undefined && initialQuantity !== null && initialQuantity !== ''
-      ? parseInt(String(initialQuantity))
-      : 0;
+    // Validate initial stock quantity & free quantity if provided
+    const rawQty = quantity !== undefined && quantity !== null && quantity !== '' ? quantity : initialQuantity;
+    const parsedInitialQty = rawQty !== undefined && rawQty !== null && rawQty !== '' ? parseInt(String(rawQty)) : 0;
+    const parsedFreeQty = freeQuantity !== undefined && freeQuantity !== null && freeQuantity !== '' ? parseInt(String(freeQuantity)) : 0;
 
-    if (parsedInitialQty < 0) {
-      return res.status(400).json({ message: 'Initial stock quantity cannot be negative.' });
+    if (parsedInitialQty < 0 || parsedFreeQty < 0) {
+      return res.status(400).json({ message: 'Quantity cannot be negative.' });
     }
+
+    const totalOpeningQty = parsedInitialQty + parsedFreeQty;
 
     let targetBranchId: string | null = null;
     if (req.user.role === 'SUPER_ADMIN') {
       targetBranchId = (branchId as string) || (req.user.branchId as string) || null;
-      if (!targetBranchId && parsedInitialQty > 0) {
+      if (!targetBranchId && totalOpeningQty > 0) {
         const firstBranch = await prisma.branch.findFirst({ select: { id: true } });
         targetBranchId = firstBranch ? firstBranch.id : null;
       }
@@ -237,11 +236,11 @@ export const createProduct = async (req: Request, res: Response) => {
       targetBranchId = req.user.branchId || null;
     }
 
-    if (parsedInitialQty > 0 && !targetBranchId) {
+    if (totalOpeningQty > 0 && !targetBranchId) {
       return res.status(400).json({ message: 'A valid branch is required to record initial stock.' });
     }
 
-    if (parsedInitialQty > 0 && targetBranchId) {
+    if (totalOpeningQty > 0 && targetBranchId) {
       const branchExists = await prisma.branch.findUnique({ where: { id: targetBranchId } });
       if (!branchExists) {
         return res.status(400).json({ message: 'Target branch does not exist.' });
@@ -250,9 +249,9 @@ export const createProduct = async (req: Request, res: Response) => {
 
     const factor = conversionFactor !== undefined && conversionFactor !== null && !isNaN(parseInt(String(conversionFactor)))
       ? Math.max(1, parseInt(String(conversionFactor)))
-      : 10;
+      : 1;
     const isPackageUnit = quantityUnit && packageUnit && quantityUnit.trim().toLowerCase() === packageUnit.trim().toLowerCase();
-    const baseQuantity = isPackageUnit ? parsedInitialQty * factor : parsedInitialQty;
+    const baseQuantity = isPackageUnit ? totalOpeningQty * factor : totalOpeningQty;
 
     const batchNum = batchNumber && String(batchNumber).trim()
       ? String(batchNumber).trim().toUpperCase()
@@ -309,7 +308,7 @@ export const createProduct = async (req: Request, res: Response) => {
               defaultSellingRate: defaultSellingRate !== undefined && defaultSellingRate !== null && defaultSellingRate !== '' ? parseFloat(String(defaultSellingRate)) : null,
               reorderLevel: reorderLevel !== undefined && reorderLevel !== null && reorderLevel !== '' ? parseInt(String(reorderLevel)) : 10,
               barcode: barcode ? barcode.trim() : null,
-              prescriptionType: prescriptionType || 'Schedule H',
+              prescriptionType: effectivePrescriptionType,
               storageNotes: storageNotes ? storageNotes.trim() : null,
             },
           });

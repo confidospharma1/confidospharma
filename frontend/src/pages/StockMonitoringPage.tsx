@@ -648,7 +648,7 @@ export const StockMonitoringPage: React.FC = () => {
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search by Medicine, Generic, Brand, SKU or Batch..."
+              placeholder="Search by Medicine, Brand, SKU or Batch..."
               className="w-full pl-9 pr-8 py-2 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-hidden focus:ring-2 focus:ring-brand-500 focus:bg-white text-slate-800 placeholder-slate-400"
             />
             {search && (
@@ -855,7 +855,7 @@ export const StockMonitoringPage: React.FC = () => {
             <table className="w-full text-left text-xs border-collapse min-w-[1050px]">
               <thead>
                 <tr className="bg-slate-50/80 border-b border-slate-200 text-slate-600 font-bold">
-                  <th className="py-3 px-4">Medicine & Generic Name</th>
+                  <th className="py-3 px-4">Medicine Name</th>
                   <th className="py-3 px-3">Form & Strength</th>
                   <th className="py-3 px-3">Manufacturer</th>
                   <th className="py-3 px-3">SKU / Code</th>
@@ -877,13 +877,10 @@ export const StockMonitoringPage: React.FC = () => {
                     className="hover:bg-slate-50/70 transition-colors cursor-pointer group"
                     onClick={() => handleViewBatches(item)}
                   >
-                    {/* Medicine & Generic Name */}
+                    {/* Medicine Name */}
                     <td className="py-3 px-4">
                       <div className="font-bold text-slate-900 group-hover:text-brand-600 transition-colors">
                         {item.medicineName}
-                      </div>
-                      <div className="text-[11px] text-slate-400 truncate max-w-xs" title={item.genericName}>
-                        {item.genericName}
                       </div>
                     </td>
 
@@ -1096,10 +1093,10 @@ export const StockMonitoringPage: React.FC = () => {
         >
           <div className="space-y-5">
             {/* Medicine Profile Card */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-3 p-3 sm:p-3.5 rounded-xl bg-slate-50 border border-slate-200 text-xs">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5 sm:gap-3 p-3 sm:p-3.5 rounded-xl bg-slate-50 border border-slate-200 text-xs">
               <div>
-                <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Generic Formulation</span>
-                <span className="font-semibold text-slate-800">{selectedMedicine.genericName}</span>
+                <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Medicine Brand</span>
+                <span className="font-semibold text-slate-800">{selectedMedicine.medicineName}</span>
               </div>
               <div>
                 <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Form & Strength</span>

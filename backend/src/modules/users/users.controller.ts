@@ -50,8 +50,17 @@ export const createUser = async (req: Request, res: Response) => {
 
     const { username, email, fullName, password, role, branchId } = req.body;
 
-    if (!username || !email || !fullName || !password || !role) {
-      return res.status(400).json({ message: 'All fields are required.' });
+    if (!username || !fullName || !password || !role) {
+      return res.status(400).json({ message: 'Username, full name, password, and role are required.' });
+    }
+
+    if (role !== 'BILLING_USER' && (!email || !email.trim())) {
+      return res.status(400).json({ message: 'Email address is required for Branch Admin and Super Admin accounts.' });
+    }
+
+    let effectiveEmail = email ? email.toLowerCase().trim() : '';
+    if (!effectiveEmail && role === 'BILLING_USER') {
+      effectiveEmail = `${username.toLowerCase().trim()}@cashier.confidos.local`;
     }
 
     // Role permission enforcement
@@ -75,7 +84,7 @@ export const createUser = async (req: Request, res: Response) => {
 
     // Check unique username & email
     const existing = await prisma.user.findFirst({
-      where: { OR: [{ username }, { email }] },
+      where: { OR: [{ username: username.toLowerCase().trim() }, { email: effectiveEmail }] },
     });
     if (existing) {
       return res.status(409).json({ message: 'Username or email already in use.' });
@@ -85,7 +94,7 @@ export const createUser = async (req: Request, res: Response) => {
     const newUser = await prisma.user.create({
       data: {
         username: username.toLowerCase().trim(),
-        email: email.toLowerCase().trim(),
+        email: effectiveEmail,
         fullName: fullName.trim(),
         passwordHash,
         role,

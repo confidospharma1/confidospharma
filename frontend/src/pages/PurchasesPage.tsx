@@ -170,7 +170,7 @@ export const PurchasesPage: React.FC<PurchasesPageProps> = ({ prefilledIndent, o
       purchaseRate: 20,
       sellingRate: 28,
       mrp: 30,
-      discountPercent: 15, // Default 15%
+      discountPercent: 0,
       discountAmount: 0,
       gstRate: 5.0, // Default 5% (2.5% CGST + 2.5% SGST)
     },
@@ -338,7 +338,7 @@ export const PurchasesPage: React.FC<PurchasesPageProps> = ({ prefilledIndent, o
             purchaseRate: it.estimatedRate || 20,
             sellingRate: (it.estimatedRate || 20) * 1.3,
             mrp: (it.estimatedRate || 20) * 1.5,
-            discountPercent: 15,
+            discountPercent: 0,
             discountAmount: 0,
             gstRate: 5.0,
           }))
@@ -395,7 +395,7 @@ export const PurchasesPage: React.FC<PurchasesPageProps> = ({ prefilledIndent, o
         purchaseRate: 20,
         sellingRate: 28,
         mrp: 30,
-        discountPercent: configuredDiscount, // Auto-prefill configured default (15%)
+        discountPercent: 0,
         discountAmount: 0,
         gstRate: configuredCombinedGST, // Auto-prefill configured default (5%)
       },
@@ -459,7 +459,7 @@ export const PurchasesPage: React.FC<PurchasesPageProps> = ({ prefilledIndent, o
         purchaseRate: 20,
         sellingRate: 28,
         mrp: 30,
-        discountPercent: configuredDiscount, // Respects configured default discount (15%)
+        discountPercent: 0,
         discountAmount: 0,
         gstRate: configuredCombinedGST, // Respects configured default GST (5%)
       },
@@ -796,29 +796,20 @@ export const PurchasesPage: React.FC<PurchasesPageProps> = ({ prefilledIndent, o
   lines.forEach((l) => {
     const qty = Number(l.quantity) || 0;
     const rate = Number(l.purchaseRate) || 0;
-    const gross = qty * rate;
-    let disc = 0;
-    if (l.discountPercent > 0) {
-      disc = (gross * Number(l.discountPercent)) / 100;
-    } else if (l.discountAmount > 0) {
-      disc = Number(l.discountAmount);
-    }
-    const taxable = Math.max(0, gross - disc);
+    const taxable = qty * rate;
     const lineGst = Number(l.gstRate) || 0;
     const lineTax = (taxable * lineGst) / 100;
     const lineCGST = lineTax / 2;
     const lineSGST = lineTax / 2;
 
     formSubtotal += taxable;
-    formLineDiscounts += disc;
     formCGSTTotal += lineCGST;
     formSGSTTotal += lineSGST;
     formTaxTotal += lineTax;
   });
 
-  const invDiscAmt = parseFloat(invoiceDiscountAmount) || 0;
   const extraCharges = parseFloat(additionalCharges) || 0;
-  const formGrandTotal = Math.max(0, formSubtotal - invDiscAmt + formTaxTotal + extraCharges);
+  const formGrandTotal = Math.max(0, formSubtotal + formTaxTotal + extraCharges);
 
   const selectedSupplierObj = suppliers.find((s) => s.id === supplierId);
 
@@ -866,7 +857,7 @@ export const PurchasesPage: React.FC<PurchasesPageProps> = ({ prefilledIndent, o
         invoiceDate,
         paymentMode,
         paidAmount: parsedPaid,
-        invoiceDiscountAmount: invDiscAmt,
+        invoiceDiscountAmount: 0,
         additionalCharges: extraCharges,
         notes,
         lines: lines.map((l) => ({
@@ -989,15 +980,18 @@ export const PurchasesPage: React.FC<PurchasesPageProps> = ({ prefilledIndent, o
     try {
       const created = await api.createProduct({
         brandName: inlineMedicineForm.brandName.trim(),
-        genericName: inlineMedicineForm.genericName.trim(),
-        strength: inlineMedicineForm.strength ? inlineMedicineForm.strength.trim() : undefined,
-        dosageForm: inlineMedicineForm.dosageForm.trim(),
+        genericName: inlineMedicineForm.brandName.trim(),
+        dosageForm: 'Tablet',
+        packSize: '1 Unit',
+        baseUnit: 'Unit',
+        packageUnit: 'Unit',
+        conversionFactor: 1,
         manufacturer: inlineMedicineForm.manufacturer.trim(),
-        hsnCode: inlineMedicineForm.hsnCode.trim() || undefined,
+        hsnCode: inlineMedicineForm.hsnCode?.trim() || undefined,
         gstRate: parseFloat(inlineMedicineForm.gstRate) || 5.0,
         mrp: parseFloat(inlineMedicineForm.mrp) || 0,
         defaultPurchaseRate: parseFloat(inlineMedicineForm.defaultPurchaseRate) || undefined,
-        defaultSellingRate: parseFloat(inlineMedicineForm.defaultSellingRate) || undefined,
+        prescriptionType: 'OTC',
       });
 
       // Update catalogue products cache
@@ -2516,8 +2510,7 @@ export const PurchasesPage: React.FC<PurchasesPageProps> = ({ prefilledIndent, o
                     const sRate = Number(l.sellingRate) || Number(l.mrp) || 0;
                     const factor = Number(l.conversionFactor) || 10;
                     const gross = qty * pRate;
-                    const disc = l.discountPercent > 0 ? (gross * l.discountPercent) / 100 : (l.discountAmount || 0);
-                    const taxable = Math.max(0, gross - disc);
+                    const taxable = gross;
                     const lineGst = Number(l.gstRate) || 0;
                     const lineTax = (taxable * lineGst) / 100;
                     const lineCGST = lineTax / 2;
@@ -2688,74 +2681,6 @@ export const PurchasesPage: React.FC<PurchasesPageProps> = ({ prefilledIndent, o
                           </div>
 
                           <div className="col-span-1 sm:col-span-1 lg:col-span-2">
-                            <label className="text-[10px] text-slate-500 block font-medium">
-                              Discount ({Number(l.discountPercent || 0)}%)
-                            </label>
-                            <select
-                              value={
-                                [0, 5, 10, 15, 20].includes(Number(l.discountPercent)) && !l.discountMode
-                                  ? String(Number(l.discountPercent))
-                                  : (l.discountMode === 'custom' || ![0, 5, 10, 15, 20].includes(Number(l.discountPercent)) ? 'custom' : '0')
-                              }
-                              onChange={(e) => {
-                                const val = e.target.value;
-                                if (val === 'custom') {
-                                  updateLine(idx, 'discountMode', 'custom');
-                                  if ([0, 5, 10, 15, 20].includes(Number(l.discountPercent))) {
-                                    updateLine(idx, 'customDiscount', String(l.discountPercent));
-                                  }
-                                } else {
-                                  updateLine(idx, 'discountMode', undefined);
-                                  updateLine(idx, 'customDiscount', undefined);
-                                  updateLine(idx, 'discountPercent', Number(val));
-                                }
-                              }}
-                              className="w-full px-1.5 py-1 bg-white border border-slate-300 rounded text-xs font-semibold"
-                            >
-                              <option value="0">0%</option>
-                              <option value="5">5%</option>
-                              <option value="10">10%</option>
-                              <option value="15">15%</option>
-                              <option value="20">20%</option>
-                              <option value="custom">Custom %</option>
-                            </select>
-                            {(l.discountMode === 'custom' || (![0, 5, 10, 15, 20].includes(Number(l.discountPercent)) && Number(l.discountPercent) > 0)) && (
-                              <div className="mt-1">
-                                <input
-                                  type="number"
-                                  step="0.1"
-                                  min="0"
-                                  max="20"
-                                  placeholder="0.0 - 20%"
-                                  value={l.customDiscount !== undefined ? l.customDiscount : (l.discountPercent ?? '')}
-                                  onChange={(e) => {
-                                    const raw = e.target.value;
-                                    updateLine(idx, 'customDiscount', raw);
-                                    if (raw.trim() === '') {
-                                      updateLine(idx, 'discountPercent', 0);
-                                    } else {
-                                      const parsed = parseFloat(raw);
-                                      if (!isNaN(parsed)) {
-                                        if (parsed < 0) {
-                                          updateLine(idx, 'discountPercent', 0);
-                                        } else if (parsed > 20) {
-                                          updateLine(idx, 'discountPercent', 20);
-                                        } else {
-                                          updateLine(idx, 'discountPercent', parsed);
-                                        }
-                                      }
-                                    }
-                                  }}
-                                  className="w-full px-1.5 py-0.5 bg-white border border-amber-300 rounded font-mono text-[11px] text-amber-900"
-                                />
-                                {Number(l.discountPercent) > 20 && (
-                                  <span className="text-[9px] text-rose-600 block">Max discount is 20%</span>
-                                )}
-                              </div>
-                            )}
-                          </div>
-
-                          <div className="col-span-1 sm:col-span-1 lg:col-span-2">
                             <label className="text-[10px] text-slate-500 block">
                               GST ({l.gstRate}%)
                             </label>
@@ -2796,27 +2721,18 @@ export const PurchasesPage: React.FC<PurchasesPageProps> = ({ prefilledIndent, o
                   Invoice Financial Summary & Dual Tax Breakdown
                 </h4>
 
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
-                  <div className="p-2.5 bg-white rounded-lg border border-slate-200">
-                    <span className="text-[10px] text-slate-500 block">Gross Subtotal</span>
-                    <span className="text-sm font-bold font-mono text-slate-800">
-                      ₹{(formSubtotal + formLineDiscounts).toFixed(2)}
-                    </span>
-                  </div>
-
-                  <div className="p-2.5 bg-white rounded-lg border border-slate-200">
-                    <span className="text-[10px] text-slate-500 block">
-                      Total Discounts ({formSubtotal > 0 ? ((formLineDiscounts / (formSubtotal + formLineDiscounts)) * 100).toFixed(1) : 0}%)
-                    </span>
-                    <span className="text-sm font-bold font-mono text-rose-600">
-                      -₹{(formLineDiscounts + invDiscAmt).toFixed(2)}
-                    </span>
-                  </div>
-
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
                   <div className="p-2.5 bg-white rounded-lg border border-slate-200">
                     <span className="text-[10px] text-slate-500 block">Taxable Base</span>
                     <span className="text-sm font-bold font-mono text-slate-900">
                       ₹{formSubtotal.toFixed(2)}
+                    </span>
+                  </div>
+
+                  <div className="p-2.5 bg-white rounded-lg border border-slate-200">
+                    <span className="text-[10px] text-slate-500 block">Total GST</span>
+                    <span className="text-sm font-bold font-mono text-emerald-700">
+                      ₹{formTaxTotal.toFixed(2)}
                     </span>
                   </div>
 
@@ -3009,7 +2925,7 @@ export const PurchasesPage: React.FC<PurchasesPageProps> = ({ prefilledIndent, o
             </div>
           )}
 
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
             <div>
               <label className="font-bold text-slate-700 block mb-1">Brand Name *</label>
               <input
@@ -3022,47 +2938,18 @@ export const PurchasesPage: React.FC<PurchasesPageProps> = ({ prefilledIndent, o
               />
             </div>
             <div>
-              <label className="font-bold text-slate-700 block mb-1">Generic / Active Ingredient *</label>
+              <label className="font-bold text-slate-700 block mb-1">Manufacturer *</label>
               <input
                 type="text"
                 required
-                placeholder="e.g. Paracetamol 650 mg"
-                value={inlineMedicineForm.genericName}
-                onChange={(e) => setInlineMedicineForm({ ...inlineMedicineForm, genericName: e.target.value })}
+                placeholder="e.g. Micro Labs Ltd"
+                value={inlineMedicineForm.manufacturer}
+                onChange={(e) => setInlineMedicineForm({ ...inlineMedicineForm, manufacturer: e.target.value })}
                 className="w-full px-3 py-1.5 bg-slate-50 border border-slate-300 rounded-lg focus:bg-white"
               />
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-2">
-            <div>
-              <label className="font-bold text-slate-700 block mb-1">Dosage Form *</label>
-              <select
-                value={inlineMedicineForm.dosageForm}
-                onChange={(e) => setInlineMedicineForm({ ...inlineMedicineForm, dosageForm: e.target.value })}
-                className="w-full px-2 py-1.5 bg-slate-50 border border-slate-300 rounded-lg focus:bg-white"
-              >
-                <option value="Tablet">Tablet</option>
-                <option value="Capsule">Capsule</option>
-                <option value="Syrup">Syrup</option>
-                <option value="Injection">Injection</option>
-                <option value="Ointment">Ointment</option>
-              </select>
-            </div>
-            <div>
-              <label className="font-bold text-slate-700 block mb-1">GST Rate (%) *</label>
-              <select
-                value={inlineMedicineForm.gstRate}
-                onChange={(e) => setInlineMedicineForm({ ...inlineMedicineForm, gstRate: e.target.value })}
-                className="w-full px-2 py-1.5 bg-slate-50 border border-slate-300 rounded-lg focus:bg-white"
-              >
-                <option value="5.0">5%</option>
-                <option value="12.0">12%</option>
-                <option value="18.0">18%</option>
-                <option value="28.0">28%</option>
-              </select>
-            </div>
-          </div>
-          <div className="grid grid-cols-3 gap-2">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
             <div>
               <label className="font-bold text-slate-700 block mb-1">Purchase Rate (₹)</label>
               <input
@@ -3071,17 +2958,6 @@ export const PurchasesPage: React.FC<PurchasesPageProps> = ({ prefilledIndent, o
                 placeholder="e.g. 70.00"
                 value={inlineMedicineForm.defaultPurchaseRate}
                 onChange={(e) => setInlineMedicineForm({ ...inlineMedicineForm, defaultPurchaseRate: e.target.value })}
-                className="w-full px-3 py-1.5 bg-slate-50 border border-slate-300 rounded-lg focus:bg-white font-mono"
-              />
-            </div>
-            <div>
-              <label className="font-bold text-slate-700 block mb-1">Selling Rate (₹)</label>
-              <input
-                type="number"
-                step="0.01"
-                placeholder="e.g. 100.00"
-                value={inlineMedicineForm.defaultSellingRate}
-                onChange={(e) => setInlineMedicineForm({ ...inlineMedicineForm, defaultSellingRate: e.target.value })}
                 className="w-full px-3 py-1.5 bg-slate-50 border border-slate-300 rounded-lg focus:bg-white font-mono"
               />
             </div>
@@ -3096,17 +2972,20 @@ export const PurchasesPage: React.FC<PurchasesPageProps> = ({ prefilledIndent, o
                 className="w-full px-3 py-1.5 bg-slate-50 border border-slate-300 rounded-lg focus:bg-white font-mono"
               />
             </div>
-          </div>
-          <div>
-            <label className="font-bold text-slate-700 block mb-1">Manufacturer *</label>
-            <input
-              type="text"
-              required
-              placeholder="e.g. Micro Labs Ltd"
-              value={inlineMedicineForm.manufacturer}
-              onChange={(e) => setInlineMedicineForm({ ...inlineMedicineForm, manufacturer: e.target.value })}
-              className="w-full px-3 py-1.5 bg-slate-50 border border-slate-300 rounded-lg focus:bg-white"
-            />
+            <div>
+              <label className="font-bold text-slate-700 block mb-1">GST Rate (%) *</label>
+              <select
+                value={inlineMedicineForm.gstRate}
+                onChange={(e) => setInlineMedicineForm({ ...inlineMedicineForm, gstRate: e.target.value })}
+                className="w-full px-2 py-1.5 bg-slate-50 border border-slate-300 rounded-lg focus:bg-white"
+              >
+                <option value="5.0">5%</option>
+                <option value="12.0">12%</option>
+                <option value="18.0">18%</option>
+                <option value="28.0">28%</option>
+                <option value="0.0">0% (Nil)</option>
+              </select>
+            </div>
           </div>
           <div className="flex justify-end gap-2 pt-3 border-t border-slate-200">
             <button

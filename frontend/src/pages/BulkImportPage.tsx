@@ -222,7 +222,7 @@ export const BulkImportPage: React.FC = () => {
                 <div>
                   <span className="font-bold text-xs block">Type A: Medicine Catalogue Import</span>
                   <span className="text-[11px] text-slate-500 leading-relaxed block mt-0.5">
-                    Adds or updates master medicine definitions (brand, generic, strength, HSN, MRP). Does not affect branch live stock.
+                    Adds or updates master medicine definitions (Brand Name, Quantity, Free Quantity, Batch, Expiry, Manufacturer, MRP, GST). Extra columns in your CSV/Excel are automatically ignored.
                   </span>
                 </div>
               </label>
@@ -499,7 +499,6 @@ export const BulkImportPage: React.FC = () => {
                         </td>
                         <td className="py-2.5 px-3 font-bold text-slate-800">
                           {r.brandName || r.internalCode}
-                          {r.genericName && <span className="block text-[11px] text-slate-500 font-normal">{r.genericName}</span>}
                         </td>
                         <td className="py-2.5 px-3 font-mono text-slate-700">
                           {r.batchNumber || r.strength || '-'}

@@ -194,27 +194,21 @@ When deleting a branch in Pharmacy Branch Management:
 ### Managing Staff Accounts (`/users`)
 Accessible to Super Admins and Branch Admins for provisioning cashiers and pharmacists.
 
-#### Creating a User
+#### Creating a Staff User Account
 Click **Add New Staff Member**:
 - **Full Name:** Employee's legal name (e.g., `Suresh Varma`).
 - **Username:** Alphanumeric handle (e.g., `suresh_vja`).
-- **Email:** Staff email address.
+- **Email Address:** Required **only** for `BRANCH_ADMIN` and `SUPER_ADMIN` accounts. For Cashier (`BILLING_USER`) accounts, the email address is completely optional; if omitted, the system automatically assigns an internal fallback handle (`username@cashier.confidos.local`).
 - **Password:** Initial password (min 8 characters).
 - **Assigned Role:**
   - `SUPER_ADMIN`: Full system-wide privileges.
-  - `BRANCH_ADMIN`: Branch inventory manager / head pharmacist.
-  - `BILLING_USER`: Front-counter cashier.
-- **Branch:** Assign to one of the configured branches (automatically populated with live synchronized branch data).
+  - `BRANCH_ADMIN`: Branch inventory manager / head pharmacist (requires valid email).
+  - `BILLING_USER`: Front-counter cashier (no email required).
+- **Assigned Branch:** Selected from the live synchronized pharmacy branches dropdown.
 
-#### Staff Account Activation & Deactivation
-The staff directory provides dedicated actions based on the current account status:
-- **Active Accounts:** Display a **Deactivate Account** action button (`UserX`). Clicking this revokes login privileges immediately while preserving all historical sales records, assigned branches, and role permissions.
-- **Inactive Accounts:** Display an **Activate Account** action button (`UserCheck`). Clicking this restores login privileges immediately without requiring password resets or re-entering profile details.
-
-#### Single & Bulk Staff Account Deletion
-- **Single Account Deletion:** Clicking the **Delete** button (`Trash2`) opens a confirmation modal clearly explaining the operation. Accounts with no transaction history are permanently deleted. Accounts with historical sales invoices or stock movements are safely deactivated to protect statutory audit records, accompanied by an explicit confirmation message.
-- **Bulk Account Deletion:** Super Administrators can select multiple staff accounts using checkboxes and click **Delete Selected Accounts**. The system processes all selected accounts, deletes unreferenced records, deactivates historical accounts, and reports an exact count (e.g., *"Deleted 2 user accounts, and deactivated 1 user account with historical transactions"*).
-- **Security Safeguards:** The system strictly blocks self-deletion and prohibits deleting or deactivating the last active Super Administrator.
+#### Staff Account Actions & Security Safeguards
+- **Direct Activation & Deactivation:** Under the table Actions column, active accounts feature a **Deactivate Staff Account** button (`UserX`), while inactive accounts display an **Activate Staff Account** button (`UserCheck`). Deactivation instantly terminates login access without destroying historical billing, prescription, or sales records.
+- **Removed Single Delete Icon:** To protect the statutory audit trail and prevent accidental user purges from the table view, the standalone Delete trash icon under table Actions has been removed in favor of status-driven activation/deactivation. Super Administrators can still perform bulk deactivations/purges through the bulk selection drawer where unreferenced accounts are deleted and historical accounts are safely archived.
 
 ---
 
@@ -637,6 +631,14 @@ The platform has undergone rigorous quality assurance and engineering enhancemen
 
 ### 7. Mobile Viewport & Counter Responsiveness
 - **Implemented Fix:** Added responsive bottom navigation bar on mobile viewports (< 1024px), mobile-optimized POS counter with segmented cart toggle, touch-scrolling enhancements, and compact branch badges.
+
+### 8. Medicine Catalogue Simplification & Staff Workflow Refinements
+- **Beside Brand Name Layout:** In Add Medicine modal, unified `Brand Name *`, `Quantity (Units)`, `Free Quantity` (bonus discount units), `Batch Number`, and `Batch Expiry Date` into a single, intuitive top row.
+- **Removed Unnecessary Clutter:** Eliminated mandatory "Generic / Active Ingredient", "Dosage Form", "Pack Size", "Default Selling Rate", separate Packaging Conversion boxes, and separate Opening Inventory section boxes. Backend safely defaults `genericName = brandName` to preserve full PostgreSQL schema integrity.
+- **Staff Accounts Safety:** Removed standalone delete trash icons under Actions in Staff Accounts; account access is controlled safely via direct Activate / Deactivate status actions.
+- **Cashier Email Exemption:** In "Create Staff User Account", email addresses are required strictly for Branch Admin and Super Admin accounts. Cashiers (`BILLING_USER`) can be created without an email address (auto-generates an internal unique handle).
+- **Inward Purchase Discount Removal:** Removed line discount percentage and discount amount inputs in "Record Inward Supplier Purchase Invoice", allowing line items and invoice totals to calculate transparently as taxable subtotal (`quantity * purchaseRate`) + GST.
+- **Bulk CSV / Excel Import Alignment:** Removed separate bulk import item from sidebar navigation. Updated catalogue import parser to support the simplified format (`Brand Name`, `Quantity`, `Free Quantity`, `Batch Number`, `Batch Expiry Date`, `Manufacturer`, `Purchase Rate`, `MRP`, `GST Rate`, `HSN Code`, `Barcode`, `Category`) while automatically and safely ignoring any extra columns in uploaded files.
 
 ---
 

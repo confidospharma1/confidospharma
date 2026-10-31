@@ -85,7 +85,12 @@ const CATALOGUE_FIELD_ALIASES: Record<string, string[]> = {
     'rx type',
     'rx',
     'drug schedule',
+    'category',
   ],
+  quantity: ['quantity', 'qty', 'units', 'stock', 'opening stock', 'initial quantity', 'initial stock'],
+  freeQuantity: ['free quantity', 'freequantity', 'free qty', 'freeqty', 'free discount quantity', 'bonus qty', 'free'],
+  batchNumber: ['batch number', 'batchnumber', 'batch', 'batch no', 'batchno', 'lot', 'lot no'],
+  expiryDate: ['expiry date', 'expirydate', 'expiry', 'exp date', 'expdate', 'exp dt', 'exp', 'batch expiry date'],
 };
 
 // Stock Receipt canonical fields and aliases
