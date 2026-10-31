@@ -16,13 +16,14 @@
 10. [Step 7: Purchase Indents (Branch Requisitions)](#10-step-7-purchase-indents-branch-requisitions)
 11. [Step 8: Inter-Branch Stock Transfers](#11-step-8-inter-branch-stock-transfers)
 12. [Step 9: Inventory Management & FEFO Batch Expiry Tracking](#12-step-9-inventory-management--fefo-batch-expiry-tracking)
-13. [Step 10: High-Speed Counter POS Billing](#13-step-10-high-speed-counter-pos-billing)
+13. [Step 10: High-Speed Counter POS Billing & Global Keyboard Shortcuts](#13-step-10-high-speed-counter-pos-billing--global-keyboard-shortcuts)
 14. [Step 11: Sales Invoices Register & Returns](#14-step-11-sales-invoices-register--returns)
 15. [Step 12: Financial Analytics & Profit & Loss Statement](#15-step-12-financial-analytics--profit--loss-statement)
 16. [Step 13: Management Reports & Regulatory Analytics](#16-step-13-management-reports--regulatory-analytics)
 17. [Step 14: Legal Compliance & Schedule H/H1 Narcotic Registers](#17-step-14-legal-compliance--schedule-hh1-narcotic-registers)
 18. [Step 15: Immutable Security Audit Trail & System Configuration](#18-step-15-immutable-security-audit-trail--system-configuration)
 19. [Troubleshooting & Error Resolution Guide](#19-troubleshooting--error-resolution-guide)
+20. [System Enhancements & Recent Quality Audit Updates](#20-system-enhancements--recent-quality-audit-updates)
 
 ---
 
@@ -176,6 +177,18 @@ Click **Add New Branch** and complete the form:
 - **GSTIN:** 15-character Indian State GST number (e.g., `36AAAAA1234A1Z5`).
 - **Drug License No:** Regulatory pharmacy license (e.g., `20B/21B-TS/HYD/4011`).
 
+#### Real-Time Automatic Branch Synchronization
+Newly created, updated, or deactivated branches are automatically synchronized across all components in real time:
+- **Assigned Branches Dropdown:** When creating a cashier or branch manager account in `/users`, newly added branches appear immediately without requiring a browser refresh.
+- **Top Navigation & Mobile Switchers:** The active branch selector in the top navbar and mobile drawer reflects changes instantaneously.
+- **Background Refresh:** The system listens for cross-module sync events and background tab re-activation (`visibilitychange`), keeping branch lists fresh without unnecessary polling.
+
+#### Branch Deletion vs Safe Archival
+When deleting a branch in Pharmacy Branch Management:
+- **Safe Archival for Protected Branches:** If a branch has associated business records (staff accounts, stock batches, sales invoices, purchase invoices, movements, transfers, or expenses), the system prevents foreign key corruption and safely **deactivates / archives** the branch. Historical financial and tax audit trails remain 100% intact.
+- **Permanent Deletion for Unreferenced Branches:** If a newly created branch has zero transactional records, non-business audit references are cleanly unlinked, allowing permanent deletion.
+- **Duplicate Prevention:** The delete action disables itself and displays an in-progress indicator to prevent duplicate submissions.
+
 ---
 
 ### Managing Staff Accounts (`/users`)
@@ -191,10 +204,17 @@ Click **Add New Staff Member**:
   - `SUPER_ADMIN`: Full system-wide privileges.
   - `BRANCH_ADMIN`: Branch inventory manager / head pharmacist.
   - `BILLING_USER`: Front-counter cashier.
-- **Branch:** Assign to one of the configured branches (leave unassigned for Super Admin).
+- **Branch:** Assign to one of the configured branches (automatically populated with live synchronized branch data).
 
-> [!IMPORTANT]
-> **Staff Deactivation & Security:** Staff members can be deactivated instantly using the toggle switch. The system blocks self-deactivation and prevents Branch Admins from tampering with Super Admin accounts.
+#### Staff Account Activation & Deactivation
+The staff directory provides dedicated actions based on the current account status:
+- **Active Accounts:** Display a **Deactivate Account** action button (`UserX`). Clicking this revokes login privileges immediately while preserving all historical sales records, assigned branches, and role permissions.
+- **Inactive Accounts:** Display an **Activate Account** action button (`UserCheck`). Clicking this restores login privileges immediately without requiring password resets or re-entering profile details.
+
+#### Single & Bulk Staff Account Deletion
+- **Single Account Deletion:** Clicking the **Delete** button (`Trash2`) opens a confirmation modal clearly explaining the operation. Accounts with no transaction history are permanently deleted. Accounts with historical sales invoices or stock movements are safely deactivated to protect statutory audit records, accompanied by an explicit confirmation message.
+- **Bulk Account Deletion:** Super Administrators can select multiple staff accounts using checkboxes and click **Delete Selected Accounts**. The system processes all selected accounts, deletes unreferenced records, deactivates historical accounts, and reports an exact count (e.g., *"Deleted 2 user accounts, and deactivated 1 user account with historical transactions"*).
+- **Security Safeguards:** The system strictly blocks self-deletion and prohibits deleting or deactivating the last active Super Administrator.
 
 ---
 
@@ -230,23 +250,31 @@ The **Medicine Catalogue** (`/products`) is the central master repository for al
 
 ### Adding a Medicine Manually
 Click **Add New Medicine** and fill in the technical attributes:
-1. **Brand Name:** Trade name (e.g., `Azithral 500`).
-2. **Generic Name / Salt:** Active pharmaceutical ingredient (e.g., `Azithromycin`).
-3. **Strength:** Potency (e.g., `500 mg` or `100 ml`).
-4. **Dosage Form:** Choose from `Tablet`, `Capsule`, `Syrup`, `Injection`, `Ointment`, `Drops`, `Powder`, `Inhaler`.
-5. **Manufacturer:** Pharmaceutical company (e.g., `Alembic Pharmaceuticals`).
-6. **HSN Code:** 8-digit GST HSN code (default for pharmaceuticals: `30049099`).
-7. **GST Rate (%):** Indian GST slab (commonly `12%` or `5%`).
-8. **MRP (₹):** Maximum Retail Price printed on packaging.
-9. **Packaging & Unit Conversion (Crucial):**
-   - **Base Unit:** Smallest physical dispensing unit (e.g., `Tablet` or `ml`).
-   - **Package Unit:** Inward procurement unit (e.g., `Box` or `Strip`).
-   - **Conversion Factor:** Number of base units in one package (e.g., 1 Box = `100` Tablets; 1 Strip = `10` Tablets).
-10. **Prescription Category:**
-    - `Schedule H`: Requires valid doctor's prescription.
-    - `Schedule H1`: High-risk antibiotics / habit-forming drugs; requires special register entry.
-    - `Schedule X`: Psychotropic / narcotic substances; requires dual-signoff.
-    - `OTC`: Over-the-counter general medicine.
+1. **Brand Name (*):** Trade name (e.g., `Azithral 500`). Required.
+2. **Generic / Active Ingredient (*):** Active pharmaceutical ingredient (e.g., `Azithromycin`). Required. Combined salt + strength inputs (e.g., `Paracetamol 650 mg`) are automatically parsed without requiring separate fields.
+3. **Dosage Form (*):** Choose from `Tablet`, `Capsule`, `Syrup`, `Injection`, `Ointment`, `Drops`. Required.
+4. **Manufacturer (*):** Pharmaceutical manufacturing company (e.g., `Alembic Pharmaceuticals`). Required.
+5. **Maximum Retail Price - MRP (*) (₹):** Printed maximum consumer retail price. Required. Must be non-negative.
+6. **GST Rate (%) (*):** Standard Indian GST slab (`0%`, `5%`, `12%`, `18%`, `28%`). Required.
+7. **Packaging & Unit Conversion:**
+   - **Base Unit:** Smallest physical dispensing unit (e.g., `Strip`, `Tablet`, `Bottle`).
+   - **Package Unit:** Inward bulk procurement container (e.g., `Box`, `Carton`, `Pack`).
+   - **Conversion Factor:** Number of base units per package (e.g., 1 Box = `10` Strips).
+8. **Pricing Separation:**
+   - **Default Purchase Rate:** Cost price paid to distributor.
+   - **Default Selling Rate:** Standard rate billed to customers.
+9. **Initial Stock Opening Inventory (Optional):** Enter physical stock on hand to record live opening inventory immediately, or leave at `0` to create a catalogue-only record (Out of Stock).
+10. **Prescription Restriction:**
+    - `Schedule H`: Requires registered medical practitioner prescription.
+    - `Schedule H1`: Restricted antibiotic / habit-forming drug requiring statutory register tracking.
+    - `Schedule X`: Restricted psychotropic / narcotic substance.
+    - `OTC`: General over-the-counter medicine.
+
+#### In-Modal Validation & Error Handling
+- **Clear In-Modal Validation:** If required fields are omitted or rates are invalid, validation errors are rendered directly inside the open modal rather than behind it on the catalogue page.
+- **Field-Level Highlighting:** Incomplete or invalid fields are clearly highlighted with red borders, red focus rings, and explicit helper messages identifying the exact field.
+- **Data Preservation:** The modal remains open upon validation or server errors, preserving all previously entered data so users do not have to re-type details.
+- **Duplicate Creation Protection:** The save button enters a loading state with spinner upon submission, preventing duplicate medicine records when clicked rapidly.
 
 ---
 
@@ -429,9 +457,9 @@ If an audit reveals physical discrepancies (spillage, breakage, or recount adjus
 
 ---
 
-## 13. Step 10: High-Speed Counter POS Billing
+## 13. Step 10: High-Speed Counter POS Billing & Global Keyboard Shortcuts
 
-The **POS Billing** console (`/pos`) is engineered for rapid counter checkout with full keyboard accessibility.
+The **POS Billing** console (`/pos`) is engineered for rapid counter checkout with full keyboard accessibility and seamless navigation.
 
 ```
 ┌───────────────────────────────────────────────────────────────────────────┐
@@ -446,17 +474,26 @@ The **POS Billing** console (`/pos`) is engineered for rapid counter checkout wi
 │ Doctor Name:    [ Dr. K. Rao (Reg: AP-4421)            ] │ Disc:     ₹3.5 │
 │ Payment Mode:   (•) Cash   ( ) UPI   ( ) Card   ( ) Credit│ GRAND:   ₹67.0 │
 │                                                          ├────────────────┤
-│ [F8] COMPLETE SALE & PRINT RECEIPT                       │ [CLEAR CART]   │
+│ [F4] COMPLETE SALE & CHECKOUT                            │ [CLEAR CART]   │
 └──────────────────────────────────────────────────────────┴────────────────┘
 ```
 
-### Essential Keyboard Shortcuts
-- `F2`: Focus the medicine search input.
-- `ArrowDown` / `ArrowUp`: Navigate search results.
-- `Enter`: Select medicine and add to cart.
-- `Escape`: Clear active search or close modal.
-- `F1`: Open on-screen keyboard help guide.
-- `F8`: Complete sale and trigger print.
+### Complete Global Keyboard Shortcuts Suite
+The operating system includes a global keyboard shortcut engine accessible from any view:
+
+| Shortcut Key | Scope / Context | Action / Function |
+| :--- | :--- | :--- |
+| **`F2`** | **Global (Any Page)** | **Instantly jump to POS Billing Counter** from anywhere in the app and auto-focus + select the medicine search input. |
+| **`F3`** | Global (Non-Billing) | Quick jump to **Medicine Master Catalogue** (`/products`). |
+| **`F4`** | In POS Billing | **Complete Sale & Checkout** (submits the active bill and triggers receipt generation). |
+| **`F6`** | Global | Quick jump to **Sales Invoices Register** (`/invoices`). |
+| **`F7`** | Global (Non-Billing) | Quick jump to **Stock Batches (FEFO Inventory)** (`/inventory`). |
+| **`Alt + 1`** | Global | Quick switch to **Counter Operations / POS Billing**. |
+| **`Alt + 2`** | Global | Quick switch to **Medicine Master Catalogue**. |
+| **`ArrowDown` / `ArrowUp`** | Search Dropdown | Navigate medicine search matches seamlessly. |
+| **`Enter`** | Search Dropdown | Select highlighted medicine and add directly to bill. |
+| **`Ctrl + Enter`** | Active Modal / Form | Submit active modal form or primary dialog action. |
+| **`Escape`** | Active Modal / Search | Close open modal dialog or dismiss live search dropdown. |
 
 ### Step-by-Step Counter Sale
 1. Press `F2` or scan product barcode.
@@ -563,6 +600,43 @@ Configurable in the top navigation bar settings modal:
 | **"Duplicate column headers detected: X; Y"** | Uploaded CSV/Excel contains duplicate column names. | Open file in Excel, remove duplicate header columns, save and re-upload. |
 | **"Cannot deactivate yourself"** | Administrator attempting to deactivate their own logged-in user account. | Have another Super Admin manage the account status. |
 | **"Please provide a valid 15-character GSTIN"** | Entered GST number fails Indian GST regex validation. | Verify format: 2 digit state code + 10 char PAN + 1 entity num + 'Z' + 1 checksum (e.g., `37AAAAA1234A1Z5`). |
+
+---
+
+
+
+---
+
+## 20. System Enhancements & Recent Quality Audit Updates
+
+The platform has undergone rigorous quality assurance and engineering enhancements to deliver exceptional speed, data integrity, and UI stability:
+
+### 1. In-Modal Medicine Creation Validation (Section 7)
+- **Problem Resolved:** Previously, creating a medicine with missing fields displayed technical validation errors behind the modal overlay on the catalogue background page.
+- **Implemented Fix:** Full in-modal validation engine. Missing required attributes (`Brand Name`, `Generic Name`, `Dosage Form`, `Manufacturer`, `MRP`) are summarized in a prominent alert banner at the top of the modal and highlighted with red rings and helper notes. Form data is preserved upon error, and duplicate submission is blocked via loading states.
+
+### 2. Real-Time Branch Synchronization (Section 5)
+- **Problem Resolved:** Newly created branches were saved in the database but did not appear in other views (such as the staff creation Assigned Branch dropdown) without a full page reload.
+- **Implemented Fix:** Centralized branch synchronization in `AuthContext` with automatic event broadcasting (`pharmacy:branches-updated`) and tab re-focus synchronization (`visibilitychange`). Branch creation, updates, and removals reflect instantaneously across all dropdowns, navbar switchers, and selectors.
+
+### 3. Safe Branch Deletion & Dependency Protection (Section 5)
+- **Problem Resolved:** Branch deletion failed with HTTP 500 errors due to unhandled database relations and foreign keys.
+- **Implemented Fix:** Safe archival and dependency verification. Branches with active staff accounts, stock batches, invoices, or audit records are safely deactivated and archived to preserve statutory accounting compliance. Unreferenced test branches are permanently deleted with automated cleanup of non-business audit references.
+
+### 4. Staff Account Status Management (Section 5)
+- **Problem Resolved:** Deactivated staff accounts had no option to be reactivated, and deleting accounts displayed incorrect "Deactivated" notification messages.
+- **Implemented Fix:** Added dedicated `PATCH /api/users/:id/status` endpoint. Active accounts feature a "Deactivate" action, while inactive accounts display an "Activate" action. Deletion operations report accurate success counts and messages, while protecting accounts with historical sales.
+
+### 5. Persistent Left Navigation Sidebar (Section 1)
+- **Problem Resolved:** Clicking sidebar items frequently reset the sidebar scroll position to the top, disrupting navigation in lower modules.
+- **Implemented Fix:** Extracted `NavigationContent` outside the sidebar render body to maintain persistent DOM elements. Integrated `scrollIntoView({ block: 'nearest' })` to smoothly keep active navigation tabs in view without jarring jumps.
+
+### 6. Universal F2 and Global Keyboard Shortcuts (Section 13)
+- **Problem Resolved:** The `F2` shortcut only functioned when already mounted on the POS page.
+- **Implemented Fix:** Global keyboard listener at the root layout. Pressing `F2` from ANY section immediately routes to POS billing and selects the search input. Added `F3`, `F4`, `F6`, `F7`, `Alt+1`, `Alt+2`, `Ctrl+Enter`, and `Escape`.
+
+### 7. Mobile Viewport & Counter Responsiveness
+- **Implemented Fix:** Added responsive bottom navigation bar on mobile viewports (< 1024px), mobile-optimized POS counter with segmented cart toggle, touch-scrolling enhancements, and compact branch badges.
 
 ---
 
