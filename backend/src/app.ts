@@ -22,9 +22,7 @@ import stockMonitoringRoutes from './modules/inventory/stockMonitoring.routes';
 const app = express();
 
 const allowedOrigins = [
-  'https://confidospharma.vercel.app',
-  'https://frontend-lovat-two-zphauehhuj.vercel.app',
-  'https://confidospharma-nnjw.onrender.com',
+  'https://confidospharma-b3lv.vercel.app',
   'https://confidospharma.onrender.com',
   'http://localhost:3000',
   'http://localhost:5173',

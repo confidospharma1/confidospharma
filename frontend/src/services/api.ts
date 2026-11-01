@@ -1,5 +1,4 @@
-const PRIMARY_RENDER_API = 'https://confidospharma-nnjw.onrender.com/api';
-const PREVIOUS_RENDER_API = 'https://confidospharma.onrender.com/api';
+const PRIMARY_RENDER_API = 'https://confidospharma.onrender.com/api';
 
 const getBaseUrl = (): string => {
   const envUrl = import.meta.env.VITE_API_URL;
@@ -17,7 +16,7 @@ const getBaseUrl = (): string => {
   return '/api';
 };
 
-export let BASE_URL = getBaseUrl();
+export const BASE_URL = getBaseUrl();
 
 export const getAuthToken = (): string | null => {
   return localStorage.getItem('confidos_token');
@@ -48,36 +47,10 @@ export async function apiRequest<T = any>(
     headers['Content-Type'] = 'application/json';
   }
 
-  let response: Response;
-  try {
-    response = await fetch(`${BASE_URL}${endpoint}`, {
-      ...options,
-      headers,
-    });
-  } catch (networkErr) {
-    // Resilient fallback between primary and previous Render deployments
-    const fallbackTarget =
-      BASE_URL === PRIMARY_RENDER_API
-        ? PREVIOUS_RENDER_API
-        : BASE_URL === PREVIOUS_RENDER_API
-        ? PRIMARY_RENDER_API
-        : null;
-
-    if (fallbackTarget) {
-      try {
-        console.warn(`[API] Endpoint ${BASE_URL} unreachable. Retrying with fallback: ${fallbackTarget}`);
-        response = await fetch(`${fallbackTarget}${endpoint}`, {
-          ...options,
-          headers,
-        });
-        BASE_URL = fallbackTarget;
-      } catch {
-        throw networkErr;
-      }
-    } else {
-      throw networkErr;
-    }
-  }
+  const response = await fetch(`${BASE_URL}${endpoint}`, {
+    ...options,
+    headers,
+  });
 
   if (response.status === 401) {
     // If expired token
