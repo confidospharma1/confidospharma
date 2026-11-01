@@ -2,7 +2,7 @@
   "rewrites": [
     {
       "source": "/api/:path*",
-      "destination": "https://confidospharma-el3k.onrender.com/api/:path*"
+      "destination": "https://confidospharma.onrender.com/api/:path*"
     },
     {
       "source": "/(.*)",

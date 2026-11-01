@@ -23,7 +23,9 @@ const app = express();
 
 const allowedOrigins = [
   'https://confidospharma.vercel.app',
-  'https://confidospharma-el3k.onrender.com',
+  'https://frontend-lovat-two-zphauehhuj.vercel.app',
+  'https://confidospharma-nnjw.onrender.com',
+  'https://confidospharma.onrender.com',
   'http://localhost:3000',
   'http://localhost:5173',
   'http://localhost:4173',
@@ -37,20 +39,11 @@ const corsOptions: cors.CorsOptions = {
 
     try {
       const parsed = new URL(origin);
-      const normalizedOrigin = `${parsed.protocol}//${parsed.host}`;
       const hostname = parsed.hostname;
-
-      const cleanAllowed = allowedOrigins.map((o) => {
-        try {
-          const u = new URL(o);
-          return `${u.protocol}//${u.host}`;
-        } catch {
-          return o;
-        }
-      });
-
       if (
-        cleanAllowed.includes(normalizedOrigin) ||
+        allowedOrigins.includes(origin) ||
+        hostname.endsWith('.vercel.app') ||
+        hostname.endsWith('.onrender.com') ||
         hostname === 'localhost' ||
         hostname === '127.0.0.1' ||
         process.env.NODE_ENV !== 'production'
