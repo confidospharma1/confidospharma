@@ -69,7 +69,11 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
           <div className="border-b border-dashed border-slate-300 pb-2.5 mb-2.5 grid grid-cols-1 sm:grid-cols-2 gap-3 items-start text-[11px]">
             {/* Left Column: Pharmacy Branding & Legal Info */}
             <div className="text-left space-y-0.5">
-              <h1 className="text-sm font-bold text-slate-900 tracking-wider">CONFIDOS PHARMA</h1>
+              <img
+                src="/confidos-logo.png"
+                alt="Confidos Pharma"
+                className="h-6 sm:h-7 w-auto max-w-[125px] object-contain block mb-0.5"
+              />
               <p className="text-xs font-semibold text-slate-800">{branch?.name || 'Central Pharmacy Branch'}</p>
               {branch?.address && <p className="text-[10px] text-slate-600">{branch.address}</p>}
               {branch?.phone && <p className="text-[10px] text-slate-600">Tel: {branch.phone}</p>}
