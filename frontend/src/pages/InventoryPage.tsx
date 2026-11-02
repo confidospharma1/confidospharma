@@ -128,8 +128,15 @@ interface LedgerMovementItem {
 export const InventoryPage: React.FC = () => {
   const { currentBranch, selectedBranchId, isSuperAdmin, isBillingUser } = useAuth();
 
-  // Top Section Mode: 'ledger' (Dashboard & Movements) vs 'batches' (Batch Balances & Operations)
-  const [activeViewMode, setActiveViewMode] = useState<'ledger' | 'batches'>('ledger');
+  // Top Section Mode: 'ledger' (Dashboard & Movements) vs 'batches' (Batch Balances & Operations) vs 'datewise' (Date-Wise Stock Records)
+  const [activeViewMode, setActiveViewMode] = useState<'ledger' | 'batches' | 'datewise'>('ledger');
+
+  // Date-Wise Stock State
+  const [datewiseStockData, setDatewiseStockData] = useState<any>(null);
+  const [isDatewiseLoading, setIsDatewiseLoading] = useState(false);
+  const [datewiseSearch, setDatewiseSearch] = useState('');
+  const [datewiseStartDate, setDatewiseStartDate] = useState('');
+  const [datewiseEndDate, setDatewiseEndDate] = useState('');
 
   // Ledger Filter State
   const [period, setPeriod] = useState<'today' | 'last7days' | 'last30days' | 'custom'>('last7days');
@@ -298,6 +305,29 @@ export const InventoryPage: React.FC = () => {
       loadBatches();
     }
   }, [activeViewMode, loadBatches]);
+
+  const loadDatewiseStock = useCallback(async () => {
+    setIsDatewiseLoading(true);
+    try {
+      const res = await api.getDateWiseStockReport({
+        branchId: selectedBranchId,
+        startDate: datewiseStartDate || undefined,
+        endDate: datewiseEndDate || undefined,
+        search: datewiseSearch || undefined,
+      });
+      setDatewiseStockData(res);
+    } catch (err: any) {
+      console.error('Failed to load date-wise stock:', err);
+    } finally {
+      setIsDatewiseLoading(false);
+    }
+  }, [selectedBranchId, datewiseStartDate, datewiseEndDate, datewiseSearch]);
+
+  useEffect(() => {
+    if (activeViewMode === 'datewise') {
+      loadDatewiseStock();
+    }
+  }, [activeViewMode, loadDatewiseStock]);
 
   useEffect(() => {
     loadReferenceData();
@@ -670,6 +700,17 @@ export const InventoryPage: React.FC = () => {
         >
           <Boxes className="w-4 h-4" />
           <span>Batch Balances & Operations</span>
+        </button>
+        <button
+          onClick={() => setActiveViewMode('datewise')}
+          className={`flex items-center gap-2 pb-3 px-4 text-xs font-bold border-b-2 transition-all ${
+            activeViewMode === 'datewise'
+              ? 'border-emerald-500 text-emerald-600'
+              : 'border-transparent text-slate-500 hover:text-slate-800'
+          }`}
+        >
+          <Calendar className="w-4 h-4" />
+          <span>Date-Wise Stock Records</span>
         </button>
       </div>
 
@@ -1310,6 +1351,180 @@ export const InventoryPage: React.FC = () => {
                           </td>
                         </tr>
                       ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* VIEW MODE 3: DATE-WISE STOCK RECORDS & INWARD LEDGER                      */}
+      {/* ========================================================================= */}
+      {activeViewMode === 'datewise' && (
+        <div className="space-y-6">
+          {/* Summary KPIs */}
+          <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+            <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs">
+              <span className="text-[11px] font-bold text-slate-500 uppercase block">Total Batches</span>
+              <p className="text-2xl font-black font-mono text-slate-900 mt-1">{datewiseStockData?.summary?.totalBatches || 0}</p>
+              <span className="text-[10px] text-slate-400">Total batch entries</span>
+            </div>
+            <div className="bg-white p-4 rounded-xl border border-emerald-100 bg-emerald-50/20 shadow-xs">
+              <span className="text-[11px] font-bold text-emerald-800 uppercase block">Uploaded / Received</span>
+              <p className="text-2xl font-black font-mono text-emerald-700 mt-1">{datewiseStockData?.summary?.totalUnitsUploaded || 0}</p>
+              <span className="text-[10px] text-emerald-600 font-medium">Inward stock added</span>
+            </div>
+            <div className="bg-white p-4 rounded-xl border border-blue-100 bg-blue-50/20 shadow-xs">
+              <span className="text-[11px] font-bold text-blue-800 uppercase block">Dispensed / Sold</span>
+              <p className="text-2xl font-black font-mono text-blue-700 mt-1">{datewiseStockData?.summary?.totalUnitsDispensed || 0}</p>
+              <span className="text-[10px] text-blue-600 font-medium">Outward sales quantity</span>
+            </div>
+            <div className="bg-white p-4 rounded-xl border border-amber-100 bg-amber-50/20 shadow-xs">
+              <span className="text-[11px] font-bold text-amber-800 uppercase block">Remaining Balance</span>
+              <p className="text-2xl font-black font-mono text-amber-800 mt-1">{datewiseStockData?.summary?.totalUnitsRemaining || 0}</p>
+              <span className="text-[10px] text-amber-600 font-medium">Current available stock</span>
+            </div>
+            <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs col-span-2 sm:col-span-1">
+              <span className="text-[11px] font-bold text-slate-500 uppercase block">Stock Value</span>
+              <p className="text-2xl font-black font-mono text-brand-900 mt-1">₹{(datewiseStockData?.summary?.totalRemainingValue || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</p>
+              <span className="text-[10px] text-slate-400">At acquisition purchase cost</span>
+            </div>
+          </div>
+
+          {/* Table Container */}
+          <div className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
+            <div className="p-4 border-b border-slate-200 flex flex-wrap items-center justify-between gap-3 bg-slate-50/70">
+              <div className="flex items-center gap-3 flex-1 min-w-[280px]">
+                <div className="relative flex-1">
+                  <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="text"
+                    placeholder="Search by Medicine, Batch #, or Supplier..."
+                    value={datewiseSearch}
+                    onChange={(e) => setDatewiseSearch(e.target.value)}
+                    className="w-full pl-8 pr-3 py-1.5 text-xs bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-500"
+                  />
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 flex-wrap text-xs">
+                <span className="text-slate-500 font-semibold text-[11px]">Date Added:</span>
+                <input
+                  type="date"
+                  value={datewiseStartDate}
+                  onChange={(e) => setDatewiseStartDate(e.target.value)}
+                  className="px-2 py-1 bg-white border border-slate-200 rounded-lg font-mono text-xs"
+                />
+                <span className="text-slate-400">to</span>
+                <input
+                  type="date"
+                  value={datewiseEndDate}
+                  onChange={(e) => setDatewiseEndDate(e.target.value)}
+                  className="px-2 py-1 bg-white border border-slate-200 rounded-lg font-mono text-xs"
+                />
+                {(datewiseStartDate || datewiseEndDate || datewiseSearch) && (
+                  <button
+                    onClick={() => {
+                      setDatewiseStartDate('');
+                      setDatewiseEndDate('');
+                      setDatewiseSearch('');
+                    }}
+                    className="text-[11px] text-rose-600 hover:text-rose-800 font-semibold px-2 py-1 rounded bg-rose-50"
+                  >
+                    Reset
+                  </button>
+                )}
+                <button
+                  onClick={loadDatewiseStock}
+                  className="p-1.5 border border-slate-200 bg-white hover:bg-slate-50 rounded-lg text-slate-600"
+                  title="Refresh"
+                >
+                  <RefreshCw className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            </div>
+
+            <div className="overflow-x-auto touch-scroll">
+              <table className="w-full text-left text-xs border-collapse min-w-[900px]">
+                <thead className="bg-slate-50 text-slate-700 font-bold border-b border-slate-200 text-[11px]">
+                  <tr>
+                    <th className="py-3 px-4">Date Added / Uploaded</th>
+                    <th className="py-3 px-3">Medicine Name</th>
+                    <th className="py-3 px-3 font-mono">Batch Number</th>
+                    <th className="py-3 px-3 font-mono">Expiry Date</th>
+                    <th className="py-3 px-3 text-right text-emerald-800">Uploaded Qty</th>
+                    <th className="py-3 px-3 text-right text-blue-800">Dispensed Qty</th>
+                    <th className="py-3 px-3 text-right text-amber-800">Remaining Balance</th>
+                    <th className="py-3 px-3 text-right">Purchase Rate</th>
+                    <th className="py-3 px-3 text-right">Remaining Value</th>
+                    <th className="py-3 px-4">Supplier / Source</th>
+                    <th className="py-3 px-3 text-center">Status</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 font-medium">
+                  {isDatewiseLoading ? (
+                    <tr>
+                      <td colSpan={11} className="py-12 text-center text-slate-400">
+                        <div className="flex flex-col items-center justify-center gap-2">
+                          <div className="w-6 h-6 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
+                          <p className="text-xs font-semibold text-slate-600">Loading date-wise stock records...</p>
+                        </div>
+                      </td>
+                    </tr>
+                  ) : !datewiseStockData?.items || datewiseStockData.items.length === 0 ? (
+                    <tr>
+                      <td colSpan={11} className="py-10 text-center text-slate-400">
+                        No stock records found for the selected branch and date range.
+                      </td>
+                    </tr>
+                  ) : (
+                    datewiseStockData.items.map((item: any) => (
+                      <tr key={item.id} className="hover:bg-slate-50/70 transition-colors">
+                        <td className="py-2.5 px-4 whitespace-nowrap font-medium text-slate-900">
+                          {item.dateAdded}
+                        </td>
+                        <td className="py-2.5 px-3">
+                          <span className="font-bold text-slate-900 block">{item.medicineName}</span>
+                          <span className="text-[10px] text-slate-400 block">{item.dosageForm}</span>
+                        </td>
+                        <td className="py-2.5 px-3 font-mono font-bold text-slate-700">
+                          {item.batchNumber}
+                        </td>
+                        <td className="py-2.5 px-3 font-mono text-slate-600">
+                          {item.expiryDate}
+                        </td>
+                        <td className="py-2.5 px-3 text-right font-mono font-bold text-emerald-700">
+                          +{item.quantityUploaded}
+                        </td>
+                        <td className="py-2.5 px-3 text-right font-mono font-semibold text-blue-700">
+                          {item.quantityDispensed > 0 ? `-${item.quantityDispensed}` : '0'}
+                        </td>
+                        <td className="py-2.5 px-3 text-right font-mono font-bold text-amber-800">
+                          <span className={`px-2 py-0.5 rounded ${item.quantityRemaining > 0 ? 'bg-amber-50 text-amber-900 border border-amber-200' : 'bg-slate-100 text-slate-400'}`}>
+                            {item.quantityRemaining}
+                          </span>
+                        </td>
+                        <td className="py-2.5 px-3 text-right font-mono text-slate-700">
+                          ₹{Number(item.purchaseRate || 0).toFixed(2)}
+                        </td>
+                        <td className="py-2.5 px-3 text-right font-mono font-bold text-slate-900">
+                          ₹{Number(item.remainingValue || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                        </td>
+                        <td className="py-2.5 px-4 text-slate-600 text-[11px]">
+                          {item.supplierName}
+                        </td>
+                        <td className="py-2.5 px-3 text-center">
+                          <Badge
+                            variant={item.quantityRemaining > 0 ? (item.status === 'ACTIVE' ? 'success' : 'warning') : 'neutral'}
+                            size="sm"
+                          >
+                            {item.quantityRemaining > 0 ? item.status : 'DEPLETED'}
+                          </Badge>
+                        </td>
+                      </tr>
+                    ))
                   )}
                 </tbody>
               </table>

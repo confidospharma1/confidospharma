@@ -448,6 +448,8 @@ export const updateProduct = async (req: Request, res: Response) => {
       prescriptionType,
       storageNotes,
       isActive,
+      quantity,
+      branchId,
     } = req.body;
 
     // Safely extract or preserve strength from genericName if updated
@@ -480,16 +482,110 @@ export const updateProduct = async (req: Request, res: Response) => {
       },
     });
 
+    let updatedTotalStock: number | undefined = undefined;
+
+    if (quantity !== undefined && quantity !== null && quantity !== '') {
+      const targetQty = Math.max(0, parseInt(String(quantity)));
+      let effectiveBranchId = (branchId as string) || req.user.branchId || null;
+      if (!effectiveBranchId) {
+        const firstBranch = await prisma.branch.findFirst({ select: { id: true } });
+        effectiveBranchId = firstBranch ? firstBranch.id : null;
+      }
+
+      if (effectiveBranchId && !isNaN(targetQty)) {
+        const batches = await prisma.stockBatch.findMany({
+          where: { medicineId: id, branchId: effectiveBranchId },
+          orderBy: { expiryDate: 'asc' },
+        });
+
+        const currentTotalStock = batches.reduce((sum, b) => sum + (b.availableQuantity || 0), 0);
+        const delta = targetQty - currentTotalStock;
+
+        if (delta !== 0) {
+          if (batches.length > 0) {
+            const activeBatch = batches.find((b) => b.status === 'ACTIVE') || batches[batches.length - 1];
+            const newBatchQty = Math.max(0, activeBatch.availableQuantity + delta);
+            const newQuantityReceived = Math.max(activeBatch.quantityReceived, newBatchQty);
+
+            await prisma.stockBatch.update({
+              where: { id: activeBatch.id },
+              data: {
+                availableQuantity: newBatchQty,
+                quantityReceived: newQuantityReceived,
+                status: newBatchQty > 0 ? 'ACTIVE' : 'DEPLETED',
+              },
+            });
+
+            await prisma.stockMovement.create({
+              data: {
+                branchId: effectiveBranchId,
+                medicineId: id,
+                batchId: activeBatch.id,
+                movementType: 'STOCK_CORRECTION',
+                quantityDelta: delta,
+                unitPrice: activeBatch.purchaseRate,
+                referenceDocType: 'STOCK_ADJUSTMENT',
+                referenceDocId: activeBatch.id,
+                reason: 'Super Admin medicine master quantity update',
+                performedByUserId: req.user.id,
+              },
+            });
+          } else {
+            const expDate = new Date();
+            expDate.setFullYear(expDate.getFullYear() + 2);
+            const numMrp = updated.mrp || 100;
+            const numPurchaseRate = updated.defaultPurchaseRate || (numMrp * 0.7);
+
+            const newBatch = await prisma.stockBatch.create({
+              data: {
+                branchId: effectiveBranchId,
+                medicineId: id,
+                batchNumber: `OPN-${Date.now().toString().slice(-6)}`,
+                expiryDate: expDate,
+                quantityReceived: targetQty,
+                availableQuantity: targetQty,
+                purchaseRate: numPurchaseRate,
+                mrp: numMrp,
+                sellingPrice: numMrp,
+                status: targetQty > 0 ? 'ACTIVE' : 'DEPLETED',
+              },
+            });
+
+            if (targetQty > 0) {
+              await prisma.stockMovement.create({
+                data: {
+                  branchId: effectiveBranchId,
+                  medicineId: id,
+                  batchId: newBatch.id,
+                  movementType: 'STOCK_CORRECTION',
+                  quantityDelta: targetQty,
+                  unitPrice: numPurchaseRate,
+                  referenceDocType: 'INITIAL_STOCK',
+                  referenceDocId: newBatch.id,
+                  reason: 'Super Admin initial stock creation upon medicine edit',
+                  performedByUserId: req.user.id,
+                },
+              });
+            }
+          }
+        }
+        updatedTotalStock = targetQty;
+      }
+    }
+
     await logAuditEvent({
       userId: req.user.id,
       action: 'PRODUCT_UPDATE',
       targetEntity: 'MEDICINE_PRODUCT',
       entityId: updated.id,
-      details: { brandName: updated.brandName },
+      details: { brandName: updated.brandName, quantity: updatedTotalStock },
       req,
     });
 
-    return res.json(updated);
+    return res.json({
+      ...updated,
+      ...(updatedTotalStock !== undefined && { totalAvailableStock: updatedTotalStock }),
+    });
   } catch (error: any) {
     return res.status(500).json({ message: 'Unable to update this medicine. Please verify the details and try again.' });
   }

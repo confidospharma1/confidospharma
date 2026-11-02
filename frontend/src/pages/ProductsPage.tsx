@@ -103,6 +103,7 @@ export const ProductsPage: React.FC = () => {
   const [editForm, setEditForm] = useState({
     brandName: '',
     manufacturer: '',
+    quantity: '0',
     defaultPurchaseRate: '',
     mrp: '',
     gstRate: '5',
@@ -296,6 +297,7 @@ export const ProductsPage: React.FC = () => {
     setEditForm({
       brandName: p.brandName,
       manufacturer: p.manufacturer,
+      quantity: String(p.totalAvailableStock !== undefined && p.totalAvailableStock !== null ? p.totalAvailableStock : (p.activeBatches?.reduce((sum: number, b: any) => sum + (b.availableQuantity || 0), 0) ?? 0)),
       hsnCode: p.hsnCode || '',
       gstRate: String(p.gstRate ?? 5),
       mrp: String(p.mrp ?? 0),
@@ -317,6 +319,7 @@ export const ProductsPage: React.FC = () => {
         brandName: editForm.brandName.trim(),
         genericName: editForm.brandName.trim(),
         manufacturer: editForm.manufacturer.trim(),
+        quantity: editForm.quantity !== '' ? parseInt(editForm.quantity) : 0,
         hsnCode: editForm.hsnCode.trim() || undefined,
         defaultPurchaseRate: editForm.defaultPurchaseRate ? parseFloat(editForm.defaultPurchaseRate) : null,
         reorderLevel: editForm.reorderLevel ? parseInt(editForm.reorderLevel) : 10,
@@ -1067,7 +1070,7 @@ export const ProductsPage: React.FC = () => {
       {/* Modal: Edit Medicine */}
       <Modal isOpen={showEditModal} onClose={() => setShowEditModal(false)} title="Edit Medicine Master Record" maxWidth="2xl">
         <form onSubmit={handleUpdateProduct} className="space-y-4">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div>
               <label className="text-xs font-bold text-slate-700 block mb-1">Brand Name *</label>
               <input
@@ -1087,6 +1090,19 @@ export const ProductsPage: React.FC = () => {
                 onChange={(e) => setEditForm({ ...editForm, manufacturer: e.target.value })}
                 className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-300 rounded-lg focus:bg-white focus:ring-2 focus:ring-emerald-500"
               />
+            </div>
+            <div>
+              <label className="text-xs font-bold text-emerald-800 block mb-1">Quantity (Units)</label>
+              <input
+                type="number"
+                min="0"
+                step="1"
+                placeholder="e.g., 100"
+                value={editForm.quantity}
+                onChange={(e) => setEditForm({ ...editForm, quantity: e.target.value })}
+                className="w-full px-3 py-2 text-xs bg-emerald-50/50 border border-emerald-300 rounded-lg font-mono font-bold text-emerald-950 focus:bg-white focus:ring-2 focus:ring-emerald-500"
+              />
+              <span className="text-[10px] text-slate-500 block mt-0.5 leading-tight">Total available stock units.</span>
             </div>
           </div>
 

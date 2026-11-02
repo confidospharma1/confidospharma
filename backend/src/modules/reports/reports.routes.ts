@@ -7,6 +7,7 @@ import {
   getCompanyOverview,
   getProfitLossReport,
   getProductProfitabilityReport,
+  getDateWiseStockReport,
 } from './reports.controller';
 import { authenticate } from '../../middlewares/auth.middleware';
 
@@ -21,5 +22,6 @@ router.get('/gst-summary', getGSTSummaryReport);
 router.get('/company-overview', getCompanyOverview);
 router.get('/profit-loss', getProfitLossReport);
 router.get('/product-profitability', getProductProfitabilityReport);
+router.get('/datewise-stock', getDateWiseStockReport);
 
 export default router;

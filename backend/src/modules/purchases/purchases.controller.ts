@@ -1578,7 +1578,7 @@ export const previewPurchaseImport = async (req: Request, res: Response) => {
       const sellingUnit = (mapped.sellingUnit || 'Tablet').toString().trim();
       const quantity = parseCleanInt(mapped.quantity, 0);
       const freeQuantity = parseCleanInt(mapped.freeQuantity, 0);
-      const unitsPerPack = parseCleanInt(mapped.unitsPerPack, 10);
+      const unitsPerPack = parseCleanInt(mapped.unitsPerPack, 1);
       const purchaseRate = parseCleanNumber(mapped.purchaseRate, 0);
       const mrp = parseCleanNumber(mapped.mrp, 0);
       const sellingRate = parseCleanNumber(mapped.sellingRate, mrp);
@@ -1675,7 +1675,7 @@ export const previewPurchaseImport = async (req: Request, res: Response) => {
         dosageForm
       );
 
-      const conversionFactor = unitsPerPack > 0 ? unitsPerPack : (unitConfig.conversionFactor || 1);
+      const conversionFactor = unitsPerPack > 0 ? unitsPerPack : 1;
       const totalUnits = (quantity + freeQuantity) * conversionFactor;
 
       // Derived financial amounts
@@ -1815,64 +1815,46 @@ export const downloadPurchaseTemplate = async (req: Request, res: Response) => {
 
     const templateRows = [
       {
-        'Product Name': 'Dolo 650',
         'Brand Name': 'Dolo 650',
-        'Generic Name': 'Paracetamol',
-        'Strength': '650mg',
-        'Dosage Form': 'Tablet',
-        'Manufacturer': 'Micro Labs Ltd',
-        'HSN Code': '30049099',
+        'Quantity': 100,
+        'Free Quantity': 10,
         'Batch Number': 'DL-2026-X1',
         'Expiry Date': '2028-12-31',
-        'Purchase Unit': 'Strip',
-        'Quantity': 50,
-        'Free Quantity': 5,
-        'Units Per Pack': 15,
-        'Purchase Rate': 24.50,
-        'MRP': 35.00,
-        'GST Rate': 12,
-        'Discount': 10,
-        'Selling Unit': 'Tablet',
+        'Manufacturer': 'Micro Labs Ltd',
+        'Purchase Rate': 20.00,
+        'MRP': 30.00,
+        'GST Rate': 5,
+        'HSN Code': '30049099',
+        'Barcode': '8901234567890',
+        'Category': 'OTC',
       },
       {
-        'Product Name': 'Azithral 500',
         'Brand Name': 'Azithral 500',
-        'Generic Name': 'Azithromycin',
-        'Strength': '500mg',
-        'Dosage Form': 'Tablet',
-        'Manufacturer': 'Alembic Pharmaceuticals',
-        'HSN Code': '30049099',
+        'Quantity': 50,
+        'Free Quantity': 0,
         'Batch Number': 'AZ-2026-B9',
         'Expiry Date': '2028-06-30',
-        'Purchase Unit': 'Strip',
-        'Quantity': 30,
-        'Free Quantity': 0,
-        'Units Per Pack': 5,
+        'Manufacturer': 'Alembic Pharmaceuticals',
         'Purchase Rate': 85.00,
         'MRP': 125.00,
         'GST Rate': 12,
-        'Discount': 5,
-        'Selling Unit': 'Tablet',
+        'HSN Code': '30049099',
+        'Barcode': '8901117008888',
+        'Category': 'Schedule H',
       },
       {
-        'Product Name': 'Benadryl Cough Formula',
         'Brand Name': 'Benadryl Cough Formula',
-        'Generic Name': 'Diphenhydramine + Ammonium Chloride',
-        'Strength': '100ml',
-        'Dosage Form': 'Syrup',
-        'Manufacturer': 'Johnson & Johnson',
-        'HSN Code': '30049099',
-        'Batch Number': 'BN-2026-S3',
-        'Expiry Date': '2027-11-30',
-        'Purchase Unit': 'Bottle',
         'Quantity': 20,
         'Free Quantity': 2,
-        'Units Per Pack': 1,
+        'Batch Number': 'BN-2026-S3',
+        'Expiry Date': '2027-11-30',
+        'Manufacturer': 'Johnson & Johnson',
         'Purchase Rate': 95.00,
         'MRP': 140.00,
         'GST Rate': 12,
-        'Discount': 0,
-        'Selling Unit': 'Bottle',
+        'HSN Code': '30049099',
+        'Barcode': '8901117007777',
+        'Category': 'OTC',
       },
     ];
 

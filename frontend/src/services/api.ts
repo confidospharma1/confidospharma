@@ -457,6 +457,36 @@ export const api = {
     }
     return response.blob();
   },
+  getDateWiseStockReport: (params?: { branchId?: string; startDate?: string; endDate?: string; search?: string }) => {
+    const q = new URLSearchParams();
+    if (params?.branchId) q.append('branchId', params.branchId);
+    if (params?.startDate) q.append('startDate', params.startDate);
+    if (params?.endDate) q.append('endDate', params.endDate);
+    if (params?.search) q.append('search', params.search);
+    return apiRequest<{ items: any[]; summary: any }>(`/reports/datewise-stock?${q.toString()}`);
+  },
+  downloadDateWiseStockExcel: async (params?: { branchId?: string; startDate?: string; endDate?: string; search?: string }): Promise<Blob> => {
+    const q = new URLSearchParams();
+    if (params?.branchId) q.append('branchId', params.branchId);
+    if (params?.startDate) q.append('startDate', params.startDate);
+    if (params?.endDate) q.append('endDate', params.endDate);
+    if (params?.search) q.append('search', params.search);
+    q.append('export', 'excel');
+
+    const token = getAuthToken();
+    const headers: Record<string, string> = {};
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+
+    const response = await fetch(`${BASE_URL}/reports/datewise-stock?${q.toString()}`, {
+      method: 'GET',
+      headers,
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to download date-wise stock report spreadsheet');
+    }
+    return response.blob();
+  },
 
   // Audit Logs
   getAuditLogs: (params?: { branchId?: string; action?: string; targetEntity?: string; page?: number }) => {

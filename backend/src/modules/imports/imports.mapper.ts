@@ -219,6 +219,8 @@ const PURCHASE_INVOICE_FIELD_ALIASES: Record<string, string[]> = {
   gstRate: ['gst rate', 'gstrate', 'gst', 'gst %', 'tax rate', 'tax', 'tax %'],
   discountPercent: ['discount', 'discount %', 'disc %', 'discount percent', 'disc percent', 'disc', 'scheme discount'],
   sellingUnit: ['selling unit', 'sellingunit', 'base unit', 'sale unit'],
+  barcode: ['barcode', 'upc', 'ean', 'gtin', 'code128'],
+  prescriptionType: ['category', 'prescription type', 'prescriptiontype', 'schedule', 'rx type', 'drug schedule'],
 };
 
 /**

@@ -731,3 +731,134 @@ export const getProductProfitabilityReport = async (req: Request, res: Response)
   }
 };
 
+export const getDateWiseStockReport = async (req: Request, res: Response) => {
+  try {
+    if (!req.user) return res.status(401).json({ message: 'Unauthorized' });
+
+    const { branchId, startDate, endDate, search, export: isExport } = req.query;
+    const targetBranchId = req.user.role === 'SUPER_ADMIN' ? (branchId as string) || undefined : req.user.branchId;
+
+    const whereClause: any = {};
+    if (targetBranchId) whereClause.branchId = targetBranchId;
+
+    if (startDate || endDate) {
+      whereClause.receiptDate = {};
+      if (startDate) {
+        whereClause.receiptDate.gte = new Date(String(startDate));
+      }
+      if (endDate) {
+        const endD = new Date(String(endDate));
+        endD.setHours(23, 59, 59, 999);
+        whereClause.receiptDate.lte = endD;
+      }
+    }
+
+    if (search && String(search).trim()) {
+      const q = String(search).trim();
+      whereClause.OR = [
+        { batchNumber: { contains: q, mode: 'insensitive' } },
+        { medicine: { brandName: { contains: q, mode: 'insensitive' } } },
+        { supplier: { name: { contains: q, mode: 'insensitive' } } },
+      ];
+    }
+
+    const batches = await prisma.stockBatch.findMany({
+      where: whereClause,
+      include: {
+        medicine: true,
+        branch: { select: { id: true, code: true, name: true } },
+        supplier: { select: { id: true, name: true } },
+      },
+      orderBy: { receiptDate: 'desc' },
+    });
+
+    let totalUnitsUploaded = 0;
+    let totalUnitsDispensed = 0;
+    let totalUnitsRemaining = 0;
+    let totalUploadedCost = 0;
+    let totalRemainingValue = 0;
+
+    const items = batches.map((b) => {
+      const uploaded = b.quantityReceived || 0;
+      const remaining = b.availableQuantity || 0;
+      const dispensed = Math.max(0, uploaded - remaining);
+      const rate = b.purchaseRate || 0;
+      const mrp = b.mrp || 0;
+      const uploadedCost = Number((uploaded * rate).toFixed(2));
+      const remainingVal = Number((remaining * rate).toFixed(2));
+
+      totalUnitsUploaded += uploaded;
+      totalUnitsDispensed += dispensed;
+      totalUnitsRemaining += remaining;
+      totalUploadedCost += uploadedCost;
+      totalRemainingValue += remainingVal;
+
+      return {
+        id: b.id,
+        receiptDate: b.receiptDate ? b.receiptDate.toISOString() : b.createdAt.toISOString(),
+        dateAdded: (b.receiptDate || b.createdAt).toISOString().split('T')[0],
+        medicineId: b.medicineId,
+        medicineName: b.medicine?.brandName || 'Unknown Medicine',
+        genericName: b.medicine?.genericName || '',
+        dosageForm: b.medicine?.dosageForm || 'Tablet',
+        batchNumber: b.batchNumber,
+        expiryDate: b.expiryDate ? b.expiryDate.toISOString().split('T')[0] : 'N/A',
+        quantityUploaded: uploaded,
+        quantityDispensed: dispensed,
+        quantityRemaining: remaining,
+        purchaseRate: rate,
+        mrp,
+        uploadedCost,
+        remainingValue: remainingVal,
+        supplierName: b.supplier?.name || (b.purchaseInvoiceRef ? `Ref: ${b.purchaseInvoiceRef}` : 'Initial Opening Stock'),
+        branchId: b.branchId,
+        branchName: b.branch?.name || '',
+        status: b.status,
+      };
+    });
+
+    if (isExport === 'true' || isExport === 'excel') {
+      const exportRows = items.map((it) => ({
+        'Date Added': it.dateAdded,
+        'Medicine Name': it.medicineName,
+        'Batch Number': it.batchNumber,
+        'Expiry Date': it.expiryDate,
+        'Uploaded / Received Qty': it.quantityUploaded,
+        'Dispensed Qty': it.quantityDispensed,
+        'Remaining Balance Qty': it.quantityRemaining,
+        'Purchase Rate (Rs)': it.purchaseRate,
+        'MRP (Rs)': it.mrp,
+        'Uploaded Stock Cost (Rs)': it.uploadedCost,
+        'Remaining Balance Value (Rs)': it.remainingValue,
+        'Supplier / Reference': it.supplierName,
+        'Branch': it.branchName,
+        'Status': it.status,
+      }));
+
+      const worksheet = xlsx.utils.json_to_sheet(exportRows);
+      const workbook = xlsx.utils.book_new();
+      xlsx.utils.book_append_sheet(workbook, worksheet, 'DateWise_Stock');
+      const buffer = xlsx.write(workbook, { type: 'buffer', bookType: 'xlsx' });
+
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      res.setHeader('Content-Disposition', `attachment; filename="confidos_datewise_stock_${new Date().toISOString().split('T')[0]}.xlsx"`);
+      return res.send(buffer);
+    }
+
+    return res.json({
+      summary: {
+        totalBatches: items.length,
+        totalUnitsUploaded,
+        totalUnitsDispensed,
+        totalUnitsRemaining,
+        totalUploadedCost: Number(totalUploadedCost.toFixed(2)),
+        totalRemainingValue: Number(totalRemainingValue.toFixed(2)),
+      },
+      items,
+    });
+  } catch (error: any) {
+    console.error('Date-wise stock report error:', error);
+    return res.status(500).json({ message: error.message || 'Failed to generate date-wise stock report' });
+  }
+};
+

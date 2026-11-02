@@ -9,12 +9,18 @@ import { FilterField, FilterSelect, FilterInput } from '../components/FilterCont
 export const ReportsPage: React.FC = () => {
   const { currentBranch, selectedBranchId } = useAuth();
 
-  const [activeReport, setActiveReport] = useState<'DAILY_SALES' | 'VALUATION' | 'GST' | 'EXPIRY' | 'PROFITABILITY'>('DAILY_SALES');
+  const [activeReport, setActiveReport] = useState<'DAILY_SALES' | 'VALUATION' | 'DATEWISE_STOCK' | 'GST' | 'EXPIRY' | 'PROFITABILITY'>('DAILY_SALES');
   const [loading, setLoading] = useState(false);
   const [reportData, setReportData] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
 
   const [dateFilter, setDateFilter] = useState(new Date().toISOString().split('T')[0]);
+
+  // Date-Wise Stock Report Filters
+  const [datewiseSearch, setDatewiseSearch] = useState('');
+  const [datewiseStartDate, setDatewiseStartDate] = useState('');
+  const [datewiseEndDate, setDatewiseEndDate] = useState('');
+  const [isExportingDatewiseExcel, setIsExportingDatewiseExcel] = useState(false);
 
   // Product Profitability Filters & Customization
   const [profitSearch, setProfitSearch] = useState('');
@@ -71,7 +77,7 @@ export const ReportsPage: React.FC = () => {
     setExpiryStatusFilter('');
   };
 
-  const handleTabChange = (tab: 'DAILY_SALES' | 'VALUATION' | 'GST' | 'EXPIRY' | 'PROFITABILITY') => {
+  const handleTabChange = (tab: 'DAILY_SALES' | 'VALUATION' | 'DATEWISE_STOCK' | 'GST' | 'EXPIRY' | 'PROFITABILITY') => {
     if (tab === activeReport) return;
     setReportData(null);
     setError(null);
@@ -87,6 +93,14 @@ export const ReportsPage: React.FC = () => {
         setReportData(data);
       } else if (activeReport === 'VALUATION') {
         const data = await api.getStockValuation(selectedBranchId);
+        setReportData(data);
+      } else if (activeReport === 'DATEWISE_STOCK') {
+        const data = await api.getDateWiseStockReport({
+          branchId: selectedBranchId,
+          startDate: datewiseStartDate || undefined,
+          endDate: datewiseEndDate || undefined,
+          search: datewiseSearch || undefined,
+        });
         setReportData(data);
       } else if (activeReport === 'GST') {
         const data = await api.getGSTSummary(selectedBranchId);
@@ -116,7 +130,31 @@ export const ReportsPage: React.FC = () => {
 
   useEffect(() => {
     loadReport();
-  }, [activeReport, selectedBranchId, dateFilter, profitStartDate, profitEndDate, profitSortBy, profitSortOrder, profitSearch]);
+  }, [activeReport, selectedBranchId, dateFilter, datewiseStartDate, datewiseEndDate, datewiseSearch, profitStartDate, profitEndDate, profitSortBy, profitSortOrder, profitSearch]);
+
+  const handleExportDatewiseExcel = async () => {
+    try {
+      setIsExportingDatewiseExcel(true);
+      const blob = await api.downloadDateWiseStockExcel({
+        branchId: selectedBranchId,
+        startDate: datewiseStartDate || undefined,
+        endDate: datewiseEndDate || undefined,
+        search: datewiseSearch || undefined,
+      });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `confidos_datewise_stock_${new Date().toISOString().split('T')[0]}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } catch (err: any) {
+      alert(err.message || 'Failed to download date-wise stock spreadsheet');
+    } finally {
+      setIsExportingDatewiseExcel(false);
+    }
+  };
 
   const handleExportProfitabilityExcel = async () => {
     try {
@@ -170,6 +208,22 @@ export const ReportsPage: React.FC = () => {
         MRP: i.mrp,
         TotalPurchaseCost: i.purchaseValue,
         TotalMRPValue: i.mrpValue,
+      }));
+    } else if (activeReport === 'DATEWISE_STOCK' && Array.isArray(reportData?.items)) {
+      rows = reportData.items.map((i: any) => ({
+        'Date Added': i.dateAdded,
+        'Medicine Name': i.medicineName,
+        'Batch Number': i.batchNumber,
+        'Expiry Date': i.expiryDate,
+        'Uploaded Qty': i.quantityUploaded,
+        'Dispensed Qty': i.quantityDispensed,
+        'Remaining Balance': i.quantityRemaining,
+        'Purchase Rate': i.purchaseRate,
+        'MRP': i.mrp,
+        'Uploaded Cost': i.uploadedCost,
+        'Remaining Value': i.remainingValue,
+        'Supplier': i.supplierName,
+        'Status': i.status,
       }));
     } else if (activeReport === 'GST' && Array.isArray(reportData.hsnRecords)) {
       rows = reportData.hsnRecords.map((h: any) => ({
@@ -315,6 +369,16 @@ export const ReportsPage: React.FC = () => {
         </div>
 
         <div className="flex items-center gap-2 self-start sm:self-auto flex-wrap">
+          {activeReport === 'DATEWISE_STOCK' && (
+            <button
+              onClick={handleExportDatewiseExcel}
+              disabled={isExportingDatewiseExcel || !reportData}
+              className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold shadow-xs transition-colors disabled:opacity-50"
+            >
+              <FileSpreadsheet className="w-4 h-4" />
+              {isExportingDatewiseExcel ? 'Exporting Excel...' : 'Download Excel (.xlsx)'}
+            </button>
+          )}
           {activeReport === 'PROFITABILITY' && (
             <button
               onClick={handleExportProfitabilityExcel}
@@ -354,6 +418,14 @@ export const ReportsPage: React.FC = () => {
             }`}
           >
             Stock Valuation & Margin
+          </button>
+          <button
+            onClick={() => handleTabChange('DATEWISE_STOCK')}
+            className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all ${
+              activeReport === 'DATEWISE_STOCK' ? 'bg-white text-emerald-700 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            Date-Wise Stock Records
           </button>
           <button
             onClick={() => handleTabChange('GST')}
@@ -753,6 +825,165 @@ export const ReportsPage: React.FC = () => {
                             <td className="py-2.5 px-3 text-right font-mono text-slate-800">₹{(item.mrp ?? 0).toFixed(2)}</td>
                             <td className="py-2.5 px-3 text-right font-mono text-slate-600">₹{(item.purchaseValue ?? 0).toFixed(2)}</td>
                             <td className="py-2.5 px-4 text-right font-mono font-bold text-brand-900">₹{(item.mrpValue ?? 0).toFixed(2)}</td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Date-Wise Stock Records Panel */}
+          {activeReport === 'DATEWISE_STOCK' && reportData && (
+            <div className="space-y-4 animate-in fade-in">
+              {/* Summary KPIs */}
+              <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+                <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs">
+                  <span className="text-[11px] font-bold text-slate-500 uppercase block">Total Batches</span>
+                  <p className="text-2xl font-black font-mono text-slate-900 mt-1">{reportData.summary?.totalBatches || 0}</p>
+                  <span className="text-[10px] text-slate-400">Recorded inward lots</span>
+                </div>
+                <div className="bg-white p-4 rounded-xl border border-emerald-100 bg-emerald-50/20 shadow-xs">
+                  <span className="text-[11px] font-bold text-emerald-800 uppercase block">Uploaded / Inward</span>
+                  <p className="text-2xl font-black font-mono text-emerald-700 mt-1">{reportData.summary?.totalUnitsUploaded || 0}</p>
+                  <span className="text-[10px] text-emerald-600 font-medium">Total units added</span>
+                </div>
+                <div className="bg-white p-4 rounded-xl border border-blue-100 bg-blue-50/20 shadow-xs">
+                  <span className="text-[11px] font-bold text-blue-800 uppercase block">Dispensed / Sold</span>
+                  <p className="text-2xl font-black font-mono text-blue-700 mt-1">{reportData.summary?.totalUnitsDispensed || 0}</p>
+                  <span className="text-[10px] text-blue-600 font-medium">Billed to patients</span>
+                </div>
+                <div className="bg-white p-4 rounded-xl border border-amber-100 bg-amber-50/20 shadow-xs">
+                  <span className="text-[11px] font-bold text-amber-800 uppercase block">Remaining Balance</span>
+                  <p className="text-2xl font-black font-mono text-amber-800 mt-1">{reportData.summary?.totalUnitsRemaining || 0}</p>
+                  <span className="text-[10px] text-amber-600 font-medium">Active in inventory</span>
+                </div>
+                <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs col-span-2 sm:col-span-1">
+                  <span className="text-[11px] font-bold text-slate-500 uppercase block">Remaining Value</span>
+                  <p className="text-2xl font-black font-mono text-brand-900 mt-1">₹{(reportData.summary?.totalRemainingValue || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</p>
+                  <span className="text-[10px] text-slate-400">At acquisition cost</span>
+                </div>
+              </div>
+
+              {/* Filters Bar */}
+              <div className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
+                <div className="p-3 bg-slate-50 border-b border-slate-200 flex flex-wrap items-center justify-between gap-3">
+                  <div className="flex items-center gap-3 flex-1 min-w-[280px]">
+                    <div className="relative flex-1">
+                      <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                      <input
+                        type="text"
+                        placeholder="Search by Medicine, Batch #, or Supplier..."
+                        value={datewiseSearch}
+                        onChange={(e) => setDatewiseSearch(e.target.value)}
+                        className="w-full pl-8 pr-3 py-1.5 text-xs bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-500"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 flex-wrap text-xs">
+                    <span className="text-slate-500 font-semibold text-[11px]">Date Added Range:</span>
+                    <input
+                      type="date"
+                      value={datewiseStartDate}
+                      onChange={(e) => setDatewiseStartDate(e.target.value)}
+                      className="px-2 py-1 bg-white border border-slate-200 rounded-lg font-mono text-xs"
+                      title="From Date"
+                    />
+                    <span className="text-slate-400">to</span>
+                    <input
+                      type="date"
+                      value={datewiseEndDate}
+                      onChange={(e) => setDatewiseEndDate(e.target.value)}
+                      className="px-2 py-1 bg-white border border-slate-200 rounded-lg font-mono text-xs"
+                      title="To Date"
+                    />
+                    {(datewiseStartDate || datewiseEndDate || datewiseSearch) && (
+                      <button
+                        onClick={() => {
+                          setDatewiseStartDate('');
+                          setDatewiseEndDate('');
+                          setDatewiseSearch('');
+                        }}
+                        className="text-[11px] text-rose-600 hover:text-rose-800 font-semibold px-2 py-1 rounded bg-rose-50"
+                      >
+                        Reset
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Date-Wise Stock Table */}
+                <div className="overflow-x-auto touch-scroll">
+                  <table className="w-full text-left text-xs border-collapse min-w-[850px]">
+                    <thead className="bg-slate-50 text-slate-700 font-bold border-b border-slate-200">
+                      <tr>
+                        <th className="py-3 px-4">Date Added</th>
+                        <th className="py-3 px-3">Medicine / Brand</th>
+                        <th className="py-3 px-3 font-mono">Batch Number</th>
+                        <th className="py-3 px-3 font-mono">Expiry Date</th>
+                        <th className="py-3 px-3 text-right text-emerald-800">Uploaded Qty</th>
+                        <th className="py-3 px-3 text-right text-blue-800">Dispensed Qty</th>
+                        <th className="py-3 px-3 text-right text-amber-800">Remaining Balance</th>
+                        <th className="py-3 px-3 text-right">Purchase Rate</th>
+                        <th className="py-3 px-3 text-right">Remaining Value</th>
+                        <th className="py-3 px-4">Supplier / Reference</th>
+                        <th className="py-3 px-3 text-center">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 font-medium">
+                      {(reportData.items || []).length === 0 ? (
+                        <tr>
+                          <td colSpan={11} className="py-10 text-center text-slate-400">
+                            No stock records found for the selected branch and date range.
+                          </td>
+                        </tr>
+                      ) : (
+                        (reportData.items || []).map((item: any) => (
+                          <tr key={item.id} className="hover:bg-slate-50/60 transition-colors">
+                            <td className="py-2.5 px-4 whitespace-nowrap font-medium text-slate-900">
+                              {item.dateAdded}
+                            </td>
+                            <td className="py-2.5 px-3">
+                              <span className="font-bold text-slate-900 block">{item.medicineName}</span>
+                              <span className="text-[10px] text-slate-400 block">{item.dosageForm}</span>
+                            </td>
+                            <td className="py-2.5 px-3 font-mono font-bold text-slate-700">
+                              {item.batchNumber}
+                            </td>
+                            <td className="py-2.5 px-3 font-mono text-slate-600">
+                              {item.expiryDate}
+                            </td>
+                            <td className="py-2.5 px-3 text-right font-mono font-bold text-emerald-700">
+                              +{item.quantityUploaded}
+                            </td>
+                            <td className="py-2.5 px-3 text-right font-mono font-semibold text-blue-700">
+                              {item.quantityDispensed > 0 ? `-${item.quantityDispensed}` : '0'}
+                            </td>
+                            <td className="py-2.5 px-3 text-right font-mono font-bold text-amber-800">
+                              <span className={`px-2 py-0.5 rounded ${item.quantityRemaining > 0 ? 'bg-amber-50 text-amber-900 border border-amber-200' : 'bg-slate-100 text-slate-400'}`}>
+                                {item.quantityRemaining}
+                              </span>
+                            </td>
+                            <td className="py-2.5 px-3 text-right font-mono text-slate-700">
+                              ₹{Number(item.purchaseRate || 0).toFixed(2)}
+                            </td>
+                            <td className="py-2.5 px-3 text-right font-mono font-bold text-slate-900">
+                              ₹{Number(item.remainingValue || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                            </td>
+                            <td className="py-2.5 px-4 text-slate-600 text-[11px]">
+                              {item.supplierName}
+                            </td>
+                            <td className="py-2.5 px-3 text-center">
+                              <Badge
+                                variant={item.quantityRemaining > 0 ? (item.status === 'ACTIVE' ? 'success' : 'warning') : 'neutral'}
+                                size="sm"
+                              >
+                                {item.quantityRemaining > 0 ? item.status : 'DEPLETED'}
+                              </Badge>
+                            </td>
                           </tr>
                         ))
                       )}
