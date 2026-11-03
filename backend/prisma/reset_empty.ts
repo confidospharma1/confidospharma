@@ -4,58 +4,77 @@ dotenv.config();
 import prisma from '../src/database/prisma';
 
 /**
- * Confidos Pharma — Database Empty State Reset Script
+ * Confidos Pharma — Database Complete Purge / Fresh Production Reset Script
  * 
- * Clears all business and inventory transactions, stock batches, catalogue medicines,
- * suppliers, branches, users, and companies, leaving a pure empty production-ready schema
- * with system configuration settings intact.
+ * Safely clears all data across all database tables (transactions, batches,
+ * catalogue items, suppliers, audit events, import jobs, privacy requests,
+ * expenses, branches, companies, users, and system settings).
  * 
- * On next launch, the application triggers the Initial Administrator Onboarding Wizard.
+ * Database schema, migrations, constraints, and relationships remain fully intact.
+ * On application start, the system triggers the initial Super Administrator onboarding wizard.
  */
 export async function resetDatabaseToEmptyState() {
-  console.log('🔄 Initiating Confidos Pharma Pure Empty State Reset...');
+  console.log('🔄 Initiating Confidos Pharma Complete Database Purge...');
 
-  // 1. Transactional & Line Item Tables
-  await prisma.purchaseIndentItem.deleteMany({});
-  await prisma.purchaseIndent.deleteMany({});
-  await prisma.salesInvoiceLine.deleteMany({});
-  await prisma.salesInvoice.deleteMany({});
-  await prisma.purchaseReturnLine.deleteMany({});
-  await prisma.purchaseReturn.deleteMany({});
-  await prisma.purchaseInvoiceLine.deleteMany({});
-  await prisma.purchaseInvoice.deleteMany({});
-  await prisma.expense.deleteMany({});
+  const allTables = [
+    'AuditEvent',
+    'Branch',
+    'Company',
+    'Expense',
+    'ImportJob',
+    'MedicineProduct',
+    'PrivacyRequest',
+    'PurchaseIndent',
+    'PurchaseIndentItem',
+    'PurchaseInvoice',
+    'PurchaseInvoiceLine',
+    'PurchaseReturn',
+    'PurchaseReturnLine',
+    'SalesInvoice',
+    'SalesInvoiceLine',
+    'StockAdjustment',
+    'StockBatch',
+    'StockMovement',
+    'StockTransfer',
+    'Supplier',
+    'SystemSetting',
+    'User',
+  ];
 
-  // 2. Inventory Ledger & Batches
-  await prisma.stockMovement.deleteMany({});
-  await prisma.stockAdjustment.deleteMany({});
-  await prisma.stockTransfer.deleteMany({});
-  await prisma.stockBatch.deleteMany({});
+  const truncateQuery = `TRUNCATE TABLE ${allTables.map((t) => `"${t}"`).join(', ')} CASCADE;`;
+  await prisma.$executeRawUnsafe(truncateQuery);
 
-  // 3. Import jobs, audit events, and privacy requests
-  await prisma.importJob.deleteMany({});
-  await prisma.privacyRequest.deleteMany({});
-  await prisma.auditEvent.deleteMany({});
+  console.log('✅ TRUNCATE TABLE CASCADE executed successfully across all application tables.');
+  console.log('\n📊 Verifying row counts across all database tables:');
 
-  // 4. Catalogue & Master Records
-  await prisma.medicineProduct.deleteMany({});
-  await prisma.supplier.deleteMany({});
+  let totalRemainingRows = 0;
+  for (const tableName of allTables) {
+    const res: Array<{ count: bigint | number | string }> = await prisma.$queryRawUnsafe(
+      `SELECT COUNT(*) as count FROM "${tableName}";`
+    );
+    const count = Number(res[0]?.count || 0);
+    console.log(`  ✓ ${tableName.padEnd(25)}: ${count} rows`);
+    totalRemainingRows += count;
+  }
 
-  // 5. Users, Branches, and Company (enables fresh onboarding flow)
-  await prisma.user.deleteMany({});
-  await prisma.branch.deleteMany({});
-  await prisma.company.deleteMany({});
-
-  console.log('✅ All application data, inventory batches, catalogues, branches, and user records cleared.');
-  console.log('✅ Database schema, migrations, constraints, and system configuration settings preserved.');
-  console.log('🌟 The system will now open directly into the Initial Onboarding Wizard (GET /api/auth/setup-status -> needsSetup: true).');
+  console.log(`\n🎉 Total application rows remaining: ${totalRemainingRows}`);
+  if (totalRemainingRows === 0) {
+    console.log('✨ All database tables are now completely EMPTY.');
+    console.log('🚀 Ready to start fresh production! The onboarding wizard is active at /login (GET /api/auth/setup-status -> needsSetup: true).');
+  } else {
+    console.warn(`⚠️ Warning: Expected 0 rows but found ${totalRemainingRows} rows remaining.`);
+  }
 }
 
 if (require.main === module) {
   resetDatabaseToEmptyState()
-    .then(() => process.exit(0))
-    .catch((err) => {
+    .then(async () => {
+      await prisma.$disconnect();
+      process.exit(0);
+    })
+    .catch(async (err) => {
       console.error('❌ Reset failed:', err);
+      await prisma.$disconnect();
       process.exit(1);
     });
 }
