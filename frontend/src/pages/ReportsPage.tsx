@@ -215,9 +215,9 @@ export const ReportsPage: React.FC = () => {
         'Medicine Name': i.medicineName,
         'Batch Number': i.batchNumber,
         'Expiry Date': i.expiryDate,
-        'Uploaded Qty': i.quantityUploaded,
-        'Dispensed Qty': i.quantityDispensed,
-        'Remaining Balance': i.quantityRemaining,
+        'Uploaded Quantity / Units': i.quantityUploaded,
+        'Dispensed Quantity / Units': i.quantityDispensed,
+        'Remaining Balance (Units)': i.quantityRemaining,
         'Purchase Rate': i.purchaseRate,
         'MRP': i.mrp,
         'Uploaded Cost': i.uploadedCost,
@@ -924,9 +924,9 @@ export const ReportsPage: React.FC = () => {
                         <th className="py-3 px-3">Medicine / Brand</th>
                         <th className="py-3 px-3 font-mono">Batch Number</th>
                         <th className="py-3 px-3 font-mono">Expiry Date</th>
-                        <th className="py-3 px-3 text-right text-emerald-800">Uploaded Qty</th>
-                        <th className="py-3 px-3 text-right text-blue-800">Dispensed Qty</th>
-                        <th className="py-3 px-3 text-right text-amber-800">Remaining Balance</th>
+                        <th className="py-3 px-3 text-right text-emerald-800">Uploaded Quantity / Units</th>
+                        <th className="py-3 px-3 text-right text-blue-800">Dispensed Quantity / Units</th>
+                        <th className="py-3 px-3 text-right text-amber-800">Remaining Balance (Units)</th>
                         <th className="py-3 px-3 text-right">Purchase Rate</th>
                         <th className="py-3 px-3 text-right">Remaining Value</th>
                         <th className="py-3 px-4">Supplier / Reference</th>

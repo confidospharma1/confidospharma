@@ -14,21 +14,27 @@ export interface PackConversionDisplay {
 
 export function formatPackConversion(
   quantity: number,
-  baseUnit: string = 'Strip',
-  packageUnit: string = 'Box',
-  conversionFactor: number = 10
+  baseUnit: string = 'Tablet',
+  packageUnit: string = 'Tablet',
+  conversionFactor: number = 1
 ): PackConversionDisplay {
   const factor = conversionFactor > 0 ? conversionFactor : 1;
   const fullPacks = Math.floor(quantity / factor);
   const remainderUnits = quantity % factor;
 
   let equivalentPacksText = '';
-  if (fullPacks > 0 && remainderUnits > 0) {
-    equivalentPacksText = `${fullPacks} ${packageUnit}${fullPacks > 1 ? 'es' : ''} + ${remainderUnits} ${baseUnit}${remainderUnits > 1 ? 's' : ''}`;
-  } else if (fullPacks > 0 && remainderUnits === 0) {
-    equivalentPacksText = `${fullPacks} ${packageUnit}${fullPacks > 1 ? 'es' : ''}`;
+  const pluralPkg = fullPacks > 1 ? (packageUnit.toLowerCase().endsWith('x') ? 'es' : 's') : '';
+  const pluralBase = remainderUnits > 1 && !baseUnit.toLowerCase().endsWith('s') ? 's' : '';
+  if (factor > 1 && packageUnit.toLowerCase() !== baseUnit.toLowerCase()) {
+    if (fullPacks > 0 && remainderUnits > 0) {
+      equivalentPacksText = `${fullPacks} ${packageUnit}${pluralPkg} + ${remainderUnits} ${baseUnit}${pluralBase}`;
+    } else if (fullPacks > 0) {
+      equivalentPacksText = `${fullPacks} ${packageUnit}${pluralPkg}`;
+    } else {
+      equivalentPacksText = `${quantity} ${baseUnit}${quantity !== 1 && !baseUnit.endsWith('s') ? 's' : ''}`;
+    }
   } else {
-    equivalentPacksText = `${quantity} ${baseUnit}${quantity !== 1 ? 's' : ''}`;
+    equivalentPacksText = `${quantity} ${baseUnit}${quantity !== 1 && !baseUnit.endsWith('s') ? 's' : ''}`;
   }
 
   return {
@@ -227,9 +233,9 @@ export const getStockMonitoring = async (req: Request, res: Response) => {
       // Pack conversions
       const packInfo = formatPackConversion(
         totalAvailableStock,
-        med.baseUnit || 'Strip',
-        med.packageUnit || 'Box',
-        med.conversionFactor || 10
+        med.baseUnit || 'Tablet',
+        med.packageUnit || 'Tablet',
+        med.conversionFactor || 1
       );
 
       // Inventory valuation from batches
@@ -253,9 +259,9 @@ export const getStockMonitoring = async (req: Request, res: Response) => {
         dosageForm: med.dosageForm,
         manufacturer: med.manufacturer,
         packSize: med.packSize,
-        baseUnit: med.baseUnit || 'Strip',
-        packageUnit: med.packageUnit || 'Box',
-        conversionFactor: med.conversionFactor || 10,
+        baseUnit: med.baseUnit || 'Tablet',
+        packageUnit: med.packageUnit || 'Tablet',
+        conversionFactor: med.conversionFactor || 1,
         hsnCode: med.hsnCode,
         gstRate: med.gstRate,
         mrp: med.mrp,
@@ -508,9 +514,9 @@ export const getMedicineBatches = async (req: Request, res: Response) => {
 
       const packInfo = formatPackConversion(
         b.availableQuantity,
-        medicine.baseUnit || 'Strip',
-        medicine.packageUnit || 'Box',
-        medicine.conversionFactor || 10
+        medicine.baseUnit || 'Tablet',
+        medicine.packageUnit || 'Tablet',
+        medicine.conversionFactor || 1
       );
 
       let expiryClassification: 'NORMAL' | 'NEAR_EXPIRY' | 'EXPIRED' = 'NORMAL';
@@ -524,8 +530,8 @@ export const getMedicineBatches = async (req: Request, res: Response) => {
         batchNumber: b.batchNumber,
         availableQuantity: b.availableQuantity,
         quantityReceived: b.quantityReceived,
-        baseUnit: medicine.baseUnit || 'Strip',
-        packageUnit: medicine.packageUnit || 'Box',
+        baseUnit: medicine.baseUnit || 'Tablet',
+        packageUnit: medicine.packageUnit || 'Tablet',
         conversionFactor: factor,
         equivalentPacksText: packInfo.equivalentPacksText,
         purchaseRate: b.purchaseRate,
@@ -550,9 +556,9 @@ export const getMedicineBatches = async (req: Request, res: Response) => {
     const totalStock = mappedBatches.reduce((sum, b) => sum + Math.max(0, b.availableQuantity), 0);
     const summaryPack = formatPackConversion(
       totalStock,
-      medicine.baseUnit || 'Strip',
-      medicine.packageUnit || 'Box',
-      medicine.conversionFactor || 10
+      medicine.baseUnit || 'Tablet',
+      medicine.packageUnit || 'Tablet',
+      medicine.conversionFactor || 1
     );
 
     return res.json({
@@ -565,9 +571,9 @@ export const getMedicineBatches = async (req: Request, res: Response) => {
         dosageForm: medicine.dosageForm,
         manufacturer: medicine.manufacturer,
         packSize: medicine.packSize,
-        baseUnit: medicine.baseUnit || 'Strip',
-        packageUnit: medicine.packageUnit || 'Box',
-        conversionFactor: medicine.conversionFactor || 10,
+        baseUnit: medicine.baseUnit || 'Tablet',
+        packageUnit: medicine.packageUnit || 'Tablet',
+        conversionFactor: medicine.conversionFactor || 1,
         mrp: medicine.mrp,
         reorderLevel: medicine.reorderLevel,
         hsnCode: medicine.hsnCode,
@@ -714,7 +720,7 @@ export const getStockMonitoringAlerts = async (req: Request, res: Response) => {
           medicineId: b.medicineId,
           batchNumber: b.batchNumber,
           affectedQuantity: b.availableQuantity,
-          baseUnit: b.medicine.baseUnit || 'Strip',
+          baseUnit: b.medicine.baseUnit || 'Tablet',
           thresholdOrExpiry: expDate.toLocaleDateString('en-IN', { year: 'numeric', month: 'short', day: 'numeric' }),
           daysLeft,
           branchName,
@@ -730,7 +736,7 @@ export const getStockMonitoringAlerts = async (req: Request, res: Response) => {
           medicineId: b.medicineId,
           batchNumber: b.batchNumber,
           affectedQuantity: b.availableQuantity,
-          baseUnit: b.medicine.baseUnit || 'Strip',
+          baseUnit: b.medicine.baseUnit || 'Tablet',
           thresholdOrExpiry: expDate.toLocaleDateString('en-IN', { year: 'numeric', month: 'short', day: 'numeric' }),
           daysLeft,
           branchName,
@@ -746,7 +752,7 @@ export const getStockMonitoringAlerts = async (req: Request, res: Response) => {
           medicineId: b.medicineId,
           batchNumber: b.batchNumber,
           affectedQuantity: b.availableQuantity,
-          baseUnit: b.medicine.baseUnit || 'Strip',
+          baseUnit: b.medicine.baseUnit || 'Tablet',
           thresholdOrExpiry: expDate.toLocaleDateString('en-IN', { year: 'numeric', month: 'short', day: 'numeric' }),
           daysLeft,
           branchName,
@@ -762,7 +768,7 @@ export const getStockMonitoringAlerts = async (req: Request, res: Response) => {
           medicineId: b.medicineId,
           batchNumber: b.batchNumber,
           affectedQuantity: b.availableQuantity,
-          baseUnit: b.medicine.baseUnit || 'Strip',
+          baseUnit: b.medicine.baseUnit || 'Tablet',
           thresholdOrExpiry: expDate.toLocaleDateString('en-IN', { year: 'numeric', month: 'short', day: 'numeric' }),
           daysLeft,
           branchName,
@@ -787,8 +793,8 @@ export const getStockMonitoringAlerts = async (req: Request, res: Response) => {
           medicineId: med.id,
           batchNumber: null,
           affectedQuantity: 0,
-          baseUnit: med.baseUnit || 'Strip',
-          thresholdOrExpiry: `Reorder Level: ${reorderLevel} ${med.baseUnit || 'Strip'}s`,
+          baseUnit: med.baseUnit || 'Tablet',
+          thresholdOrExpiry: `Reorder Level: ${reorderLevel} ${med.baseUnit || 'Tablet'}s`,
           daysLeft: null,
           branchName,
           recommendedAction: 'Create purchase indent immediately to avoid customer stock-outs at retail billing.',
@@ -803,11 +809,11 @@ export const getStockMonitoringAlerts = async (req: Request, res: Response) => {
           medicineId: med.id,
           batchNumber: null,
           affectedQuantity: totalStock,
-          baseUnit: med.baseUnit || 'Strip',
-          thresholdOrExpiry: `Threshold: ${reorderLevel} ${med.baseUnit || 'Strip'}s`,
+          baseUnit: med.baseUnit || 'Tablet',
+          thresholdOrExpiry: `Threshold: ${reorderLevel} ${med.baseUnit || 'Tablet'}s`,
           daysLeft: null,
           branchName,
-          recommendedAction: `Current stock (${totalStock} ${med.baseUnit || 'Strip'}s) is below configured minimum (${reorderLevel}). Generate replenishment order.`,
+          recommendedAction: `Current stock (${totalStock} ${med.baseUnit || 'Tablet'}s) is below configured minimum (${reorderLevel}). Generate replenishment order.`,
         });
       } else if (bList.length > 0 && (med.reorderLevel === null || med.reorderLevel === undefined)) {
         alerts.push({
@@ -819,7 +825,7 @@ export const getStockMonitoringAlerts = async (req: Request, res: Response) => {
           medicineId: med.id,
           batchNumber: null,
           affectedQuantity: totalStock,
-          baseUnit: med.baseUnit || 'Strip',
+          baseUnit: med.baseUnit || 'Tablet',
           thresholdOrExpiry: 'Unset',
           daysLeft: null,
           branchName,

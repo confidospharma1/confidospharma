@@ -1032,11 +1032,11 @@ export const InventoryPage: React.FC = () => {
                     <th className="py-3 px-4">Medicine / Dosage</th>
                     <th className="py-3 px-4">Batch / Expiry / Supplier</th>
                     <th className="py-3 px-4">Movement Type</th>
-                    <th className="py-3 px-4 text-right">Inward Qty</th>
-                    <th className="py-3 px-4 text-right">Outward Qty</th>
+                    <th className="py-3 px-4 text-right">Inward Qty (Units)</th>
+                    <th className="py-3 px-4 text-right">Outward Qty (Units)</th>
                     <th className="py-3 px-4 text-right">Unit Cost</th>
                     <th className="py-3 px-4 text-right">Total Value</th>
-                    <th className="py-3 px-4 text-right">Batch Stock</th>
+                    <th className="py-3 px-4 text-right">Batch Stock (Units)</th>
                     <th className="py-3 px-4">Source Ref & User</th>
                   </tr>
                 </thead>
@@ -1266,7 +1266,7 @@ export const InventoryPage: React.FC = () => {
                     <th className="py-3 px-4">Medicine</th>
                     <th className="py-3 px-4">Batch Number</th>
                     <th className="py-3 px-4">Expiry Date</th>
-                    <th className="py-3 px-4 text-right">Available Qty</th>
+                    <th className="py-3 px-4 text-right">Available Quantity / Units</th>
                     <th className="py-3 px-4 text-right">Purchase Rate</th>
                     <th className="py-3 px-4 text-right">MRP</th>
                     <th className="py-3 px-4 text-right">Selling Price</th>
@@ -1454,9 +1454,9 @@ export const InventoryPage: React.FC = () => {
                     <th className="py-3 px-3">Medicine Name</th>
                     <th className="py-3 px-3 font-mono">Batch Number</th>
                     <th className="py-3 px-3 font-mono">Expiry Date</th>
-                    <th className="py-3 px-3 text-right text-emerald-800">Uploaded Qty</th>
-                    <th className="py-3 px-3 text-right text-blue-800">Dispensed Qty</th>
-                    <th className="py-3 px-3 text-right text-amber-800">Remaining Balance</th>
+                    <th className="py-3 px-3 text-right text-emerald-800">Uploaded Quantity / Units</th>
+                    <th className="py-3 px-3 text-right text-blue-800">Dispensed Quantity / Units</th>
+                    <th className="py-3 px-3 text-right text-amber-800">Remaining Balance (Units)</th>
                     <th className="py-3 px-3 text-right">Purchase Rate</th>
                     <th className="py-3 px-3 text-right">Remaining Value</th>
                     <th className="py-3 px-4">Supplier / Source</th>

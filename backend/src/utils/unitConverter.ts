@@ -173,7 +173,6 @@ export function buildProductUnitConfig(
     if (isBottlePackage && factor > 0) {
       bottleMultiplier = factor;
     } else {
-      // Try to extract tablet count per bottle from packSize, e.g. "60 Tablets Bottle" or "100 Tablets"
       const bottleMatch = packSizeStr.match(/(\d+)\s*(tablets?|capsules?|tabs?|caps?|units?)?/i);
       if (bottleMatch) {
         const parsed = parseInt(bottleMatch[1], 10);
@@ -189,7 +188,6 @@ export function buildProductUnitConfig(
   const hasStripInPack = packSizeStr.includes('strip');
   const isStripBase = rawBase.toLowerCase() === 'strip';
   const isStripPackage = pkgUnit.toLowerCase() === 'strip';
-  // Standard tablet medicines support Strip unless exclusively packaged in a bottle without strips
   const supportsStrip =
     hasStripInPack ||
     isStripBase ||
@@ -198,7 +196,6 @@ export function buildProductUnitConfig(
 
   let stripMultiplier = 0;
   if (supportsStrip) {
-    // If packSize has e.g. "15 Tablets", use 15. Else if factor is configured:
     const tabMatch = packSizeStr.match(/(\d+)\s*(tablets?|capsules?|tabs?|caps?)/i);
     if (tabMatch && !hasStripInPack) {
       const parsed = parseInt(tabMatch[1], 10);
@@ -398,23 +395,7 @@ export function formatPackagingBreakdown(
   baseQuantity: number,
   config: ProductUnitConfig
 ): string {
-  if (config.supportedUnits.length <= 1) {
-    return `${baseQuantity} ${config.baseUnit}`;
-  }
-
-  // Find strip or intermediate unit if exists
-  const stripUnit = config.supportedUnits.find((u) => u.unit.toLowerCase() === 'strip');
-  if (stripUnit && stripUnit.multiplierToBase > 1) {
-    const strips = Math.floor(baseQuantity / stripUnit.multiplierToBase);
-    const remainingTablets = baseQuantity % stripUnit.multiplierToBase;
-    if (strips > 0 && remainingTablets > 0) {
-      return `${baseQuantity} ${config.baseUnit} (${strips} Strips, ${remainingTablets} ${config.baseUnit})`;
-    } else if (strips > 0) {
-      return `${baseQuantity} ${config.baseUnit} (${strips} Strips)`;
-    }
-  }
-
-  return `${baseQuantity} ${config.baseUnit}`;
+  return `${baseQuantity} ${config.baseUnit || 'Tablets'}`;
 }
 
 /**

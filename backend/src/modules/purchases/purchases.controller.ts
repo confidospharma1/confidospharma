@@ -273,8 +273,27 @@ export const createPurchase = async (req: Request, res: Response) => {
       let taxTotalDec = new Decimal(0);
       let lineDiscountsTotalDec = new Decimal(0);
 
-      const count = await tx.purchaseInvoice.count({ where: { branchId: validatedBranchId } });
-      const invoiceNumber = `PUR-${branch.code.replace('B-', '')}-${new Date().getFullYear()}-${String(count + 1).padStart(5, '0')}`;
+      const year = new Date().getFullYear();
+      const prefix = `PUR-${branch.code.replace('B-', '')}-${year}-`;
+      const latestInvoice = await tx.purchaseInvoice.findFirst({
+        where: {
+          invoiceNumber: { startsWith: prefix },
+        },
+        orderBy: { invoiceNumber: 'desc' },
+      });
+      let nextSeq = 1;
+      if (latestInvoice && latestInvoice.invoiceNumber) {
+        const parts = latestInvoice.invoiceNumber.split('-');
+        const lastNum = parseInt(parts[parts.length - 1], 10);
+        if (!isNaN(lastNum)) {
+          nextSeq = lastNum + 1;
+        }
+      }
+      let invoiceNumber = `${prefix}${String(nextSeq).padStart(5, '0')}`;
+      while (await tx.purchaseInvoice.findFirst({ where: { invoiceNumber } })) {
+        nextSeq++;
+        invoiceNumber = `${prefix}${String(nextSeq).padStart(5, '0')}`;
+      }
 
       const processedLines: any[] = [];
       // In-transaction cache for newly created or resolved medicines to handle multiple lines with same new medicine
@@ -305,9 +324,9 @@ export const createPurchase = async (req: Request, res: Response) => {
         const lineDosageForm = (newMedicine?.dosageForm || line.dosageForm || 'Tablet').toString().trim();
         const lineManufacturer = (newMedicine?.manufacturer || line.manufacturer || '').toString().trim();
         const lineHsnCode = (newMedicine?.hsnCode || line.hsnCode || '30049099').toString().trim();
-        const lineBaseUnit = (newMedicine?.baseUnit || line.sellingUnit || line.baseUnit || 'Strip').toString().trim();
-        const linePackageUnit = (newMedicine?.packageUnit || line.purchaseUnit || line.unit || 'Box').toString().trim();
-        const lineConvFactor = parseInt(newMedicine?.conversionFactor || line.conversionFactor || line.unitsPerPack || 10, 10);
+        const lineBaseUnit = (newMedicine?.baseUnit || line.sellingUnit || line.baseUnit || 'Tablet').toString().trim();
+        const linePackageUnit = (newMedicine?.packageUnit || line.purchaseUnit || line.unit || 'Tablet').toString().trim();
+        const lineConvFactor = parseInt(newMedicine?.conversionFactor || line.conversionFactor || line.unitsPerPack || 1, 10);
 
         let resolvedMed: any = null;
 
@@ -373,7 +392,7 @@ export const createPurchase = async (req: Request, res: Response) => {
               strength: resolvedStrObj.strength,
               dosageForm: lineDosageForm || 'Tablet',
               manufacturer: lineManufacturer || 'Standard Pharma',
-              packSize: newMedicine?.packSize || `${!isNaN(lineConvFactor) && lineConvFactor > 0 ? lineConvFactor : 10} ${lineBaseUnit}s`,
+              packSize: newMedicine?.packSize || `${!isNaN(lineConvFactor) && lineConvFactor > 0 ? lineConvFactor : 1} ${lineBaseUnit}s`,
               baseUnit: lineBaseUnit,
               hsnCode: lineHsnCode || '30049099',
               gstRate: parsedGst,
@@ -383,7 +402,7 @@ export const createPurchase = async (req: Request, res: Response) => {
               prescriptionType: newMedicine?.prescriptionType || 'Schedule H',
               storageNotes: newMedicine?.storageNotes ? newMedicine.storageNotes.trim() : (line.notes ? String(line.notes).trim() : undefined),
               packageUnit: linePackageUnit,
-              conversionFactor: !isNaN(lineConvFactor) && lineConvFactor > 0 ? lineConvFactor : 10,
+              conversionFactor: !isNaN(lineConvFactor) && lineConvFactor > 0 ? lineConvFactor : 1,
               isActive: true,
             },
           });
@@ -479,7 +498,7 @@ export const createPurchase = async (req: Request, res: Response) => {
         } else if (resolvedMed?.conversionFactor && resolvedMed.conversionFactor > 0 && line.unit && line.unit.toLowerCase() === (resolvedMed.packageUnit || '').toLowerCase()) {
           factor = resolvedMed.conversionFactor;
         }
-        const lineUnit = line.unit || 'Strip';
+        const lineUnit = line.unit || 'Tablet';
         const totalBatchQty = (qty + freeQty) * factor;
 
         // Base unit pricing normalization for inventory batch
@@ -902,7 +921,7 @@ export const updatePurchase = async (req: Request, res: Response) => {
         const factor = (line.conversionFactor && parseInt(line.conversionFactor) > 0)
           ? parseInt(line.conversionFactor)
           : 1;
-        const lineUnit = line.unit || 'Strip';
+        const lineUnit = line.unit || 'Tablet';
         const totalNewQty = (qty + freeQty) * factor;
 
         // Base rates
@@ -1574,7 +1593,7 @@ export const previewPurchaseImport = async (req: Request, res: Response) => {
       const hsnCode = (mapped.hsnCode || '').toString().trim() || null;
       const batchNumber = (mapped.batchNumber || '').toString().trim();
       const expiryRaw = mapped.expiryDate;
-      const purchaseUnit = (mapped.purchaseUnit || 'Strip').toString().trim();
+      const purchaseUnit = (mapped.purchaseUnit || 'Tablet').toString().trim();
       const sellingUnit = (mapped.sellingUnit || 'Tablet').toString().trim();
       const quantity = parseCleanInt(mapped.quantity, 0);
       const freeQuantity = parseCleanInt(mapped.freeQuantity, 0);

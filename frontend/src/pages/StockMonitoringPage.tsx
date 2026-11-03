@@ -919,8 +919,8 @@ export const StockMonitoringPage: React.FC = () => {
                   <th className="py-3 px-3">Form & Strength</th>
                   <th className="py-3 px-3">Manufacturer</th>
                   <th className="py-3 px-3">SKU / Code</th>
-                  <th className="py-3 px-3 text-right">Available Stock</th>
-                  <th className="py-3 px-3">Pack Equivalent</th>
+                  <th className="py-3 px-3 text-right">Available Stock (Units)</th>
+                  <th className="py-3 px-3">Quantity / Units</th>
                   <th className="py-3 px-3 text-center">Batches</th>
                   <th className="py-3 px-3">Nearest Expiry</th>
                   <th className="py-3 px-3 text-center">Stock Status</th>
@@ -975,7 +975,7 @@ export const StockMonitoringPage: React.FC = () => {
                       >
                         {item.totalAvailableStock.toLocaleString()}
                       </span>
-                      <span className="text-[10px] text-slate-400 ml-1 block">{item.baseUnit}s</span>
+                      <span className="text-[10px] text-slate-400 ml-1 block">{item.baseUnit || 'Tablets'}</span>
                     </td>
 
                     {/* Pack Equivalent */}
@@ -1234,9 +1234,9 @@ export const StockMonitoringPage: React.FC = () => {
                     <th className="py-3 px-3">Medicine Name</th>
                     <th className="py-3 px-3 font-mono">Batch Number</th>
                     <th className="py-3 px-3 font-mono">Expiry Date</th>
-                    <th className="py-3 px-3 text-right text-emerald-800">Uploaded Qty</th>
-                    <th className="py-3 px-3 text-right text-blue-800">Dispensed Qty</th>
-                    <th className="py-3 px-3 text-right text-amber-800">Remaining Balance</th>
+                    <th className="py-3 px-3 text-right text-emerald-800">Uploaded Quantity / Units</th>
+                    <th className="py-3 px-3 text-right text-blue-800">Dispensed Quantity / Units</th>
+                    <th className="py-3 px-3 text-right text-amber-800">Remaining Balance (Units)</th>
                     <th className="py-3 px-3 text-right">Purchase Rate</th>
                     <th className="py-3 px-3 text-right">Remaining Value</th>
                     <th className="py-3 px-4">Supplier / Source</th>
@@ -1391,8 +1391,8 @@ export const StockMonitoringPage: React.FC = () => {
                   <thead className="sticky top-0 z-10 bg-slate-100 border-b border-slate-200 text-slate-700 font-bold">
                     <tr>
                       <th className="py-2.5 px-3">Batch Number</th>
-                      <th className="py-2.5 px-3 text-right">Available Stock</th>
-                      <th className="py-2.5 px-3">Pack Breakdown</th>
+                      <th className="py-2.5 px-3 text-right">Available Stock (Units)</th>
+                      <th className="py-2.5 px-3">Quantity / Units</th>
                       <th className="py-2.5 px-3 text-right">Cost Rate</th>
                       <th className="py-2.5 px-3 text-right">MRP</th>
                       <th className="py-2.5 px-3">Expiry Date</th>

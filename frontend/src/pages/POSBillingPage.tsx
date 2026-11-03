@@ -71,7 +71,7 @@ export const POSBillingPage: React.FC = () => {
   const [completedInvoice, setCompletedInvoice] = useState<SalesInvoice | null>(null);
   const [showReceiptModal, setShowReceiptModal] = useState(false);
   const [mobileView, setMobileView] = useState<'cart' | 'checkout'>('cart');
-  const [maxDiscountLimit, setMaxDiscountLimit] = useState<number>(100);
+  const [maxDiscountLimit, setMaxDiscountLimit] = useState<number>(50);
 
   const searchInputRef = useRef<HTMLInputElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -82,11 +82,13 @@ export const POSBillingPage: React.FC = () => {
       if (settings?.MAX_DISCOUNT_PERCENT) {
         const parsed = parseFloat(settings.MAX_DISCOUNT_PERCENT);
         if (!isNaN(parsed) && parsed > 0) {
-          setMaxDiscountLimit(parsed);
+          setMaxDiscountLimit(Math.max(50, parsed));
+        } else {
+          setMaxDiscountLimit(50);
         }
       }
     }).catch(() => {
-      // Default to 100 on error
+      setMaxDiscountLimit(50);
     });
   }, []);
 
@@ -174,89 +176,10 @@ export const POSBillingPage: React.FC = () => {
     const isCapsule = form.includes('capsule') || rawBase.toLowerCase() === 'capsule';
     const singleUnit = isCapsule ? 'Capsule' : 'Tablet';
 
-    // Check if Bottle packaging is configured for this medicine
-    const isBottlePackage = pkgUnit.toLowerCase() === 'bottle';
-    const isBottleBase = rawBase.toLowerCase() === 'bottle';
-    const hasBottleInPack = packSizeStr.includes('bottle');
-    const supportsBottle = isBottlePackage || isBottleBase || hasBottleInPack;
-
-    let bottleMultiplier = 0;
-    if (supportsBottle) {
-      if (isBottlePackage && factor > 0) {
-        bottleMultiplier = factor;
-      } else {
-        const bottleMatch = packSizeStr.match(/(\d+)\s*(tablets?|capsules?|tabs?|caps?|units?)?/i);
-        if (bottleMatch) {
-          const parsed = parseInt(bottleMatch[1], 10);
-          if (parsed > 0) bottleMultiplier = parsed;
-        }
-        if (bottleMultiplier <= 0 && factor > 0) {
-          bottleMultiplier = factor;
-        }
-      }
-    }
-
-    // Check if Strip packaging is supported
-    const hasStripInPack = packSizeStr.includes('strip');
-    const isStripBase = rawBase.toLowerCase() === 'strip';
-    const isStripPackage = pkgUnit.toLowerCase() === 'strip';
-    const supportsStrip =
-      hasStripInPack ||
-      isStripBase ||
-      isStripPackage ||
-      (!supportsBottle && pkgUnit.toLowerCase() !== 'bottle');
-
-    let stripMultiplier = 0;
-    if (supportsStrip) {
-      const tabMatch = packSizeStr.match(/(\d+)\s*(tablets?|capsules?|tabs?|caps?)/i);
-      if (tabMatch && !hasStripInPack) {
-        const parsed = parseInt(tabMatch[1], 10);
-        if (parsed > 1) stripMultiplier = parsed;
-      }
-      if (stripMultiplier <= 0) {
-        if (pkgUnit.toLowerCase() === 'box' && factor >= 10) {
-          stripMultiplier = factor % 10 === 0 ? 10 : factor;
-        } else {
-          stripMultiplier = factor > 1 ? factor : 10;
-        }
-      }
-    }
-
-    // Check if Box packaging is supported
-    const isBox =
-      pkgUnit.toLowerCase() === 'box' ||
-      pkgUnit.toLowerCase() === 'pack' ||
-      pkgUnit.toLowerCase() === 'carton' ||
-      packSizeStr.includes('box');
-
-    let boxMultiplier = 0;
-    if (isBox) {
-      if (stripMultiplier > 1) {
-        boxMultiplier = factor >= stripMultiplier ? factor : factor * stripMultiplier;
-      } else if (bottleMultiplier > 0) {
-        boxMultiplier = factor > bottleMultiplier ? factor : factor * bottleMultiplier;
-      } else {
-        boxMultiplier = factor > 1 ? factor : 100;
-      }
-    }
-
-    const units: { unit: string; multiplierToBase: number }[] = [
+    // Simplified tablet/capsule retail unit: strictly 1:1 base units (strips/boxes packaging removed)
+    return [
       { unit: singleUnit, multiplierToBase: 1 },
     ];
-
-    if (supportsStrip && stripMultiplier > 1) {
-      units.push({ unit: 'Strip', multiplierToBase: stripMultiplier });
-    }
-
-    if (supportsBottle && bottleMultiplier > 0) {
-      units.push({ unit: 'Bottle', multiplierToBase: bottleMultiplier });
-    }
-
-    if (isBox && boxMultiplier > 1 && boxMultiplier !== stripMultiplier && boxMultiplier !== bottleMultiplier) {
-      units.push({ unit: 'Box', multiplierToBase: boxMultiplier });
-    }
-
-    return units;
   };
 
   const determineDefaultSellingUnit = (
@@ -441,7 +364,7 @@ export const POSBillingPage: React.FC = () => {
     const rawBatchRate = bestBatch.sellingPrice || bestBatch.mrp;
     const isAlreadyBaseRate = (product.mrp || 0) > 0 && rawBatchRate < (product.mrp || 0);
     const quotedUnit = supportedUnits.find(
-      (u) => u.unit.toLowerCase() === (product.baseUnit || 'Strip').toLowerCase()
+      (u) => u.unit.toLowerCase() === (product.baseUnit || 'Tablet').toLowerCase()
     );
     const quotedMultiplier = (!isAlreadyBaseRate && quotedUnit && quotedUnit.multiplierToBase > 1)
       ? quotedUnit.multiplierToBase
@@ -485,9 +408,9 @@ export const POSBillingPage: React.FC = () => {
         selectedUnit: initialUnitObj.unit,
         unitMultiplier: initialMultiplier,
         supportedUnits,
-        discountPercent: 0,
+        discountPercent: 10,
         availableBatches: product.activeBatches || [bestBatch],
-        baseUnit: product.baseUnit,
+        baseUnit: product.baseUnit || 'Tablet',
         packageUnit: product.packageUnit || undefined,
         conversionFactor: product.conversionFactor || undefined,
       };
@@ -505,7 +428,7 @@ export const POSBillingPage: React.FC = () => {
 
     const rawBatchRate = targetBatch.sellingPrice || targetBatch.mrp;
     const quotedUnit = item.supportedUnits?.find(
-      (u) => u.unit.toLowerCase() === (item.baseUnit || 'Strip').toLowerCase()
+      (u) => u.unit.toLowerCase() === (item.baseUnit || 'Tablet').toLowerCase()
     );
     const isAlreadyBaseRate = item.unitMrp > 0 && rawBatchRate < item.unitMrp;
     const quotedMultiplier = (!isAlreadyBaseRate && quotedUnit && quotedUnit.multiplierToBase > 1)
@@ -582,9 +505,10 @@ export const POSBillingPage: React.FC = () => {
 
   const updateDiscount = (index: number, disc: number) => {
     if (disc < 0) disc = 0;
-    if (disc > maxDiscountLimit) {
-      setErrorMessage(`Maximum policy discount limit is ${maxDiscountLimit}%.`);
-      disc = maxDiscountLimit;
+    const maxLimit = Math.max(50, maxDiscountLimit);
+    if (disc > maxLimit) {
+      setErrorMessage(`Maximum policy discount limit is ${maxLimit}%.`);
+      disc = maxLimit;
     } else {
       setErrorMessage('');
     }
@@ -771,13 +695,8 @@ export const POSBillingPage: React.FC = () => {
                         {hasStock ? (
                           <div className="flex flex-col items-end">
                             <Badge variant="brandGreen" size="sm">
-                              {prod.totalAvailableStock} {prod.baseUnit || 'Strips'} in stock
+                              {prod.totalAvailableStock} {prod.baseUnit || 'Tablets'} in stock
                             </Badge>
-                            {prod.conversionFactor && prod.conversionFactor > 1 && (
-                              <span className="text-[10px] text-slate-500 font-mono mt-0.5">
-                                (~{((prod.totalAvailableStock || 0) / prod.conversionFactor).toFixed(1)} {prod.packageUnit || 'Box'}s)
-                              </span>
-                            )}
                           </div>
                         ) : (
                           <Badge variant="danger" size="sm">
@@ -946,11 +865,12 @@ export const POSBillingPage: React.FC = () => {
                               <input
                                 type="number"
                                 min="0"
-                                max={maxDiscountLimit}
-                                step="0.5"
+                                max={Math.max(50, maxDiscountLimit)}
+                                step="1"
                                 value={item.discountPercent}
                                 onChange={(e) => updateDiscount(idx, parseFloat(e.target.value) || 0)}
-                                className="w-11 text-center py-0.5 bg-white border border-slate-300 rounded text-xs font-mono text-slate-800"
+                                onKeyDown={(e) => e.stopPropagation()}
+                                className="w-12 text-center py-0.5 bg-white border border-slate-300 rounded text-xs font-mono font-bold text-slate-800"
                               />
                             </div>
                           </div>
@@ -1036,6 +956,7 @@ export const POSBillingPage: React.FC = () => {
                                     max={Math.floor(item.availableStock / (item.unitMultiplier || 1))}
                                     value={item.quantity}
                                     onChange={(e) => updateQuantity(idx, parseInt(e.target.value) || 0)}
+                                    onKeyDown={(e) => e.stopPropagation()}
                                     className="w-12 text-center py-1 bg-white border border-slate-300 rounded text-xs font-bold font-mono focus:ring-1 focus:ring-emerald-500"
                                   />
                                   <button
@@ -1051,7 +972,7 @@ export const POSBillingPage: React.FC = () => {
                                     value={item.selectedUnit}
                                     onChange={(e) => changeItemUnit(idx, e.target.value)}
                                     className="text-[10px] font-semibold bg-white border border-slate-300 rounded px-1.5 py-0.5 text-brand-700 shadow-2xs"
-                                    title="Select retail unit (Tablet / Strip / Bottle / Box)"
+                                    title="Select retail unit (Tablet / Capsule / Bottle)"
                                   >
                                     {item.supportedUnits.map((u) => (
                                       <option key={u.unit} value={u.unit}>
@@ -1070,11 +991,12 @@ export const POSBillingPage: React.FC = () => {
                               <input
                                 type="number"
                                 min="0"
-                                max={maxDiscountLimit}
-                                step="0.5"
+                                max={Math.max(50, maxDiscountLimit)}
+                                step="1"
                                 value={item.discountPercent}
                                 onChange={(e) => updateDiscount(idx, parseFloat(e.target.value) || 0)}
-                                className="w-14 text-center py-1 bg-white border border-slate-300 rounded text-xs font-mono text-slate-800 focus:ring-1 focus:ring-emerald-500"
+                                onKeyDown={(e) => e.stopPropagation()}
+                                className="w-14 text-center py-1 bg-white border border-slate-300 rounded text-xs font-mono font-bold text-slate-800 focus:ring-1 focus:ring-emerald-500"
                               />
                             </td>
                             <td className="py-3 px-3 text-center font-mono text-slate-600 text-[11px]">

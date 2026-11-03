@@ -482,10 +482,8 @@ export const PurchasesPage: React.FC<PurchasesPageProps> = ({ prefilledIndent, o
         updated[idx].purchaseRate = prod.defaultPurchaseRate || Math.round(prod.mrp * 0.7);
         // Respect product-level tax classification
         updated[idx].gstRate = prod.gstRate !== undefined ? prod.gstRate : configuredCombinedGST;
-        updated[idx].unit = prod.packageUnit || 'Box';
-        const form = (prod.dosageForm || '').toLowerCase();
-        const isLiquid = form.includes('syrup') || form.includes('suspension') || form.includes('liquid') || form.includes('drop');
-        updated[idx].conversionFactor = prod.conversionFactor ? prod.conversionFactor : (isLiquid ? 1 : 10);
+        updated[idx].unit = prod.baseUnit || 'Tablet';
+        updated[idx].conversionFactor = prod.conversionFactor ? prod.conversionFactor : 1;
       }
     } else if (field === 'mrp') {
       const numMrp = parseFloat(val);
@@ -597,8 +595,8 @@ export const PurchasesPage: React.FC<PurchasesPageProps> = ({ prefilledIndent, o
       expiryDate: it.expiryDate || '',
       quantity: Number(it.quantity) || 1,
       freeQuantity: Number(it.freeQuantity) || 0,
-      unit: it.unit || it.purchaseUnit || 'Box',
-      conversionFactor: Number(it.conversionFactor) || 10,
+      unit: it.unit || it.purchaseUnit || 'Tablet',
+      conversionFactor: 1,
       purchaseRate: Number(it.purchaseRate) || 0,
       sellingRate: Number(it.sellingRate) || Number(it.mrp) || 0,
       mrp: Number(it.mrp) || 0,
@@ -673,8 +671,8 @@ export const PurchasesPage: React.FC<PurchasesPageProps> = ({ prefilledIndent, o
             mrp: Number(it.mrp) || 0,
             defaultPurchaseRate: Number(it.purchaseRate) || 0,
             defaultSellingRate: Number(it.sellingRate) || Number(it.mrp) || 0,
-            baseUnit: it.sellingUnit || it.baseUnit || 'Strip',
-            packageUnit: it.purchaseUnit || it.packageUnit || it.unit || 'Box',
+            baseUnit: it.sellingUnit || it.baseUnit || 'Tablet',
+            packageUnit: it.purchaseUnit || it.packageUnit || it.unit || 'Tablet',
             conversionFactor: Number(it.conversionFactor) || 1,
           } : undefined),
           productName: it.productName,
@@ -2375,7 +2373,7 @@ export const PurchasesPage: React.FC<PurchasesPageProps> = ({ prefilledIndent, o
                           <th className="p-2">Medicine / Product</th>
                           <th className="p-2">Batch #</th>
                           <th className="p-2">Expiry</th>
-                          <th className="p-2 text-center">Qty (Unit)</th>
+                          <th className="p-2 text-center">Quantity / Units</th>
                           <th className="p-2 text-right">P.Rate</th>
                           <th className="p-2 text-right">MRP</th>
                           <th className="p-2 text-right">Line Total</th>
@@ -2401,13 +2399,8 @@ export const PurchasesPage: React.FC<PurchasesPageProps> = ({ prefilledIndent, o
                             </td>
                             <td className="p-2 font-mono font-semibold">{item.batchNumber}</td>
                             <td className="p-2 font-mono text-slate-600">{item.expiryDate}</td>
-                            <td className="p-2 text-center font-mono">
-                              {item.quantity} {item.unit || 'Pack'}
-                              {item.conversionFactor > 1 && (
-                                <span className="text-[10px] text-slate-400 block font-normal">
-                                  ={item.quantity * item.conversionFactor} base
-                                </span>
-                              )}
+                            <td className="p-2 text-center font-mono font-bold text-slate-800">
+                              {item.quantity}
                             </td>
                             <td className="p-2 text-right font-mono">₹{Number(item.purchaseRate || 0).toFixed(2)}</td>
                             <td className="p-2 text-right font-mono">₹{Number(item.mrp || 0).toFixed(2)}</td>
@@ -2489,7 +2482,7 @@ export const PurchasesPage: React.FC<PurchasesPageProps> = ({ prefilledIndent, o
                   <div>
                     <label className="text-xs font-bold text-slate-800">Invoice Line Items & Batches</label>
                     <p className="text-[10px] text-slate-400">
-                      Configure packaging hierarchy (Box/Strip/Tablet/Bottle/Sachet). Base inventory is normalized automatically.
+                      Record inward tablet stock. Inventory is recorded in units/tablets automatically.
                     </p>
                   </div>
                   <button
@@ -2507,7 +2500,7 @@ export const PurchasesPage: React.FC<PurchasesPageProps> = ({ prefilledIndent, o
                     const freeQty = Number(l.freeQuantity) || 0;
                     const pRate = Number(l.purchaseRate) || 0;
                     const sRate = Number(l.sellingRate) || Number(l.mrp) || 0;
-                    const factor = Number(l.conversionFactor) || 10;
+                    const factor = Number(l.conversionFactor) || 1;
                     const gross = qty * pRate;
                     const taxable = gross;
                     const lineGst = Number(l.gstRate) || 0;
@@ -2553,7 +2546,7 @@ export const PurchasesPage: React.FC<PurchasesPageProps> = ({ prefilledIndent, o
                           </div>
 
                           <div className="col-span-1 sm:col-span-2 lg:col-span-2">
-                            <label className="text-[10px] font-bold text-slate-700 block mb-0.5">Quantity (Units) *</label>
+                            <label className="text-[10px] font-bold text-slate-700 block mb-0.5">Quantity / Units *</label>
                             <input
                               type="number"
                               min="1"

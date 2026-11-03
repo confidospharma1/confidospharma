@@ -404,7 +404,7 @@ export const commitImportJob = async (req: Request, res: Response) => {
                 dosageForm: row.dosageForm,
                 manufacturer: row.manufacturer,
                 packSize: row.packSize,
-                baseUnit: 'Strip',
+                baseUnit: 'Tablet',
                 hsnCode: row.hsnCode || null,
                 gstRate: row.gstRate,
                 mrp: row.mrp,

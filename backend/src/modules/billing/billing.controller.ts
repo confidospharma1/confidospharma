@@ -46,6 +46,7 @@ export const createInvoice = async (req: Request, res: Response) => {
       const maxAllowedDiscount = maxDiscountSetting
         ? parseFloat(maxDiscountSetting.value) || 100.0
         : 100.0;
+      const effectiveMaxDiscount = Math.max(50.0, maxAllowedDiscount);
 
       const processedLines: any[] = [];
       const now = new Date();
@@ -59,8 +60,8 @@ export const createInvoice = async (req: Request, res: Response) => {
         }
 
         const discPct = new Decimal(discountPercent || 0);
-        if (discPct.isNegative() || discPct.greaterThan(maxAllowedDiscount)) {
-          throw new Error(`Discount percentage cannot exceed ${maxAllowedDiscount}% policy limit.`);
+        if (discPct.isNegative() || discPct.greaterThan(effectiveMaxDiscount)) {
+          throw new Error(`Discount percentage cannot exceed ${effectiveMaxDiscount}% policy limit.`);
         }
 
         // Fetch medicine
@@ -139,7 +140,7 @@ export const createInvoice = async (req: Request, res: Response) => {
         // divide by that pack's multiplier so we never multiply a strip rate by 10.
         const rawBatchRate = new Decimal(batch.sellingPrice || batch.mrp);
         const quotedUnit = unitConfig.supportedUnits.find(
-          (u) => u.unit.toLowerCase() === (medicine.baseUnit || 'Strip').toLowerCase()
+          (u) => u.unit.toLowerCase() === (medicine.baseUnit || 'Tablet').toLowerCase()
         );
         const isAlreadyBaseRate = medicine.mrp > 0 && rawBatchRate.lessThan(new Decimal(medicine.mrp));
         const quotedMultiplier = (!isAlreadyBaseRate && quotedUnit && quotedUnit.multiplierToBase > 1)

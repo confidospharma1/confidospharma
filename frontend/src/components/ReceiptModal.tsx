@@ -59,126 +59,159 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
           </button>
         </div>
 
-        {/* Printable Invoice Container */}
+        {/* Printable Invoice Container - Formatted for 3-inch (76mm–80mm) Thermal Printer */}
         <div
           id="printable-receipt"
           ref={receiptRef}
-          className="border border-slate-200 rounded-lg p-3 sm:p-4 bg-white font-mono text-xs text-slate-800 leading-normal shadow-sm max-w-xl mx-auto"
+          className="border border-slate-300 rounded-xl p-5 bg-white font-mono text-[11px] text-slate-800 leading-normal shadow-sm w-full max-w-[340px] sm:max-w-[350px] mx-auto text-center"
         >
-          {/* Unified Single-Row Header & Metadata */}
-          <div className="border-b border-dashed border-slate-300 pb-2.5 mb-2.5 grid grid-cols-1 sm:grid-cols-2 gap-3 items-start text-[11px]">
-            {/* Left Column: Pharmacy Branding & Legal Info */}
-            <div className="text-left space-y-0.5">
-              <img
-                src="/confidos-logo.png"
-                alt="Confidos Pharma"
-                className="h-6 sm:h-7 w-auto max-w-[125px] object-contain block mb-0.5"
-              />
-              <p className="text-xs font-semibold text-slate-800">{branch?.name || 'Central Pharmacy Branch'}</p>
-              {branch?.address && <p className="text-[10px] text-slate-600">{branch.address}</p>}
-              {branch?.phone && <p className="text-[10px] text-slate-600">Tel: {branch.phone}</p>}
-              <div className="flex flex-wrap gap-2 text-[10px] text-slate-700">
-                <span><strong>GSTIN:</strong> {branch?.gstin || 'N/A'}</span>
-                {branch?.drugLicenseNo && <span><strong>DL:</strong> {branch.drugLicenseNo}</span>}
-              </div>
-              <div className="mt-1 inline-block px-2 py-0.5 border border-slate-500 font-bold uppercase text-[9px] tracking-widest text-slate-900">
-                RETAIL TAX INVOICE
-              </div>
+          {/* Centered Logo on the very top */}
+          <div className="mb-2.5">
+            <img
+              src="/confidos-logo.png"
+              alt="Confidos Pharma"
+              className="h-10 w-auto max-w-[150px] object-contain mx-auto block mb-1.5"
+            />
+            {/* Pharmacy Branch & Legal Info - Centered under the logo */}
+            <h2 className="text-xs font-bold text-slate-900 tracking-wide uppercase">
+              {branch?.name || 'Central Pharmacy Branch'}
+            </h2>
+            {branch?.address && (
+              <p className="text-[10px] text-slate-600 mt-0.5 leading-tight">{branch.address}</p>
+            )}
+            {branch?.phone && (
+              <p className="text-[10px] text-slate-600 leading-tight">Tel: {branch.phone}</p>
+            )}
+            <div className="flex flex-wrap items-center justify-center gap-x-2.5 text-[9.5px] text-slate-700 mt-0.5">
+              <span><strong>GSTIN:</strong> {branch?.gstin || 'N/A'}</span>
+              {branch?.drugLicenseNo && <span><strong>DL:</strong> {branch.drugLicenseNo}</span>}
             </div>
-
-            {/* Right Column: Invoice & Patient Metadata */}
-            <div className="sm:text-right space-y-0.5 text-slate-700">
-              <p><strong>Invoice No:</strong> <span className="font-bold text-slate-900">{invoice.invoiceNumber}</span></p>
-              <p><strong>Date & Time:</strong> {formattedDate} {formattedTime}</p>
-              <p><strong>Payment Mode:</strong> <span className="font-semibold text-brand-700">{invoice.paymentMethod}</span></p>
-              <p><strong>Patient/Customer:</strong> <span className="font-medium text-slate-900">{invoice.customerName || 'Retail Customer'}</span></p>
-              {invoice.customerPhone && <p><strong>Mobile:</strong> {invoice.customerPhone}</p>}
-              {invoice.doctorName && <p><strong>Dr. Name:</strong> {invoice.doctorName}</p>}
+            <div className="mt-1.5 inline-block px-2.5 py-0.5 border border-slate-700 font-bold uppercase text-[9px] tracking-widest text-slate-900 rounded-xs">
+              RETAIL TAX INVOICE
             </div>
           </div>
 
-          {/* Table */}
-          <div className="overflow-x-auto touch-scroll">
-            <table className="w-full text-left text-[11px] mb-2 min-w-[420px]">
+          {/* Invoice & Patient Details - Centered Block with Spacing */}
+          <div className="border-t border-b border-dashed border-slate-300 py-2.5 my-2.5 text-[10px] space-y-1 text-slate-700">
+            <div className="flex justify-between items-center px-1">
+              <span className="font-semibold text-slate-600">Invoice No:</span>
+              <span className="font-bold text-slate-900 font-mono">{invoice.invoiceNumber}</span>
+            </div>
+            <div className="flex justify-between items-center px-1">
+              <span className="font-semibold text-slate-600">Date & Time:</span>
+              <span className="text-slate-800">{formattedDate} {formattedTime}</span>
+            </div>
+            <div className="flex justify-between items-center px-1">
+              <span className="font-semibold text-slate-600">Payment Mode:</span>
+              <span className="font-bold text-brand-700 uppercase">{invoice.paymentMethod}</span>
+            </div>
+            <div className="flex justify-between items-center px-1">
+              <span className="font-semibold text-slate-600">Patient/Customer:</span>
+              <span className="font-bold text-slate-900">{invoice.customerName || 'Retail Customer'}</span>
+            </div>
+            {invoice.customerPhone && (
+              <div className="flex justify-between items-center px-1">
+                <span className="font-semibold text-slate-600">Mobile:</span>
+                <span className="text-slate-800">{invoice.customerPhone}</span>
+              </div>
+            )}
+            {invoice.doctorName && (
+              <div className="flex justify-between items-center px-1">
+                <span className="font-semibold text-slate-600">Dr. Name:</span>
+                <span className="text-slate-800">{invoice.doctorName}</span>
+              </div>
+            )}
+          </div>
+
+          {/* Items Table - Scaled for 3-inch (76mm) thermal rolls without clipping */}
+          <div className="w-full mb-2.5">
+            <table className="w-full text-left text-[10px] border-collapse">
               <thead>
-                <tr className="border-b border-slate-400 text-slate-900 font-bold">
-                  <th className="py-1">#</th>
-                  <th className="py-1">Description</th>
-                  <th className="py-1 text-center">Batch</th>
-                  <th className="py-1 text-center">Exp</th>
-                  <th className="py-1 text-center">HSN</th>
-                  <th className="py-1 text-right">Qty</th>
-                  <th className="py-1 text-right">MRP</th>
-                  <th className="py-1 text-right">Total</th>
+                <tr className="border-b-2 border-slate-800 text-slate-900 font-bold uppercase text-[9px]">
+                  <th className="py-1 text-left w-5/12">Item Description</th>
+                  <th className="py-1 text-center w-2/12">Qty</th>
+                  <th className="py-1 text-right w-2/12">MRP</th>
+                  <th className="py-1 text-right w-3/12">Total</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
-                {invoice.lines.map((line, idx) => (
-                  <tr key={line.id || idx}>
-                    <td className="py-1 align-top">{idx + 1}</td>
-                    <td className="py-1 align-top font-sans font-medium text-slate-900">
-                      {line.medicineName}
-                      {line.discountPercent > 0 && (
-                        <span className="block text-[10px] text-pharmagreen-700 font-mono">
-                          (Disc: {line.discountPercent}%)
-                        </span>
-                      )}
-                    </td>
-                    <td className="py-1 text-center align-top">{line.batchNumber}</td>
-                    <td className="py-1 text-center align-top">
-                      {line.expiryDate ? new Date(line.expiryDate).toLocaleDateString('en-IN', { month: '2-digit', year: '2-digit' }) : '-'}
-                    </td>
-                    <td className="py-1 text-center align-top">{line.hsnCode}</td>
-                    <td className="py-1 text-right font-bold align-top">{line.quantity}</td>
-                    <td className="py-1 text-right align-top">₹{line.unitMrp.toFixed(2)}</td>
-                    <td className="py-1 text-right font-bold align-top">₹{line.lineTotal.toFixed(2)}</td>
-                  </tr>
-                ))}
+              <tbody className="divide-y divide-slate-200">
+                {invoice.lines.map((line, idx) => {
+                  const expStr = line.expiryDate
+                    ? new Date(line.expiryDate).toLocaleDateString('en-IN', { month: '2-digit', year: '2-digit' })
+                    : '-';
+                  return (
+                    <tr key={line.id || idx}>
+                      <td className="py-1.5 pr-1 align-top text-left">
+                        <div className="font-bold text-slate-900 leading-tight">
+                          {idx + 1}. {line.medicineName}
+                        </div>
+                        <div className="text-[9px] text-slate-500 font-mono leading-tight mt-0.5">
+                          B:{line.batchNumber} | Exp:{expStr} {line.hsnCode ? `| HSN:${line.hsnCode}` : ''}
+                        </div>
+                        {line.discountPercent > 0 && (
+                          <div className="text-[9px] text-emerald-700 font-semibold font-mono">
+                            (Disc: {line.discountPercent}%)
+                          </div>
+                        )}
+                      </td>
+                      <td className="py-1.5 px-1 text-center font-bold align-top font-mono text-slate-900">
+                        {line.quantity}
+                      </td>
+                      <td className="py-1.5 px-1 text-right align-top font-mono text-slate-700">
+                        ₹{line.unitMrp.toFixed(2)}
+                      </td>
+                      <td className="py-1.5 pl-1 text-right font-bold align-top font-mono text-slate-900">
+                        ₹{line.lineTotal.toFixed(2)}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
 
           {/* Financial Totals */}
-          <div className="border-t border-dashed border-slate-300 pt-1.5 space-y-0.5 text-[11px]">
-            <div className="flex justify-between">
+          <div className="border-t border-dashed border-slate-300 pt-2 space-y-0.5 text-[10px] text-slate-700">
+            <div className="flex justify-between px-1">
               <span>Taxable Value:</span>
-              <span>₹{invoice.subtotal.toFixed(2)}</span>
+              <span className="font-mono">₹{invoice.subtotal.toFixed(2)}</span>
             </div>
             {invoice.discountTotal > 0 && (
-              <div className="flex justify-between text-pharmagreen-700">
+              <div className="flex justify-between px-1 text-emerald-700 font-semibold">
                 <span>Discount ({((invoice.discountTotal / (invoice.subtotal + invoice.discountTotal)) * 100).toFixed(1)}%):</span>
-                <span>-₹{invoice.discountTotal.toFixed(2)}</span>
+                <span className="font-mono">-₹{invoice.discountTotal.toFixed(2)}</span>
               </div>
             )}
-            <div className="flex justify-between text-slate-600">
+            <div className="flex justify-between px-1 text-slate-600">
               <span>CGST ({invoice.subtotal > 0 ? ((invoice.cgstTotal / invoice.subtotal) * 100).toFixed(1) : '2.5'}%):</span>
-              <span>₹{invoice.cgstTotal.toFixed(2)}</span>
+              <span className="font-mono">₹{invoice.cgstTotal.toFixed(2)}</span>
             </div>
-            <div className="flex justify-between text-slate-600">
+            <div className="flex justify-between px-1 text-slate-600">
               <span>SGST ({invoice.subtotal > 0 ? ((invoice.sgstTotal / invoice.subtotal) * 100).toFixed(1) : '2.5'}%):</span>
-              <span>₹{invoice.sgstTotal.toFixed(2)}</span>
+              <span className="font-mono">₹{invoice.sgstTotal.toFixed(2)}</span>
             </div>
-            <div className="flex justify-between text-slate-700 font-medium">
+            <div className="flex justify-between px-1 text-slate-700 font-semibold">
               <span>Total GST ({invoice.subtotal > 0 ? ((invoice.taxTotal / invoice.subtotal) * 100).toFixed(1) : '5.0'}%):</span>
-              <span>₹{invoice.taxTotal.toFixed(2)}</span>
+              <span className="font-mono">₹{invoice.taxTotal.toFixed(2)}</span>
             </div>
             {invoice.roundOff !== 0 && (
-              <div className="flex justify-between text-slate-500">
+              <div className="flex justify-between px-1 text-slate-500">
                 <span>Round-off:</span>
-                <span>{invoice.roundOff > 0 ? `+₹${invoice.roundOff.toFixed(2)}` : `-₹${Math.abs(invoice.roundOff).toFixed(2)}`}</span>
+                <span className="font-mono">{invoice.roundOff > 0 ? `+₹${invoice.roundOff.toFixed(2)}` : `-₹${Math.abs(invoice.roundOff).toFixed(2)}`}</span>
               </div>
             )}
-            <div className="flex justify-between text-xs font-bold text-slate-900 border-t border-slate-400 pt-1 mt-1">
-              <span>NET PAYABLE:</span>
-              <span className="text-sm text-brand-900 font-black">₹{invoice.grandTotal.toFixed(2)}</span>
+            <div className="flex justify-between items-center text-xs font-bold text-slate-900 border-t-2 border-slate-800 pt-1.5 mt-1.5 px-1">
+              <span className="tracking-wider">NET PAYABLE:</span>
+              <span className="text-sm font-black font-mono">₹{invoice.grandTotal.toFixed(2)}</span>
             </div>
           </div>
 
           {/* Footer terms */}
-          <div className="mt-2.5 pt-2 border-t border-dashed border-slate-300 text-center text-[9px] text-slate-500 space-y-0.5">
+          <div className="mt-3 pt-2.5 border-t border-dashed border-slate-300 text-center text-[8.5px] text-slate-500 space-y-0.5">
             <p>Medicines once sold will be taken back only within 7 days in original pack with this bill.</p>
             <p>Schedule H / H1 drugs dispensed strictly on registered medical practitioner prescription.</p>
-            <p className="font-semibold text-slate-700 mt-0.5">*** Thank you for choosing Confidos Pharma. Wish you a speedy recovery! ***</p>
+            <p className="font-bold text-slate-800 mt-1">*** Thank you for choosing Confidos Pharma ***</p>
+            <p className="text-slate-500">Wish you a speedy recovery!</p>
           </div>
         </div>
       </div>

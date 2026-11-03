@@ -23,7 +23,12 @@
   background: #94a3b8;
 }
 
-/* Print styles for Thermal 80mm & A4 invoices */
+/* Print styles for Thermal 80mm (3-inch) receipts */
+@page {
+  size: 80mm auto;
+  margin: 2mm;
+}
+
 @media print {
   body * {
     visibility: hidden;
@@ -34,10 +39,17 @@
   #printable-receipt {
     position: absolute;
     left: 0;
+    right: 0;
     top: 0;
-    width: 100%;
-    margin: 0;
-    padding: 0;
+    width: 76mm !important;
+    max-width: 76mm !important;
+    margin: 0 auto !important;
+    padding: 3mm !important;
+    border: none !important;
+    box-shadow: none !important;
+    box-sizing: border-box !important;
+    font-size: 9.5px !important;
+    background: white !important;
   }
 }
 

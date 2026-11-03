@@ -150,7 +150,7 @@ export const createIndent = async (req: Request, res: Response) => {
       processedItems.push({
         medicineId: medicine.id,
         requestedQuantity: qty,
-        unit: item.unit || medicine.baseUnit || 'Strip',
+        unit: item.unit || medicine.baseUnit || 'Tablet',
         estimatedRate: rate,
         notes: item.notes || null,
       });
