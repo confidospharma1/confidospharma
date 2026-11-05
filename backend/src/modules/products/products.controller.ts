@@ -8,7 +8,9 @@ export const getProducts = async (req: Request, res: Response) => {
   try {
     const { search, barcode, form, prescriptionType, page = '1', limit = '50', branchId } = req.query;
 
-    const targetBranchId = (branchId as string) || req.user?.branchId || undefined;
+    const targetBranchId = req.user?.role === 'SUPER_ADMIN'
+      ? ((branchId as string) || undefined)
+      : (req.user?.branchId || undefined);
 
     const whereClause: any = { isActive: true };
 
@@ -47,9 +49,8 @@ export const getProducts = async (req: Request, res: Response) => {
           batches: {
             where: {
               ...(targetBranchId ? { branchId: targetBranchId } : {}),
-              status: 'ACTIVE',
+              status: { notIn: ['BLOCKED', 'QUARANTINE', 'DEPLETED'] },
               availableQuantity: { gt: 0 },
-              expiryDate: { gt: new Date() }, // Non-expired only
             },
             orderBy: { expiryDate: 'asc' }, // FEFO order
             select: {
@@ -73,7 +74,7 @@ export const getProducts = async (req: Request, res: Response) => {
     // Format products with total available quantity for the active branch
     const mapped = products.map((p) => {
       const branchBatches = targetBranchId ? p.batches.filter((b) => b.branchId === targetBranchId) : p.batches;
-      const totalAvailableStock = branchBatches.reduce((acc, b) => acc + b.availableQuantity, 0);
+      const totalAvailableStock = branchBatches.reduce((acc, b) => acc + Math.max(0, b.availableQuantity || 0), 0);
       return {
         ...p,
         totalAvailableStock,
@@ -486,10 +487,13 @@ export const updateProduct = async (req: Request, res: Response) => {
 
     if (quantity !== undefined && quantity !== null && quantity !== '') {
       const targetQty = Math.max(0, parseInt(String(quantity)));
-      let effectiveBranchId = (branchId as string) || req.user.branchId || null;
+      let effectiveBranchId = (branchId as string) || null;
       if (!effectiveBranchId) {
-        const firstBranch = await prisma.branch.findFirst({ select: { id: true } });
-        effectiveBranchId = firstBranch ? firstBranch.id : null;
+        const existingBatch = await prisma.stockBatch.findFirst({
+          where: { medicineId: id },
+          select: { branchId: true },
+        });
+        effectiveBranchId = existingBatch?.branchId || (req.user.role !== 'SUPER_ADMIN' ? req.user.branchId : null) || (await prisma.branch.findFirst({ select: { id: true } }))?.id || null;
       }
 
       if (effectiveBranchId && !isNaN(targetQty)) {

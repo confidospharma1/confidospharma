@@ -10,7 +10,8 @@ import { FilterField, FilterSelect, FilterInput } from '../components/FilterCont
 import { PermissionDeniedModal } from '../components/PermissionDeniedModal';
 
 export const ProductsPage: React.FC = () => {
-  const { isSuperAdmin, isBillingUser } = useAuth();
+  const { isSuperAdmin, isBillingUser, currentBranch, selectedBranchId } = useAuth();
+  const effectiveBranchId = isSuperAdmin ? (selectedBranchId || currentBranch?.id) : currentBranch?.id;
 
   const [products, setProducts] = useState<MedicineProduct[]>([]);
   const [loading, setLoading] = useState(true);
@@ -70,6 +71,10 @@ export const ProductsPage: React.FC = () => {
   const handleOpenAddModal = () => {
     setAddModalError(null);
     setAddModalFieldErrors({});
+    setAddForm((prev) => ({
+      ...prev,
+      targetBranchId: effectiveBranchId || prev.targetBranchId || '',
+    }));
     setShowAddModal(true);
   };
 
@@ -164,7 +169,11 @@ export const ProductsPage: React.FC = () => {
   const loadProducts = async () => {
     setLoading(true);
     try {
-      const data = await api.getProducts({ search, limit: 100 });
+      const data = await api.getProducts({
+        search,
+        limit: 100,
+        branchId: effectiveBranchId || undefined,
+      });
       setProducts(data.products || []);
     } catch (err) {
       // Product load error handled in UI
@@ -178,7 +187,7 @@ export const ProductsPage: React.FC = () => {
       loadProducts();
     }, 250);
     return () => clearTimeout(timer);
-  }, [search]);
+  }, [search, effectiveBranchId]);
 
   const handleCreateProduct = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -256,7 +265,7 @@ export const ProductsPage: React.FC = () => {
         : ' (Out of Stock).';
       setMessage({ text: `Medicine '${addForm.brandName}' added to master catalogue${stockMsg}`, type: 'success' });
       setShowAddModal(false);
-      setAddForm(initialAddForm);
+      setAddForm({ ...initialAddForm, targetBranchId: effectiveBranchId || '' });
       setAddModalError(null);
       setAddModalFieldErrors({});
       loadProducts();
@@ -320,6 +329,7 @@ export const ProductsPage: React.FC = () => {
         genericName: editForm.brandName.trim(),
         manufacturer: editForm.manufacturer.trim(),
         quantity: editForm.quantity !== '' ? parseInt(editForm.quantity) : 0,
+        branchId: effectiveBranchId || undefined,
         hsnCode: editForm.hsnCode.trim() || undefined,
         defaultPurchaseRate: editForm.defaultPurchaseRate ? parseFloat(editForm.defaultPurchaseRate) : null,
         reorderLevel: editForm.reorderLevel ? parseInt(editForm.reorderLevel) : 10,

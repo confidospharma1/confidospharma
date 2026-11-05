@@ -286,7 +286,7 @@ export const InventoryPage: React.FC = () => {
   const loadReferenceData = async () => {
     try {
       const [pRes, sRes] = await Promise.all([
-        api.getProducts({ limit: 200 }),
+        api.getProducts({ limit: 200, branchId: selectedBranchId || currentBranch?.id || undefined }),
         api.getSuppliers(),
       ]);
       setProducts(pRes.products || pRes);

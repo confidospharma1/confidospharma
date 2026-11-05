@@ -269,7 +269,7 @@ export const PurchasesPage: React.FC<PurchasesPageProps> = ({ prefilledIndent, o
       const [purRes, supRes, prodRes, retRes, batchRes, settingsRes] = await Promise.all([
         api.getPurchases({ branchId: selectedBranchId }),
         api.getSuppliers({ includeInactive: true }),
-        api.getProducts({ limit: 200 }),
+        api.getProducts({ limit: 200, branchId: selectedBranchId || undefined }),
         api.getPurchaseReturns({ branchId: selectedBranchId }),
         api.getBatches({ branchId: selectedBranchId, status: 'ACTIVE' }),
         api.getSettings().catch(() => null),
