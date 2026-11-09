@@ -3,46 +3,46 @@
 > Enterprise Multi-Branch Pharmacy Management, Batch Expiry Tracking, FEFO Allocation, and Point-of-Sale Billing Platform.  
 > Built strictly according to the **Confidos Pharma Product Requirements Document (PRD)**.
 
-📖 **For end-to-end operational instructions, step-by-step guides, CSV/Excel templates, and troubleshooting, refer to [USER_MANUAL.md](file:///f:/pharma/USER_MANUAL.md).**
+?? **For end-to-end operational instructions, step-by-step guides, CSV/Excel templates, and troubleshooting, refer to [USER_MANUAL.md](file:///f:/pharma/USER_MANUAL.md).**
 
 ---
 
-## 🏛️ System Architecture
+## ??? System Architecture
 
 Confidos Pharma is built as a high-performance **modular monolith** with strong database-level consistency, transaction safety, and strict cross-branch isolation:
 
 ```
-                            ┌──────────────────────────────────────┐
-                            │    Pharmacy Staff Desktop / Mobile   │
-                            └──────────────────┬───────────────────┘
-                                               │ HTTPS / REST
-                                               ▼
-                            ┌──────────────────────────────────────┐
-                            │   React 18 + Vite + Tailwind CSS     │
-                            │   Keyboard-First POS, Barcode, Print │
-                            └──────────────────┬───────────────────┘
-                                               │ REST API (port 5000)
-                                               ▼
-                            ┌──────────────────────────────────────┐
-                            │      Node.js + Express + Prisma      │
-                            │  RBAC & Cross-Branch Isolation Guard │
-                            └──────┬───────────┬────────────┬──────┘
-                                   │           │            │
-            ┌──────────────────────┴┐   ┌──────┴─────┐   ┌──┴───────────────────┐
-            │ Point of Sale Engine  │   │ Inventory  │   │  2-Stage Bulk Import │
-            │ Decimal CGST/SGST/Rnd │   │ FEFO Batch │   │  Excel/CSV Staging   │
-            └───────────┬───────────┘   └──────┬─────┘   └──────────┬───────────┘
-                        └──────────────────────┼────────────────────┘
-                                               ▼
-                            ┌──────────────────────────────────────┐
-                            │      PostgreSQL (Neon) Database      │
-                            │  Atomic Transactions & Audit Ledger  │
-                            └──────────────────────────────────────┘
+                            +--------------------------------------+
+                            �    Pharmacy Staff Desktop / Mobile   �
+                            +--------------------------------------+
+                                               � HTTPS / REST
+                                               ?
+                            +--------------------------------------+
+                            �   React 18 + Vite + Tailwind CSS     �
+                            �   Keyboard-First POS, Barcode, Print �
+                            +--------------------------------------+
+                                               � REST API (port 5000)
+                                               ?
+                            +--------------------------------------+
+                            �      Node.js + Express + Prisma      �
+                            �  RBAC & Cross-Branch Isolation Guard �
+                            +--------------------------------------+
+                                   �           �            �
+            +-----------------------+   +------------+   +----------------------+
+            � Point of Sale Engine  �   � Inventory  �   �  2-Stage Bulk Import �
+            � Decimal CGST/SGST/Rnd �   � FEFO Batch �   �  Excel/CSV Staging   �
+            +-----------------------+   +------------+   +----------------------+
+                        +----------------------+--------------------+
+                                               ?
+                            +--------------------------------------+
+                            �      PostgreSQL (Neon) Database      �
+                            �  Atomic Transactions & Audit Ledger  �
+                            +--------------------------------------+
 ```
 
 ---
 
-## 🚀 Key Features Built
+## ?? Key Features Built
 
 ### 1. Multi-Branch Isolation & RBAC
 - **Super Admin:** Company-wide reporting, branch creation, user role management, and consolidated non-mixed reports.
@@ -86,7 +86,7 @@ Confidos Pharma is built as a high-performance **modular monolith** with strong 
 
 ---
 
-## 🔑 First-Time Setup & Authentication
+## ?? First-Time Setup & Authentication
 
 ### Pure Empty Database Mode (Default)
 When starting with a clean database, navigating to the application automatically opens the **Initial Database Onboarding Wizard** (`GET /api/auth/setup-status` returns `needsSetup: true`), prompting you to create the initial Super Administrator and primary branch.
@@ -107,7 +107,7 @@ Demo accounts seeded by the script:
 
 ---
 
-## 🛠️ Quick Start & Developer Commands
+## ??? Quick Start & Developer Commands
 
 ### 1. Run Everything (Development)
 ```bash
@@ -139,7 +139,7 @@ npm run build
 
 ---
 
-## 🧪 Automated Test Verification
+## ?? Automated Test Verification
 
 All 13 test suites execute and pass:
 ```text
@@ -164,7 +164,7 @@ Core test files verified:
 
 ---
 
-## 📚 Complete User Manual
+## ?? Complete User Manual
 
 For thorough instructions on every screen, detailed workflows, validation rules, CSV schemas, and beginner walkthroughs, please consult:
-👉 **[USER_MANUAL.md](file:///f:/pharma/USER_MANUAL.md)**
+?? **[USER_MANUAL.md](file:///f:/pharma/USER_MANUAL.md)**

@@ -148,7 +148,22 @@ export const createInvoice = async (req: Request, res: Response) => {
           : 1;
         const trueBasePrice = rawBatchRate.dividedBy(quotedMultiplier);
 
-        const unitMrpDec = trueBasePrice.times(multiplier).toDecimalPlaces(2);
+        let parsedConfig: any = null;
+        if (medicine.unitConfig) {
+          try {
+            parsedConfig = JSON.parse(medicine.unitConfig);
+          } catch {}
+        }
+
+        let unitMrpDec: Decimal;
+        if (selectedUnit.toLowerCase() === 'strip' && parsedConfig?.stripMrpPrice) {
+          unitMrpDec = new Decimal(parsedConfig.stripMrpPrice);
+        } else if (selectedUnit.toLowerCase() === 'tablet' && parsedConfig?.unitSellingPrice) {
+          unitMrpDec = new Decimal(parsedConfig.unitSellingPrice);
+        } else {
+          unitMrpDec = trueBasePrice.times(multiplier).toDecimalPlaces(2);
+        }
+
         const grossAmount = unitMrpDec.times(qty);
 
         // Discount
@@ -200,7 +215,11 @@ export const createInvoice = async (req: Request, res: Response) => {
           cgstAmount: lineCgst.toDecimalPlaces(2).toNumber(),
           sgstAmount: lineSgst.toDecimalPlaces(2).toNumber(),
           lineTotal: netAfterDiscount.toDecimalPlaces(2).toNumber(),
-          purchaseRate: new Decimal(batch.purchaseRate).dividedBy(quotedMultiplier).times(multiplier).toDecimalPlaces(2).toNumber(),
+          purchaseRate: (selectedUnit.toLowerCase() === 'strip' && parsedConfig?.stripPurchasePrice)
+            ? parsedConfig.stripPurchasePrice
+            : ((selectedUnit.toLowerCase() === 'tablet' && parsedConfig?.purchaseUnitPrice)
+              ? parsedConfig.purchaseUnitPrice
+              : new Decimal(batch.purchaseRate).dividedBy(quotedMultiplier).times(multiplier).toDecimalPlaces(2).toNumber()),
         });
       }
 

@@ -176,6 +176,7 @@ export const InventoryPage: React.FC = () => {
     mrp: '',
     sellingPrice: '',
     status: 'ACTIVE',
+    pharmacyPhysicalUnits: '',
   });
 
   // Delete Batch Confirmation Modal
@@ -497,6 +498,7 @@ export const InventoryPage: React.FC = () => {
       mrp: batch.mrp.toString(),
       sellingPrice: batch.sellingPrice.toString(),
       status: batch.status,
+      pharmacyPhysicalUnits: (batch.availableQuantity ?? 0).toString(),
     });
     setShowEditBatchModal(true);
   };
@@ -506,13 +508,23 @@ export const InventoryPage: React.FC = () => {
     if (!editingBatch) return;
 
     try {
-      await api.updateBatch(editingBatch.id, {
+      const payload: any = {
         batchNumber: editBatchForm.batchNumber,
         expiryDate: editBatchForm.expiryDate,
         mrp: parseFloat(editBatchForm.mrp),
         sellingPrice: parseFloat(editBatchForm.sellingPrice),
         status: editBatchForm.status,
-      });
+      };
+
+      if (isSuperAdmin && editBatchForm.pharmacyPhysicalUnits !== '') {
+        const physicalUnits = parseInt(editBatchForm.pharmacyPhysicalUnits, 10);
+        if (!isNaN(physicalUnits) && physicalUnits >= 0) {
+          payload.pharmacyPhysicalUnits = physicalUnits;
+          payload.availableQuantity = physicalUnits;
+        }
+      }
+
+      await api.updateBatch(editingBatch.id, payload);
 
       setMessage({ text: `Batch ${editBatchForm.batchNumber} updated successfully.`, type: 'success' });
       setShowEditBatchModal(false);
@@ -1843,6 +1855,39 @@ export const InventoryPage: React.FC = () => {
                   className="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs"
                 />
               </div>
+            </div>
+
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <label className="font-semibold text-slate-700 block">
+                  Pharmacy Physical Units (Available Tablets)
+                </label>
+                {isSuperAdmin ? (
+                  <span className="text-[10px] bg-emerald-100 text-emerald-800 font-bold px-1.5 py-0.5 rounded">
+                    Super Admin Editable
+                  </span>
+                ) : (
+                  <span className="text-[10px] text-slate-400">
+                    Editable by Super Admin only
+                  </span>
+                )}
+              </div>
+              <input
+                type="number"
+                min="0"
+                step="1"
+                disabled={!isSuperAdmin}
+                value={editBatchForm.pharmacyPhysicalUnits}
+                onChange={(e) => setEditBatchForm({ ...editBatchForm, pharmacyPhysicalUnits: e.target.value })}
+                className={`w-full px-3 py-2 border rounded-lg text-xs font-mono font-bold ${
+                  isSuperAdmin
+                    ? 'border-emerald-300 bg-emerald-50/20 text-emerald-950 focus:ring-emerald-500'
+                    : 'border-slate-200 bg-slate-100 text-slate-500 cursor-not-allowed'
+                }`}
+              />
+              <span className="text-[10px] text-slate-400 block mt-0.5">
+                Physical in-stock tablet count. Modifying this adjusts batch stock and records an audit movement.
+              </span>
             </div>
 
             <div>

@@ -40,6 +40,20 @@ export function buildProductUnitConfig(
   if (customConfigJson) {
     try {
       const parsed = JSON.parse(customConfigJson);
+      if (parsed && typeof parsed === 'object') {
+        if (parsed.stripUnitQuantity || (parsed.supportedUnits && Array.isArray(parsed.supportedUnits))) {
+          const stripUnitQty = parsed.stripUnitQuantity || conversionFactorInput || 10;
+          return {
+            baseUnit: 'Tablet',
+            packageUnit: 'Strip',
+            conversionFactor: stripUnitQty,
+            supportedUnits: [
+              { unit: 'Tablet', multiplierToBase: 1, isBaseUnit: true },
+              { unit: 'Strip', multiplierToBase: stripUnitQty },
+            ],
+          };
+        }
+      }
       if (Array.isArray(parsed) && parsed.length > 0) {
         const base = parsed.find((u: any) => u.isBaseUnit) || parsed[0];
         return {

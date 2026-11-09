@@ -621,7 +621,15 @@ export const updateBatch = async (req: Request, res: Response) => {
     }
 
     const id = req.params.id as string;
-    const { batchNumber, expiryDate, mrp, sellingPrice, status } = req.body;
+    const {
+      batchNumber,
+      expiryDate,
+      mrp,
+      sellingPrice,
+      status,
+      pharmacyPhysicalUnits,
+      availableQuantity,
+    } = req.body;
 
     const existing = await prisma.stockBatch.findUnique({ where: { id } });
     if (!existing) {
@@ -636,6 +644,11 @@ export const updateBatch = async (req: Request, res: Response) => {
       }
     }
 
+    const rawPhysicalQty = pharmacyPhysicalUnits !== undefined ? pharmacyPhysicalUnits : availableQuantity;
+    const newPhysicalQty = rawPhysicalQty !== undefined && rawPhysicalQty !== null && rawPhysicalQty !== ''
+      ? parseInt(String(rawPhysicalQty), 10)
+      : undefined;
+
     const updated = await prisma.stockBatch.update({
       where: { id },
       data: {
@@ -644,6 +657,10 @@ export const updateBatch = async (req: Request, res: Response) => {
         ...(mrp !== undefined && { mrp: parseFloat(mrp) }),
         ...(sellingPrice !== undefined && { sellingPrice: parseFloat(sellingPrice) }),
         ...(status && { status }),
+        ...(newPhysicalQty !== undefined && !isNaN(newPhysicalQty) && {
+          availableQuantity: newPhysicalQty,
+          status: newPhysicalQty === 0 ? 'DEPLETED' : (status || existing.status),
+        }),
       },
       include: {
         medicine: true,
@@ -651,13 +668,36 @@ export const updateBatch = async (req: Request, res: Response) => {
       },
     });
 
+    if (newPhysicalQty !== undefined && !isNaN(newPhysicalQty) && newPhysicalQty !== existing.availableQuantity) {
+      const delta = newPhysicalQty - existing.availableQuantity;
+      await prisma.stockMovement.create({
+        data: {
+          branchId: updated.branchId,
+          medicineId: updated.medicineId,
+          batchId: updated.id,
+          movementType: 'STOCK_CORRECTION',
+          quantityDelta: delta,
+          unitPrice: updated.purchaseRate,
+          referenceDocType: 'PHYSICAL_AUDIT',
+          referenceDocId: updated.id,
+          reason: `Super Admin physical stock adjustment: ${existing.availableQuantity} -> ${newPhysicalQty} units`,
+          performedByUserId: req.user.id,
+        },
+      });
+    }
+
     await logAuditEvent({
       userId: req.user.id,
       branchId: updated.branchId,
       action: 'BATCH_UPDATE',
       targetEntity: 'STOCK_BATCH',
       entityId: updated.id,
-      details: { batchNumber: updated.batchNumber, status: updated.status },
+      details: {
+        batchNumber: updated.batchNumber,
+        status: updated.status,
+        previousQuantity: existing.availableQuantity,
+        newQuantity: updated.availableQuantity,
+      },
       req,
     });
 

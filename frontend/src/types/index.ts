@@ -53,6 +53,14 @@ export interface MedicineProduct {
   packageUnit?: string | null;
   conversionFactor?: number | null;
   unitConfig?: any;
+  stripQuantityInBox?: number | null;
+  stripUnitQuantity?: number | null;
+  totalUnits?: number | null;
+  pharmacyPhysicalUnits?: number | null;
+  stripPurchasePrice?: number | null;
+  stripMrpPrice?: number | null;
+  purchaseUnitPrice?: number | null;
+  unitSellingPrice?: number | null;
   totalAvailableStock?: number;
   activeBatches?: StockBatch[];
 }
@@ -65,6 +73,7 @@ export interface StockBatch {
   expiryDate: string;
   quantityReceived: number;
   availableQuantity: number;
+  pharmacyPhysicalUnits?: number;
   purchaseRate: number;
   mrp: number;
   sellingPrice: number;

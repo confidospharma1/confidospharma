@@ -46,6 +46,7 @@ interface BillItem {
   unitMultiplier?: number;
   baseSellingPrice?: number;
   supportedUnits?: { unit: string; multiplierToBase: number }[];
+  unitConfig?: any;
 }
 
 export const POSBillingPage: React.FC = () => {
@@ -92,10 +93,30 @@ export const POSBillingPage: React.FC = () => {
     });
   }, []);
 
-  const deriveUnitsForProduct = (prod: MedicineProduct) => {
+  const deriveUnitsForProduct = (prod: MedicineProduct): { unit: string; multiplierToBase: number }[] => {
+    // Check if explicit unitConfig exists
+    if (prod.unitConfig) {
+      try {
+        const parsed = typeof prod.unitConfig === 'string' ? JSON.parse(prod.unitConfig) : prod.unitConfig;
+        if (parsed.units && Array.isArray(parsed.units) && parsed.units.length > 0) {
+          return parsed.units.map((u: any) => ({ unit: String(u.unit), multiplierToBase: Number(u.multiplierToBase || 1) }));
+        }
+        if (parsed.stripUnitQuantity && parsed.stripUnitQuantity > 0) {
+          return [
+            { unit: 'Tablet', multiplierToBase: 1 },
+            { unit: 'Strip', multiplierToBase: Number(parsed.stripUnitQuantity) },
+          ];
+        }
+      } catch (e) {
+        // fallback
+      }
+    }
+
     const form = (prod.dosageForm || '').toLowerCase();
     const pkgUnit = (prod.packageUnit || 'Box').trim();
-    const factor = prod.conversionFactor && prod.conversionFactor > 0 ? prod.conversionFactor : 10;
+    const factor = prod.stripUnitQuantity && prod.stripUnitQuantity > 0
+      ? prod.stripUnitQuantity
+      : (prod.conversionFactor && prod.conversionFactor > 0 ? prod.conversionFactor : 10);
     const rawBase = (prod.baseUnit || '').trim();
     const packSizeStr = (prod.packSize || '').toLowerCase();
 
@@ -176,9 +197,9 @@ export const POSBillingPage: React.FC = () => {
     const isCapsule = form.includes('capsule') || rawBase.toLowerCase() === 'capsule';
     const singleUnit = isCapsule ? 'Capsule' : 'Tablet';
 
-    // Simplified tablet/capsule retail unit: strictly 1:1 base units (strips/boxes packaging removed)
     return [
       { unit: singleUnit, multiplierToBase: 1 },
+      { unit: 'Strip', multiplierToBase: factor },
     ];
   };
 
@@ -361,6 +382,13 @@ export const POSBillingPage: React.FC = () => {
     const initialUnitObj = supportedUnits.find((u) => u.unit === defaultUnitName) || supportedUnits[0] || { unit: product.baseUnit || 'Tablet', multiplierToBase: 1 };
 
     // Resolve base price per base-unit without multiplying pack MRP
+    let parsedConfig: any = null;
+    if (product.unitConfig) {
+      try {
+        parsedConfig = typeof product.unitConfig === 'string' ? JSON.parse(product.unitConfig) : product.unitConfig;
+      } catch (e) {}
+    }
+
     const rawBatchRate = bestBatch.sellingPrice || bestBatch.mrp;
     const isAlreadyBaseRate = (product.mrp || 0) > 0 && rawBatchRate < (product.mrp || 0);
     const quotedUnit = supportedUnits.find(
@@ -369,9 +397,16 @@ export const POSBillingPage: React.FC = () => {
     const quotedMultiplier = (!isAlreadyBaseRate && quotedUnit && quotedUnit.multiplierToBase > 1)
       ? quotedUnit.multiplierToBase
       : 1;
-    const effectiveBasePrice = rawBatchRate / quotedMultiplier;
+    const effectiveBasePrice = parsedConfig?.unitSellingPrice
+      ? Number(parsedConfig.unitSellingPrice)
+      : (rawBatchRate / quotedMultiplier);
     const initialMultiplier = initialUnitObj.multiplierToBase;
-    const computedUnitMrp = Number((effectiveBasePrice * initialMultiplier).toFixed(2));
+    let computedUnitMrp = Number((effectiveBasePrice * initialMultiplier).toFixed(2));
+    if (initialUnitObj.unit.toLowerCase() === 'strip' && parsedConfig?.stripMrpPrice) {
+      computedUnitMrp = Number(parsedConfig.stripMrpPrice);
+    } else if (initialUnitObj.unit.toLowerCase() === 'tablet' && parsedConfig?.unitSellingPrice) {
+      computedUnitMrp = Number(parsedConfig.unitSellingPrice);
+    }
 
     // Check if medicine with this batch and unit is already in draft
     const existingIndex = billItems.findIndex(
@@ -413,6 +448,7 @@ export const POSBillingPage: React.FC = () => {
         baseUnit: product.baseUnit || 'Tablet',
         packageUnit: product.packageUnit || undefined,
         conversionFactor: product.conversionFactor || undefined,
+        unitConfig: product.unitConfig,
       };
 
       setBillItems((prev) => [...prev, newItem]);
@@ -426,6 +462,13 @@ export const POSBillingPage: React.FC = () => {
     const targetBatch = item.availableBatches?.find((b) => b.id === newBatchId);
     if (!targetBatch) return;
 
+    let parsedConfig: any = null;
+    if (item.unitConfig) {
+      try {
+        parsedConfig = typeof item.unitConfig === 'string' ? JSON.parse(item.unitConfig) : item.unitConfig;
+      } catch (e) {}
+    }
+
     const rawBatchRate = targetBatch.sellingPrice || targetBatch.mrp;
     const quotedUnit = item.supportedUnits?.find(
       (u) => u.unit.toLowerCase() === (item.baseUnit || 'Tablet').toLowerCase()
@@ -434,9 +477,18 @@ export const POSBillingPage: React.FC = () => {
     const quotedMultiplier = (!isAlreadyBaseRate && quotedUnit && quotedUnit.multiplierToBase > 1)
       ? quotedUnit.multiplierToBase
       : 1;
-    const effectiveBasePrice = rawBatchRate / quotedMultiplier;
+    const effectiveBasePrice = parsedConfig?.unitSellingPrice
+      ? Number(parsedConfig.unitSellingPrice)
+      : (rawBatchRate / quotedMultiplier);
     const multiplier = item.unitMultiplier || 1;
     const maxAllowedInUnit = Math.floor(targetBatch.availableQuantity / multiplier);
+
+    let newUnitMrp = Number((effectiveBasePrice * multiplier).toFixed(2));
+    if (item.selectedUnit?.toLowerCase() === 'strip' && parsedConfig?.stripMrpPrice) {
+      newUnitMrp = Number(parsedConfig.stripMrpPrice);
+    } else if (item.selectedUnit?.toLowerCase() === 'tablet' && parsedConfig?.unitSellingPrice) {
+      newUnitMrp = Number(parsedConfig.unitSellingPrice);
+    }
 
     const updated = [...billItems];
     updated[index] = {
@@ -446,7 +498,7 @@ export const POSBillingPage: React.FC = () => {
       expiryDate: targetBatch.expiryDate,
       availableStock: targetBatch.availableQuantity,
       baseSellingPrice: effectiveBasePrice,
-      unitMrp: Number((effectiveBasePrice * multiplier).toFixed(2)),
+      unitMrp: newUnitMrp,
       quantity: Math.min(item.quantity, Math.max(1, maxAllowedInUnit)),
     };
     setBillItems(updated);
@@ -473,13 +525,26 @@ export const POSBillingPage: React.FC = () => {
     const maxAllowedInUnit = Math.floor(item.availableStock / newMultiplier);
     newQty = Math.min(newQty, Math.max(1, maxAllowedInUnit));
 
+    let newPrice = Number((effectiveBasePrice * newMultiplier).toFixed(2));
+    let parsedConfig: any = null;
+    if (item.unitConfig) {
+      try {
+        parsedConfig = typeof item.unitConfig === 'string' ? JSON.parse(item.unitConfig) : item.unitConfig;
+      } catch (e) {}
+    }
+    if (newUnit.toLowerCase() === 'strip' && parsedConfig?.stripMrpPrice) {
+      newPrice = Number(parsedConfig.stripMrpPrice);
+    } else if (newUnit.toLowerCase() === 'tablet' && parsedConfig?.unitSellingPrice) {
+      newPrice = Number(parsedConfig.unitSellingPrice);
+    }
+
     const updated = [...billItems];
     updated[index] = {
       ...item,
       selectedUnit: newUnit,
       unitMultiplier: newMultiplier,
       baseSellingPrice: effectiveBasePrice,
-      unitMrp: Number((effectiveBasePrice * newMultiplier).toFixed(2)),
+      unitMrp: newPrice,
       quantity: newQty,
     };
     setBillItems(updated);

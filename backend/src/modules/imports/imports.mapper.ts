@@ -24,8 +24,14 @@ export function normalizeHeaderKey(header: string): string {
 }
 
 // Catalogue canonical fields and aliases
-const CATALOGUE_FIELD_ALIASES: Record<string, string[]> = {
-  productName: [
+export const CATALOGUE_FIELD_ALIASES: Record<string, string[]> = {
+  medicineName: [
+    'medicine name',
+    'medicinename',
+    'medicine',
+    'brand name',
+    'brandname',
+    'brand',
     'product name',
     'productname',
     'product',
@@ -40,6 +46,14 @@ const CATALOGUE_FIELD_ALIASES: Record<string, string[]> = {
     'medicine name',
     'medicinename',
   ],
+  productName: [
+    'product name',
+    'productname',
+    'product',
+    'item name',
+    'itemname',
+    'item',
+  ],
   genericName: [
     'generic name',
     'genericname',
@@ -53,7 +67,7 @@ const CATALOGUE_FIELD_ALIASES: Record<string, string[]> = {
   dosageForm: ['dosage form', 'dosageform', 'form', 'formulation', 'type'],
   manufacturer: ['manufacturer', 'mfg', 'company', 'brand owner', 'make', 'producer'],
   packSize: ['pack size', 'packsize', 'pack', 'packaging', 'packing'],
-  hsnCode: ['hsn code', 'hsncode', 'hsn', 'hsn/sac', 'hsn sac'],
+  hsnCode: ['hsn number', 'hsn no', 'hsnno', 'hsn code', 'hsncode', 'hsn', 'hsn/sac', 'hsn sac'],
   gstRate: ['gst rate', 'gstrate', 'gst', 'gst %', 'tax rate', 'tax', 'tax %'],
   mrp: ['mrp', 'maximum retail price', 'retail price', 'retail price (mrp)', 'price', 'unit mrp'],
   defaultPurchaseRate: [
@@ -89,8 +103,103 @@ const CATALOGUE_FIELD_ALIASES: Record<string, string[]> = {
   ],
   quantity: ['quantity', 'qty', 'units', 'stock', 'opening stock', 'initial quantity', 'initial stock'],
   freeQuantity: ['free quantity', 'freequantity', 'free qty', 'freeqty', 'free discount quantity', 'bonus qty', 'free'],
-  batchNumber: ['batch number', 'batchnumber', 'batch', 'batch no', 'batchno', 'lot', 'lot no'],
+  batchNumber: ['batch number', 'batchnumber', 'batch', 'batch no', 'batchno', 'batch no.', 'lot', 'lot no', 'lot number'],
   expiryDate: ['expiry date', 'expirydate', 'expiry', 'exp date', 'expdate', 'exp dt', 'exp', 'batch expiry date'],
+
+  // New Confidos Pharma Strip & Tablet Standard Format
+  stripQuantityInBox: [
+    'strip quantity in the box',
+    'strip quantity in box',
+    'strip qty in the box',
+    'strip qty in box',
+    'strip quantity',
+    'strip qty',
+    'strips per box',
+    'strips in box',
+    'strips in the box',
+    'box strip quantity',
+    'box quantity',
+    'box qty',
+  ],
+  stripUnitQuantity: [
+    'strip unit quantity',
+    'strip unit qty',
+    'strip unit',
+    'tablets per strip',
+    'units per strip',
+    'strip size',
+    'strip tablet quantity',
+    'strip units',
+    'strip packing',
+    'strip pack',
+  ],
+  totalUnits: [
+    'total units',
+    'total unit',
+    'total units (tablets)',
+    'total tablets',
+    'total quantity',
+    'total qty',
+    'total units in box',
+    'units total',
+  ],
+  pharmacyPhysicalUnits: [
+    'pharmacy physical units',
+    'pharmacy physical unit',
+    'physical units',
+    'physical unit',
+    'pharmacy units',
+    'pharmacy physical stock',
+    'physical stock',
+    'physical quantity',
+  ],
+  stripPurchasePrice: [
+    'strip purchase price',
+    'strip purchase rate',
+    'purchase strip price',
+    'strip p rate',
+    'strip p.rate',
+    'strip cost price',
+    'strip cost',
+    'purchase rate per strip',
+    'purchase rate (strip)',
+  ],
+  stripMrpPrice: [
+    'strip mrp price',
+    'strip mrp rate',
+    'strip mrp',
+    'mrp strip price',
+    'mrp strip',
+    'mrp per strip',
+    'strip retail price',
+    'mrp (strip)',
+  ],
+  purchaseUnitPrice: [
+    'purchase unit price',
+    'purchase unit rate',
+    'unit purchase price',
+    'unit purchase rate',
+    'purchase rate per tablet',
+    'purchase rate per unit',
+    'cost per tablet',
+    'p unit price',
+    'p unit rate',
+    'purchase unit cost',
+  ],
+  unitSellingPrice: [
+    'unit selling price',
+    'unit selling rate',
+    'selling unit price',
+    'selling unit rate',
+    'selling price per tablet',
+    'selling price per unit',
+    'unit mrp price',
+    'unit mrp',
+    'mrp per tablet',
+    'mrp per unit',
+    'selling rate per tablet',
+    'selling rate per unit',
+  ],
 };
 
 // Stock Receipt canonical fields and aliases
@@ -129,6 +238,7 @@ const STOCK_RECEIPT_FIELD_ALIASES: Record<string, string[]> = {
     'batch',
     'batch no',
     'batchno',
+    'batch no.',
     'lot',
     'lot number',
     'lotnumber',
@@ -172,6 +282,101 @@ const STOCK_RECEIPT_FIELD_ALIASES: Record<string, string[]> = {
     'price',
     'unit mrp',
   ],
+  manufacturer: ['manufacturer', 'mfg', 'company', 'brand owner', 'make', 'producer'],
+  hsnCode: ['hsn number', 'hsn no', 'hsnno', 'hsn code', 'hsncode', 'hsn', 'hsn/sac', 'hsn sac'],
+  stripQuantityInBox: [
+    'strip quantity in the box',
+    'strip quantity in box',
+    'strip qty in the box',
+    'strip qty in box',
+    'strip quantity',
+    'strip qty',
+    'strips per box',
+    'strips in box',
+    'strips in the box',
+    'box strip quantity',
+    'box quantity',
+    'box qty',
+  ],
+  stripUnitQuantity: [
+    'strip unit quantity',
+    'strip unit qty',
+    'strip unit',
+    'tablets per strip',
+    'units per strip',
+    'strip size',
+    'strip tablet quantity',
+    'strip units',
+    'strip packing',
+    'strip pack',
+  ],
+  totalUnits: [
+    'total units',
+    'total unit',
+    'total units (tablets)',
+    'total tablets',
+    'total quantity',
+    'total qty',
+    'total units in box',
+    'units total',
+  ],
+  pharmacyPhysicalUnits: [
+    'pharmacy physical units',
+    'pharmacy physical unit',
+    'physical units',
+    'physical unit',
+    'pharmacy units',
+    'pharmacy physical stock',
+    'physical stock',
+    'physical quantity',
+  ],
+  stripPurchasePrice: [
+    'strip purchase price',
+    'strip purchase rate',
+    'purchase strip price',
+    'strip p rate',
+    'strip p.rate',
+    'strip cost price',
+    'strip cost',
+    'purchase rate per strip',
+    'purchase rate (strip)',
+  ],
+  stripMrpPrice: [
+    'strip mrp price',
+    'strip mrp rate',
+    'strip mrp',
+    'mrp strip price',
+    'mrp strip',
+    'mrp per strip',
+    'strip retail price',
+    'mrp (strip)',
+  ],
+  purchaseUnitPrice: [
+    'purchase unit price',
+    'purchase unit rate',
+    'unit purchase price',
+    'unit purchase rate',
+    'purchase rate per tablet',
+    'purchase rate per unit',
+    'cost per tablet',
+    'p unit price',
+    'p unit rate',
+    'purchase unit cost',
+  ],
+  unitSellingPrice: [
+    'unit selling price',
+    'unit selling rate',
+    'selling unit price',
+    'selling unit rate',
+    'selling price per tablet',
+    'selling price per unit',
+    'unit mrp price',
+    'unit mrp',
+    'mrp per tablet',
+    'mrp per unit',
+    'selling rate per tablet',
+    'selling rate per unit',
+  ],
 };
 
 // Purchase Invoice canonical fields and aliases (Phase 4 Specification)
@@ -183,6 +388,7 @@ const PURCHASE_INVOICE_FIELD_ALIASES: Record<string, string[]> = {
   ],
   brandName: [
     'brand name', 'brandname', 'brand',
+    'medicine name', 'medicinename', 'medicine',
   ],
   genericName: [
     'generic name', 'genericname', 'generic',
@@ -191,9 +397,9 @@ const PURCHASE_INVOICE_FIELD_ALIASES: Record<string, string[]> = {
   strength: ['strength', 'potency', 'dose', 'power'],
   dosageForm: ['dosage form', 'dosageform', 'form', 'formulation', 'type'],
   manufacturer: ['manufacturer', 'mfg', 'company', 'make', 'producer', 'brand owner'],
-  hsnCode: ['hsn code', 'hsncode', 'hsn', 'hsn/sac', 'hsn sac'],
+  hsnCode: ['hsn number', 'hsn no', 'hsnno', 'hsn code', 'hsncode', 'hsn', 'hsn/sac', 'hsn sac'],
   batchNumber: [
-    'batch number', 'batchnumber', 'batch', 'batch no', 'batchno',
+    'batch number', 'batchnumber', 'batch', 'batch no', 'batchno', 'batch no.',
     'lot', 'lot number', 'lot no',
   ],
   expiryDate: [
@@ -221,6 +427,101 @@ const PURCHASE_INVOICE_FIELD_ALIASES: Record<string, string[]> = {
   sellingUnit: ['selling unit', 'sellingunit', 'base unit', 'sale unit'],
   barcode: ['barcode', 'upc', 'ean', 'gtin', 'code128'],
   prescriptionType: ['category', 'prescription type', 'prescriptiontype', 'schedule', 'rx type', 'drug schedule'],
+
+  // New Confidos Pharma Strip & Tablet Standard Format
+  stripQuantityInBox: [
+    'strip quantity in the box',
+    'strip quantity in box',
+    'strip qty in the box',
+    'strip qty in box',
+    'strip quantity',
+    'strip qty',
+    'strips per box',
+    'strips in box',
+    'strips in the box',
+    'box strip quantity',
+    'box quantity',
+    'box qty',
+  ],
+  stripUnitQuantity: [
+    'strip unit quantity',
+    'strip unit qty',
+    'strip unit',
+    'tablets per strip',
+    'units per strip',
+    'strip size',
+    'strip tablet quantity',
+    'strip units',
+    'strip packing',
+    'strip pack',
+  ],
+  totalUnits: [
+    'total units',
+    'total unit',
+    'total units (tablets)',
+    'total tablets',
+    'total quantity',
+    'total qty',
+    'total units in box',
+    'units total',
+  ],
+  pharmacyPhysicalUnits: [
+    'pharmacy physical units',
+    'pharmacy physical unit',
+    'physical units',
+    'physical unit',
+    'pharmacy units',
+    'pharmacy physical stock',
+    'physical stock',
+    'physical quantity',
+  ],
+  stripPurchasePrice: [
+    'strip purchase price',
+    'strip purchase rate',
+    'purchase strip price',
+    'strip p rate',
+    'strip p.rate',
+    'strip cost price',
+    'strip cost',
+    'purchase rate per strip',
+    'purchase rate (strip)',
+  ],
+  stripMrpPrice: [
+    'strip mrp price',
+    'strip mrp rate',
+    'strip mrp',
+    'mrp strip price',
+    'mrp strip',
+    'mrp per strip',
+    'strip retail price',
+    'mrp (strip)',
+  ],
+  purchaseUnitPrice: [
+    'purchase unit price',
+    'purchase unit rate',
+    'unit purchase price',
+    'unit purchase rate',
+    'purchase rate per tablet',
+    'purchase rate per unit',
+    'cost per tablet',
+    'p unit price',
+    'p unit rate',
+    'purchase unit cost',
+  ],
+  unitSellingPrice: [
+    'unit selling price',
+    'unit selling rate',
+    'selling unit price',
+    'selling unit rate',
+    'selling price per tablet',
+    'selling price per unit',
+    'unit mrp price',
+    'unit mrp',
+    'mrp per tablet',
+    'mrp per unit',
+    'selling rate per tablet',
+    'selling rate per unit',
+  ],
 };
 
 /**
@@ -242,12 +543,25 @@ export function buildHeaderMapping(
   const duplicateHeaders: string[] = [];
   const fieldToRawHeaders = new Map<string, string[]>(); // internalField -> [rawHeader1, rawHeader2]
 
-  // Step 1: Detect raw / normalized header duplicates
+  // Step 1: Detect raw / normalized header duplicates & skip reference/formula columns
   for (const rawCol of rawHeaders) {
     const cleaned = cleanHeaderString(rawCol);
     if (!cleaned) continue;
 
     const norm = normalizeHeaderKey(cleaned);
+
+    // Skip formula descriptions, reference notes, and extra calculation headers
+    if (
+      norm.startsWith('formula') ||
+      norm.includes('formula of') ||
+      norm.includes('strip purchase price /') ||
+      norm.includes('strip mrp price /') ||
+      norm.includes('reference only') ||
+      norm.includes('reference for')
+    ) {
+      continue;
+    }
+
     if (seenNormalized.has(norm)) {
       duplicateHeaders.push(`"${rawCol}" conflicts with "${seenNormalized.get(norm)}"`);
     } else {
@@ -574,6 +888,121 @@ export function resolveProductAndBrandNames(
     effectiveProductName,
     isCompatible: true,
     warning,
+  };
+}
+
+export interface PharmaProcessedRow {
+  medicineName: string;
+  brandName: string;
+  batchNumber: string;
+  expiryDate: string;
+  hsnCode: string | null;
+  manufacturer: string;
+  stripQuantityInBox: number;
+  stripUnitQuantity: number;
+  totalUnits: number;
+  pharmacyPhysicalUnits: number;
+  stripPurchasePrice: number;
+  stripMrpPrice: number;
+  purchaseUnitPrice: number;
+  unitSellingPrice: number;
+}
+
+/**
+ * Standard calculation of units, prices, and physical inventory for Confidos Pharma Excel Format
+ */
+export function calculatePharmaRowUnitsAndPrices(mapped: Record<string, any>): PharmaProcessedRow {
+  const medicineName = (
+    mapped.medicineName ||
+    mapped.brandName ||
+    mapped.productName ||
+    ''
+  ).toString().trim();
+
+  const batchNumber = (mapped.batchNumber || '').toString().trim();
+  const expiryDate = mapped.expiryDate ? String(mapped.expiryDate).trim() : '';
+  const hsnCode = (mapped.hsnCode || mapped.hsnNumber || '').toString().trim() || null;
+  const manufacturer = (mapped.manufacturer || '').toString().trim() || 'Standard Pharma';
+
+  // Strip quantities
+  const stripQtyInBoxRaw = parseCleanInt(mapped.stripQuantityInBox, NaN);
+  const stripUnitQtyRaw = parseCleanInt(mapped.stripUnitQuantity, NaN);
+
+  // If one of them is provided or fallbacks:
+  let stripQuantityInBox = !isNaN(stripQtyInBoxRaw) && stripQtyInBoxRaw > 0 ? stripQtyInBoxRaw : 1;
+  let stripUnitQuantity = !isNaN(stripUnitQtyRaw) && stripUnitQtyRaw > 0 ? stripUnitQtyRaw : 10;
+
+  // Total Units (Column H: Strip Quantity in Box * Strip Unit Quantity)
+  let totalUnits = parseCleanInt(mapped.totalUnits, NaN);
+  if (isNaN(totalUnits) || totalUnits <= 0) {
+    totalUnits = stripQuantityInBox * stripUnitQuantity;
+  }
+
+  // Pharmacy Physical Units (Column I): initially same as Total Units
+  let pharmacyPhysicalUnits = parseCleanInt(mapped.pharmacyPhysicalUnits, NaN);
+  if (isNaN(pharmacyPhysicalUnits) || pharmacyPhysicalUnits <= 0) {
+    pharmacyPhysicalUnits = totalUnits;
+  }
+
+  // Prices
+  let stripPurchasePrice = parseCleanNumber(mapped.stripPurchasePrice, NaN);
+  let stripMrpPrice = parseCleanNumber(mapped.stripMrpPrice, NaN);
+  let purchaseUnitPrice = parseCleanNumber(mapped.purchaseUnitPrice, NaN);
+  let unitSellingPrice = parseCleanNumber(mapped.unitSellingPrice, NaN);
+
+  // Strip Purchase Price & Purchase Unit Price
+  if (!isNaN(stripPurchasePrice) && stripPurchasePrice >= 0) {
+    if (isNaN(purchaseUnitPrice) || purchaseUnitPrice <= 0) {
+      purchaseUnitPrice = stripUnitQuantity > 0 ? Number((stripPurchasePrice / stripUnitQuantity).toFixed(4)) : stripPurchasePrice;
+    }
+  } else if (!isNaN(purchaseUnitPrice) && purchaseUnitPrice >= 0) {
+    stripPurchasePrice = Number((purchaseUnitPrice * stripUnitQuantity).toFixed(2));
+  } else {
+    // If fallback purchase rate is mapped:
+    const fallbackP = parseCleanNumber(mapped.purchaseRate, NaN);
+    if (!isNaN(fallbackP) && fallbackP >= 0) {
+      stripPurchasePrice = fallbackP;
+      purchaseUnitPrice = stripUnitQuantity > 0 ? Number((fallbackP / stripUnitQuantity).toFixed(4)) : fallbackP;
+    } else {
+      stripPurchasePrice = 0;
+      purchaseUnitPrice = 0;
+    }
+  }
+
+  // Strip MRP Price & Unit Selling Price
+  if (!isNaN(stripMrpPrice) && stripMrpPrice >= 0) {
+    if (isNaN(unitSellingPrice) || unitSellingPrice <= 0) {
+      unitSellingPrice = stripUnitQuantity > 0 ? Number((stripMrpPrice / stripUnitQuantity).toFixed(4)) : stripMrpPrice;
+    }
+  } else if (!isNaN(unitSellingPrice) && unitSellingPrice >= 0) {
+    stripMrpPrice = Number((unitSellingPrice * stripUnitQuantity).toFixed(2));
+  } else {
+    // If fallback mrp is mapped:
+    const fallbackM = parseCleanNumber(mapped.mrp, NaN);
+    if (!isNaN(fallbackM) && fallbackM >= 0) {
+      stripMrpPrice = fallbackM;
+      unitSellingPrice = stripUnitQuantity > 0 ? Number((fallbackM / stripUnitQuantity).toFixed(4)) : fallbackM;
+    } else {
+      stripMrpPrice = 0;
+      unitSellingPrice = 0;
+    }
+  }
+
+  return {
+    medicineName,
+    brandName: medicineName,
+    batchNumber,
+    expiryDate,
+    hsnCode,
+    manufacturer,
+    stripQuantityInBox,
+    stripUnitQuantity,
+    totalUnits,
+    pharmacyPhysicalUnits,
+    stripPurchasePrice,
+    stripMrpPrice,
+    purchaseUnitPrice,
+    unitSellingPrice,
   };
 }
 

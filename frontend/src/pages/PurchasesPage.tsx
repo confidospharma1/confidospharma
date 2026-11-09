@@ -63,6 +63,16 @@ interface PurchaseLineForm {
   dosageForm?: string;
   manufacturer?: string;
   hsnCode?: string;
+
+  // Standard 13-Column Strip & Unit Fields
+  stripQuantityInBox?: number;
+  stripUnitQuantity?: number;
+  totalUnits?: number;
+  pharmacyPhysicalUnits?: number;
+  stripPurchasePrice?: number;
+  stripMrpPrice?: number;
+  purchaseUnitPrice?: number;
+  unitSellingPrice?: number;
 }
 
 interface PurchasesPageProps {
@@ -163,16 +173,29 @@ export const PurchasesPage: React.FC<PurchasesPageProps> = ({ prefilledIndent, o
   const [lines, setLines] = useState<PurchaseLineForm[]>([
     {
       medicineId: '',
+      brandName: '',
       batchNumber: '',
       expiryDate: '',
-      quantity: 50,
+      hsnCode: '30049099',
+      manufacturer: '',
+      stripQuantityInBox: 10,
+      stripUnitQuantity: 10,
+      totalUnits: 100,
+      pharmacyPhysicalUnits: 100,
+      stripPurchasePrice: 10,
+      stripMrpPrice: 20,
+      purchaseUnitPrice: 1,
+      unitSellingPrice: 2,
+      quantity: 10,
       freeQuantity: 0,
-      purchaseRate: 20,
-      sellingRate: 28,
-      mrp: 30,
+      purchaseRate: 10,
+      sellingRate: 20,
+      mrp: 20,
       discountPercent: 0,
       discountAmount: 0,
-      gstRate: 5.0, // Default 5% (2.5% CGST + 2.5% SGST)
+      gstRate: 5.0,
+      unit: 'Strip',
+      conversionFactor: 10,
     },
   ]);
 
@@ -197,16 +220,56 @@ export const PurchasesPage: React.FC<PurchasesPageProps> = ({ prefilledIndent, o
   const [isSavingInlineMedicine, setIsSavingInlineMedicine] = useState(false);
   const [inlineMedicineForm, setInlineMedicineForm] = useState({
     brandName: '',
-    genericName: '',
-    strength: '650mg',
-    dosageForm: 'Tablet',
-    manufacturer: '',
-    mrp: '100',
-    defaultPurchaseRate: '70',
-    defaultSellingRate: '100',
-    gstRate: '5.0',
+    batchNumber: '',
+    expiryDate: '',
     hsnCode: '30049099',
+    manufacturer: '',
+    stripQuantityInBox: '10',
+    stripUnitQuantity: '10',
+    totalUnits: '100',
+    pharmacyPhysicalUnits: '100',
+    stripPurchasePrice: '10',
+    stripMrpPrice: '20',
+    purchaseUnitPrice: '1.00',
+    unitSellingPrice: '2.00',
+    gstRate: '5.0',
+    genericName: '',
+    strength: '500mg',
+    dosageForm: 'Tablet',
   });
+
+  const handleInlineMedicineChange = (field: string, value: string) => {
+    setInlineMedicineForm((prev) => {
+      const next = { ...prev, [field]: value };
+
+      const stripQty = parseFloat(field === 'stripQuantityInBox' ? value : next.stripQuantityInBox) || 0;
+      const stripUnitQty = parseFloat(field === 'stripUnitQuantity' ? value : next.stripUnitQuantity) || 0;
+      const stripPur = parseFloat(field === 'stripPurchasePrice' ? value : next.stripPurchasePrice) || 0;
+      const stripMrp = parseFloat(field === 'stripMrpPrice' ? value : next.stripMrpPrice) || 0;
+
+      if (field === 'stripQuantityInBox' || field === 'stripUnitQuantity') {
+        const computedTotal = stripQty * stripUnitQty;
+        next.totalUnits = computedTotal > 0 ? String(computedTotal) : '';
+        if (!prev.pharmacyPhysicalUnits || prev.pharmacyPhysicalUnits === prev.totalUnits) {
+          next.pharmacyPhysicalUnits = next.totalUnits;
+        }
+      }
+
+      if (field === 'stripPurchasePrice' || field === 'stripUnitQuantity') {
+        if (stripUnitQty > 0 && stripPur >= 0) {
+          next.purchaseUnitPrice = Number((stripPur / stripUnitQty).toFixed(2)).toString();
+        }
+      }
+
+      if (field === 'stripMrpPrice' || field === 'stripUnitQuantity') {
+        if (stripUnitQty > 0 && stripMrp >= 0) {
+          next.unitSellingPrice = Number((stripMrp / stripUnitQty).toFixed(2)).toString();
+        }
+      }
+
+      return next;
+    });
+  };
 
   // Modal: Full Supplier Management (Add / Edit)
   const [showSupplierModal, setShowSupplierModal] = useState(false);
@@ -450,15 +513,26 @@ export const PurchasesPage: React.FC<PurchasesPageProps> = ({ prefilledIndent, o
       ...prev,
       {
         medicineId: '',
+        brandName: '',
         batchNumber: '',
         expiryDate: '',
-        quantity: 50,
+        hsnCode: '30049099',
+        manufacturer: '',
+        stripQuantityInBox: 10,
+        stripUnitQuantity: 10,
+        totalUnits: 100,
+        pharmacyPhysicalUnits: 100,
+        stripPurchasePrice: 10,
+        stripMrpPrice: 20,
+        purchaseUnitPrice: 1,
+        unitSellingPrice: 2,
+        quantity: 10,
         freeQuantity: 0,
-        unit: 'Unit',
-        conversionFactor: 1,
-        purchaseRate: 20,
-        sellingRate: 30,
-        mrp: 30,
+        unit: 'Strip',
+        conversionFactor: 10,
+        purchaseRate: 10,
+        sellingRate: 20,
+        mrp: 20,
         discountPercent: 0,
         discountAmount: 0,
         gstRate: configuredCombinedGST, // Respects configured default GST (5%)
@@ -470,37 +544,89 @@ export const PurchasesPage: React.FC<PurchasesPageProps> = ({ prefilledIndent, o
     setLines((prev) => prev.filter((_, i) => i !== idx));
   };
 
-  const updateLine = (idx: number, field: keyof PurchaseLineForm, val: any) => {
+  const updateLine = (idx: number, field: string, val: any) => {
     const updated = [...lines];
-    (updated[idx] as any)[field] = val;
+    const item = { ...updated[idx], [field]: val };
 
     if (field === 'medicineId') {
       const prod = products.find((p) => p.id === val);
       if (prod) {
-        updated[idx].mrp = prod.mrp;
-        updated[idx].sellingRate = prod.defaultSellingRate || prod.mrp;
-        updated[idx].purchaseRate = prod.defaultPurchaseRate || Math.round(prod.mrp * 0.7);
-        // Respect product-level tax classification
-        updated[idx].gstRate = prod.gstRate !== undefined ? prod.gstRate : configuredCombinedGST;
-        updated[idx].unit = prod.baseUnit || 'Tablet';
-        updated[idx].conversionFactor = prod.conversionFactor ? prod.conversionFactor : 1;
+        let parsedConfig: any = null;
+        if (prod.unitConfig) {
+          try {
+            parsedConfig = typeof prod.unitConfig === 'string' ? JSON.parse(prod.unitConfig) : prod.unitConfig;
+          } catch (e) {}
+        }
+        item.brandName = prod.brandName;
+        item.manufacturer = prod.manufacturer;
+        item.hsnCode = prod.hsnCode || '30049099';
+        item.gstRate = prod.gstRate !== undefined ? prod.gstRate : configuredCombinedGST;
+        item.stripQuantityInBox = parsedConfig?.stripQuantityInBox || prod.stripQuantityInBox || item.stripQuantityInBox || 10;
+        item.stripUnitQuantity = parsedConfig?.stripUnitQuantity || prod.stripUnitQuantity || prod.conversionFactor || 10;
+        item.stripPurchasePrice = parsedConfig?.stripPurchasePrice || prod.stripPurchasePrice || prod.defaultPurchaseRate || 10;
+        item.stripMrpPrice = parsedConfig?.stripMrpPrice || prod.stripMrpPrice || prod.mrp || 20;
+        item.totalUnits = (item.stripQuantityInBox || 10) * (item.stripUnitQuantity || 10);
+        item.pharmacyPhysicalUnits = item.totalUnits;
+        item.purchaseUnitPrice = Number(((item.stripPurchasePrice || 10) / (item.stripUnitQuantity || 10)).toFixed(2));
+        item.unitSellingPrice = Number(((item.stripMrpPrice || 20) / (item.stripUnitQuantity || 10)).toFixed(2));
+        item.quantity = item.stripQuantityInBox || 10;
+        item.conversionFactor = item.stripUnitQuantity || 10;
+        item.purchaseRate = item.stripPurchasePrice || 10;
+        item.mrp = item.stripMrpPrice || 20;
+        item.sellingRate = item.stripMrpPrice || 20;
+        item.unit = 'Strip';
       }
+    } else if (field === 'stripQuantityInBox' || field === 'stripUnitQuantity') {
+      const sq = parseFloat(field === 'stripQuantityInBox' ? val : (item.stripQuantityInBox as any)) || 0;
+      const su = parseFloat(field === 'stripUnitQuantity' ? val : (item.stripUnitQuantity as any)) || 0;
+      const computedTotal = sq * su;
+      item.totalUnits = computedTotal;
+      if (!item.pharmacyPhysicalUnits || item.pharmacyPhysicalUnits === (updated[idx].totalUnits || 0)) {
+        item.pharmacyPhysicalUnits = computedTotal;
+      }
+      item.quantity = sq;
+      item.conversionFactor = su > 0 ? su : 10;
+
+      const sp = parseFloat(item.stripPurchasePrice as any) || 0;
+      const sm = parseFloat(item.stripMrpPrice as any) || 0;
+      if (su > 0) {
+        item.purchaseUnitPrice = Number((sp / su).toFixed(2));
+        item.unitSellingPrice = Number((sm / su).toFixed(2));
+      }
+    } else if (field === 'stripPurchasePrice') {
+      const sp = parseFloat(val) || 0;
+      const su = parseFloat(item.stripUnitQuantity as any) || 0;
+      item.purchaseRate = sp;
+      if (su > 0) {
+        item.purchaseUnitPrice = Number((sp / su).toFixed(2));
+      }
+    } else if (field === 'stripMrpPrice') {
+      const sm = parseFloat(val) || 0;
+      const su = parseFloat(item.stripUnitQuantity as any) || 0;
+      item.mrp = sm;
+      item.sellingRate = sm;
+      if (su > 0) {
+        item.unitSellingPrice = Number((sm / su).toFixed(2));
+      }
+    } else if (field === 'pharmacyPhysicalUnits') {
+      item.pharmacyPhysicalUnits = parseInt(val) || 0;
     } else if (field === 'mrp') {
       const numMrp = parseFloat(val);
       if (!isNaN(numMrp)) {
-        const currentSelling = parseFloat(updated[idx].sellingRate as any);
+        const currentSelling = parseFloat(item.sellingRate as any);
         if (isNaN(currentSelling) || currentSelling > numMrp || currentSelling === 0) {
-          updated[idx].sellingRate = numMrp;
+          item.sellingRate = numMrp;
         }
       }
     } else if (field === 'sellingRate') {
       const numSelling = parseFloat(val);
-      const numMrp = parseFloat(updated[idx].mrp as any);
+      const numMrp = parseFloat(item.mrp as any);
       if (!isNaN(numSelling) && !isNaN(numMrp) && numSelling > numMrp) {
-        // Never silently set selling rate above applicable MRP
-        updated[idx].sellingRate = numMrp;
+        item.sellingRate = numMrp;
       }
     }
+
+    updated[idx] = item;
     setLines(updated);
   };
 
@@ -593,19 +719,19 @@ export const PurchasesPage: React.FC<PurchasesPageProps> = ({ prefilledIndent, o
       medicineId: it.medicineId || '',
       batchNumber: it.batchNumber || '',
       expiryDate: it.expiryDate || '',
-      quantity: Number(it.quantity) || 1,
+      quantity: Number(it.stripQuantityInBox || it.quantity) || 1,
       freeQuantity: Number(it.freeQuantity) || 0,
-      unit: it.unit || it.purchaseUnit || 'Tablet',
-      conversionFactor: 1,
-      purchaseRate: Number(it.purchaseRate) || 0,
-      sellingRate: Number(it.sellingRate) || Number(it.mrp) || 0,
-      mrp: Number(it.mrp) || 0,
+      unit: 'Strip',
+      conversionFactor: Number(it.stripUnitQuantity || it.conversionFactor || 10),
+      purchaseRate: Number(it.stripPurchasePrice || it.purchaseRate) || 0,
+      sellingRate: Number(it.stripMrpPrice || it.sellingRate || it.mrp) || 0,
+      mrp: Number(it.stripMrpPrice || it.mrp) || 0,
       discountPercent: Number(it.discountPercent) || 0,
       discountAmount: Number(it.discountAmount) || 0,
       gstRate: Number(it.gstRate) || 5.0,
       newMedicine: it.newMedicine,
       isNewProduct: it.isNewProduct || it.medicineId === 'NEW',
-      brandName: it.brandName || it.productName,
+      brandName: it.medicineName || it.brandName || it.productName,
       productName: it.productName,
       genericName: it.genericName,
       strength: it.strength,
@@ -792,8 +918,8 @@ export const PurchasesPage: React.FC<PurchasesPageProps> = ({ prefilledIndent, o
   let formTaxTotal = 0;
 
   lines.forEach((l) => {
-    const qty = Number(l.quantity) || 0;
-    const rate = Number(l.purchaseRate) || 0;
+    const qty = Number(l.stripQuantityInBox !== undefined ? l.stripQuantityInBox : l.quantity) || 0;
+    const rate = Number(l.stripPurchasePrice !== undefined ? l.stripPurchasePrice : l.purchaseRate) || 0;
     const taxable = qty * rate;
     const lineGst = Number(l.gstRate) || 0;
     const lineTax = (taxable * lineGst) / 100;
@@ -858,29 +984,62 @@ export const PurchasesPage: React.FC<PurchasesPageProps> = ({ prefilledIndent, o
         invoiceDiscountAmount: 0,
         additionalCharges: extraCharges,
         notes,
-        lines: lines.map((l) => ({
-          medicineId: l.medicineId,
-          batchNumber: l.batchNumber.trim(),
-          expiryDate: l.expiryDate,
-          quantity: Number(l.quantity),
-          freeQuantity: Number(l.freeQuantity) || 0,
-          unit: l.unit || 'Box',
-          conversionFactor: Number(l.conversionFactor) || 10,
-          purchaseRate: Number(l.purchaseRate),
-          sellingRate: Number(l.sellingRate) || Number(l.mrp),
-          mrp: Number(l.mrp),
-          discountPercent: Number(l.discountPercent) || 0,
-          discountAmount: Number(l.discountAmount) || 0,
-          gstRate: Number(l.gstRate),
-          newMedicine: l.newMedicine,
-          isNewProduct: l.isNewProduct,
-          brandName: l.brandName,
-          genericName: l.genericName,
-          strength: l.strength,
-          dosageForm: l.dosageForm,
-          manufacturer: l.manufacturer,
-          hsnCode: l.hsnCode,
-        })),
+        lines: lines.map((l) => {
+          const sq = Number(l.stripQuantityInBox !== undefined ? l.stripQuantityInBox : l.quantity) || 1;
+          const su = Number(l.stripUnitQuantity !== undefined ? l.stripUnitQuantity : (l.conversionFactor || 10)) || 10;
+          const tot = Number(l.totalUnits) || (sq * su);
+          const phys = Number(l.pharmacyPhysicalUnits !== undefined ? l.pharmacyPhysicalUnits : tot);
+          const sp = Number(l.stripPurchasePrice !== undefined ? l.stripPurchasePrice : l.purchaseRate) || 0;
+          const sm = Number(l.stripMrpPrice !== undefined ? l.stripMrpPrice : l.mrp) || 0;
+          const isNew = l.isNewProduct || (!l.medicineId && !!l.brandName);
+
+          return {
+            medicineId: l.medicineId || (isNew ? 'NEW' : ''),
+            batchNumber: l.batchNumber ? l.batchNumber.trim() : `BATCH-${Date.now().toString().slice(-4)}`,
+            expiryDate: l.expiryDate,
+            quantity: sq,
+            freeQuantity: Number(l.freeQuantity) || 0,
+            unit: 'Strip',
+            conversionFactor: su,
+            purchaseRate: sp,
+            sellingRate: sm,
+            mrp: sm,
+            discountPercent: Number(l.discountPercent) || 0,
+            discountAmount: Number(l.discountAmount) || 0,
+            gstRate: Number(l.gstRate),
+            newMedicine: isNew ? {
+              brandName: (l.brandName || '').trim(),
+              genericName: (l.genericName || l.brandName || '').trim(),
+              strength: l.strength || 'Standard',
+              dosageForm: l.dosageForm || 'Tablet',
+              manufacturer: l.manufacturer || 'Standard Pharma',
+              hsnCode: l.hsnCode || '30049099',
+              gstRate: Number(l.gstRate) || 5.0,
+              mrp: sm,
+              defaultPurchaseRate: sp,
+              defaultSellingRate: sm,
+              baseUnit: 'Tablet',
+              packageUnit: 'Strip',
+              conversionFactor: su,
+              packSize: `${su} Tablets / Strip`,
+            } : l.newMedicine,
+            isNewProduct: isNew,
+            brandName: l.brandName,
+            genericName: l.genericName,
+            strength: l.strength,
+            dosageForm: l.dosageForm,
+            manufacturer: l.manufacturer,
+            hsnCode: l.hsnCode,
+            stripQuantityInBox: sq,
+            stripUnitQuantity: su,
+            totalUnits: tot,
+            pharmacyPhysicalUnits: phys,
+            stripPurchasePrice: sp,
+            stripMrpPrice: sm,
+            purchaseUnitPrice: su > 0 ? Number((sp / su).toFixed(4)) : sp,
+            unitSellingPrice: su > 0 ? Number((sm / su).toFixed(4)) : sm,
+          };
+        }),
       };
 
       if (isEditing && editingInvoiceId) {
@@ -976,20 +1135,38 @@ export const PurchasesPage: React.FC<PurchasesPageProps> = ({ prefilledIndent, o
     setIsSavingInlineMedicine(true);
 
     try {
+      const stripQty = parseFloat(inlineMedicineForm.stripQuantityInBox) || 10;
+      const stripUnitQty = parseFloat(inlineMedicineForm.stripUnitQuantity) || 10;
+      const totalUnits = stripQty * stripUnitQty;
+      const physicalUnits = inlineMedicineForm.pharmacyPhysicalUnits ? parseFloat(inlineMedicineForm.pharmacyPhysicalUnits) : totalUnits;
+      const stripPur = parseFloat(inlineMedicineForm.stripPurchasePrice) || 0;
+      const stripMrp = parseFloat(inlineMedicineForm.stripMrpPrice) || 0;
+      const purUnitPrice = stripUnitQty > 0 ? Number((stripPur / stripUnitQty).toFixed(4)) : 0;
+      const unitSellPrice = stripUnitQty > 0 ? Number((stripMrp / stripUnitQty).toFixed(4)) : 0;
+
       const created = await api.createProduct({
         brandName: inlineMedicineForm.brandName.trim(),
         genericName: inlineMedicineForm.brandName.trim(),
         dosageForm: 'Tablet',
-        packSize: '1 Unit',
-        baseUnit: 'Unit',
-        packageUnit: 'Unit',
-        conversionFactor: 1,
+        packSize: `${stripUnitQty} Tablets / Strip`,
+        baseUnit: 'Tablet',
+        packageUnit: 'Strip',
+        conversionFactor: stripUnitQty,
         manufacturer: inlineMedicineForm.manufacturer.trim(),
         hsnCode: inlineMedicineForm.hsnCode?.trim() || undefined,
         gstRate: parseFloat(inlineMedicineForm.gstRate) || 5.0,
-        mrp: parseFloat(inlineMedicineForm.mrp) || 0,
-        defaultPurchaseRate: parseFloat(inlineMedicineForm.defaultPurchaseRate) || undefined,
+        mrp: stripMrp,
+        defaultPurchaseRate: stripPur,
+        defaultSellingRate: stripMrp,
         prescriptionType: 'OTC',
+        stripQuantityInBox: stripQty,
+        stripUnitQuantity: stripUnitQty,
+        totalUnits: totalUnits,
+        pharmacyPhysicalUnits: physicalUnits,
+        stripPurchasePrice: stripPur,
+        stripMrpPrice: stripMrp,
+        purchaseUnitPrice: purUnitPrice,
+        unitSellingPrice: unitSellPrice,
       });
 
       // Update catalogue products cache
@@ -998,7 +1175,7 @@ export const PurchasesPage: React.FC<PurchasesPageProps> = ({ prefilledIndent, o
         return exists ? prev : [...prev, created];
       });
 
-      // Directly update the target invoice line with full rates from the new medicine
+      // Directly update the target invoice line with full 13 fields from the new medicine
       if (inlineMedicineTargetIdx !== null) {
         setLines((prevLines) => {
           const nextLines = [...prevLines];
@@ -1006,10 +1183,26 @@ export const PurchasesPage: React.FC<PurchasesPageProps> = ({ prefilledIndent, o
             nextLines[inlineMedicineTargetIdx] = {
               ...nextLines[inlineMedicineTargetIdx],
               medicineId: created.id,
-              mrp: created.mrp,
-              sellingRate: created.defaultSellingRate || created.mrp,
-              purchaseRate: created.defaultPurchaseRate || Math.round(created.mrp * 0.7),
+              brandName: created.brandName,
+              manufacturer: created.manufacturer,
+              hsnCode: created.hsnCode || '30049099',
+              batchNumber: inlineMedicineForm.batchNumber || nextLines[inlineMedicineTargetIdx].batchNumber,
+              expiryDate: inlineMedicineForm.expiryDate || nextLines[inlineMedicineTargetIdx].expiryDate,
+              stripQuantityInBox: stripQty,
+              stripUnitQuantity: stripUnitQty,
+              totalUnits: totalUnits,
+              pharmacyPhysicalUnits: physicalUnits,
+              stripPurchasePrice: stripPur,
+              stripMrpPrice: stripMrp,
+              purchaseUnitPrice: purUnitPrice,
+              unitSellingPrice: unitSellPrice,
+              quantity: stripQty,
+              conversionFactor: stripUnitQty,
+              purchaseRate: stripPur,
+              mrp: stripMrp,
+              sellingRate: stripMrp,
               gstRate: created.gstRate !== undefined ? created.gstRate : 5.0,
+              unit: 'Strip',
             };
           }
           return nextLines;
@@ -1019,15 +1212,22 @@ export const PurchasesPage: React.FC<PurchasesPageProps> = ({ prefilledIndent, o
       setShowInlineMedicineModal(false);
       setInlineMedicineForm({
         brandName: '',
-        genericName: '',
-        strength: '650mg',
-        dosageForm: 'Tablet',
-        manufacturer: '',
-        mrp: '100',
-        defaultPurchaseRate: '70',
-        defaultSellingRate: '100',
-        gstRate: '5.0',
+        batchNumber: '',
+        expiryDate: '',
         hsnCode: '30049099',
+        manufacturer: '',
+        stripQuantityInBox: '10',
+        stripUnitQuantity: '10',
+        totalUnits: '100',
+        pharmacyPhysicalUnits: '100',
+        stripPurchasePrice: '10',
+        stripMrpPrice: '20',
+        purchaseUnitPrice: '1.00',
+        unitSellingPrice: '2.00',
+        gstRate: '5.0',
+        genericName: '',
+        strength: '500mg',
+        dosageForm: 'Tablet',
       });
       setMessage({ text: `Medicine '${created.brandName}' registered in catalogue and linked to invoice line.`, type: 'success' });
     } catch (err: any) {
@@ -2221,18 +2421,20 @@ export const PurchasesPage: React.FC<PurchasesPageProps> = ({ prefilledIndent, o
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100 text-slate-700">
-                        <tr><td className="p-1.5 font-bold">Brand Name</td><td className="p-1.5 text-rose-600 font-bold">Mandatory</td><td className="p-1.5">Medicine commercial brand name</td><td className="p-1.5 font-mono">Dolo 650</td></tr>
-                        <tr><td className="p-1.5 font-bold">Quantity</td><td className="p-1.5 text-rose-600 font-bold">Mandatory</td><td className="p-1.5">Total units / items billed</td><td className="p-1.5 font-mono">100</td></tr>
-                        <tr><td className="p-1.5 font-bold">Free Quantity</td><td className="p-1.5 text-slate-500">Optional</td><td className="p-1.5">Bonus / free units received</td><td className="p-1.5 font-mono">10</td></tr>
-                        <tr><td className="p-1.5 font-bold">Batch Number</td><td className="p-1.5 text-rose-600 font-bold">Mandatory</td><td className="p-1.5">Manufacturer physical batch reference</td><td className="p-1.5 font-mono">DL-24A01</td></tr>
+                        <tr><td className="p-1.5 font-bold">Medicine Name</td><td className="p-1.5 text-rose-600 font-bold">Mandatory</td><td className="p-1.5">Trade brand / medicine commercial name</td><td className="p-1.5 font-mono">Dolo 650</td></tr>
+                        <tr><td className="p-1.5 font-bold">Batch Number</td><td className="p-1.5 text-rose-600 font-bold">Mandatory</td><td className="p-1.5">Manufacturer physical batch reference</td><td className="p-1.5 font-mono">BATCH-001</td></tr>
                         <tr><td className="p-1.5 font-bold">Expiry Date</td><td className="p-1.5 text-rose-600 font-bold">Mandatory</td><td className="p-1.5">Batch expiry date (YYYY-MM-DD or MM/YYYY)</td><td className="p-1.5 font-mono">2028-12-31</td></tr>
-                        <tr><td className="p-1.5 font-bold">Manufacturer</td><td className="p-1.5 text-slate-500">Optional</td><td className="p-1.5">Pharmaceutical company name</td><td className="p-1.5 font-mono">Micro Labs Ltd</td></tr>
-                        <tr><td className="p-1.5 font-bold">Purchase Rate</td><td className="p-1.5 text-rose-600 font-bold">Mandatory</td><td className="p-1.5">Purchase cost per unit before GST</td><td className="p-1.5 font-mono">20.00</td></tr>
-                        <tr><td className="p-1.5 font-bold">MRP</td><td className="p-1.5 text-slate-500">Optional</td><td className="p-1.5">Maximum Retail Price per unit</td><td className="p-1.5 font-mono">30.00</td></tr>
-                        <tr><td className="p-1.5 font-bold">GST Rate</td><td className="p-1.5 text-slate-500">Optional</td><td className="p-1.5">GST percentage (0%, 5%, 12%, 18%, 28%)</td><td className="p-1.5 font-mono">5.0</td></tr>
-                        <tr><td className="p-1.5 font-bold">HSN Code</td><td className="p-1.5 text-slate-500">Optional</td><td className="p-1.5">HSN classification code</td><td className="p-1.5 font-mono">30049099</td></tr>
-                        <tr><td className="p-1.5 font-bold">Barcode</td><td className="p-1.5 text-slate-500">Optional</td><td className="p-1.5">EAN / UPC product barcode</td><td className="p-1.5 font-mono">8901234567890</td></tr>
-                        <tr><td className="p-1.5 font-bold">Category</td><td className="p-1.5 text-slate-500">Optional</td><td className="p-1.5">Prescription schedule category (defaults to OTC)</td><td className="p-1.5 font-mono">OTC</td></tr>
+                        <tr><td className="p-1.5 font-bold">HSN Number</td><td className="p-1.5 text-slate-500">Optional</td><td className="p-1.5">HSN classification code</td><td className="p-1.5 font-mono">30049099</td></tr>
+                        <tr><td className="p-1.5 font-bold">Manufacturer</td><td className="p-1.5 text-rose-600 font-bold">Mandatory</td><td className="p-1.5">Pharmaceutical manufacturing company</td><td className="p-1.5 font-mono">Micro Labs Ltd</td></tr>
+                        <tr><td className="p-1.5 font-bold">Strip Quantity in Box</td><td className="p-1.5 text-rose-600 font-bold">Mandatory</td><td className="p-1.5">Number of strips packed in a single box</td><td className="p-1.5 font-mono">10</td></tr>
+                        <tr><td className="p-1.5 font-bold">Strip Unit Quantity</td><td className="p-1.5 text-rose-600 font-bold">Mandatory</td><td className="p-1.5">Number of tablets contained in each strip</td><td className="p-1.5 font-mono">10</td></tr>
+                        <tr><td className="p-1.5 font-bold">Total Units</td><td className="p-1.5 text-emerald-700 font-bold">Auto Formula</td><td className="p-1.5">Total tablets in box (= Strip Qty in Box × Strip Unit Qty)</td><td className="p-1.5 font-mono">100</td></tr>
+                        <tr><td className="p-1.5 font-bold">Pharmacy Physical Units</td><td className="p-1.5 text-rose-600 font-bold">Mandatory</td><td className="p-1.5">Physical tablet count in stock (initially = Total Units, editable)</td><td className="p-1.5 font-mono">100</td></tr>
+                        <tr><td className="p-1.5 font-bold">Strip Purchase Price</td><td className="p-1.5 text-rose-600 font-bold">Mandatory</td><td className="p-1.5">Purchase cost per strip before GST (₹)</td><td className="p-1.5 font-mono">10.00</td></tr>
+                        <tr><td className="p-1.5 font-bold">Strip MRP Price</td><td className="p-1.5 text-rose-600 font-bold">Mandatory</td><td className="p-1.5">Maximum retail price printed on strip (₹)</td><td className="p-1.5 font-mono">20.00</td></tr>
+                        <tr><td className="p-1.5 font-bold">Purchase Unit Price</td><td className="p-1.5 text-emerald-700 font-bold">Auto Formula</td><td className="p-1.5">Cost per tablet (= Strip Purchase Price ÷ Strip Unit Qty)</td><td className="p-1.5 font-mono">1.00</td></tr>
+                        <tr><td className="p-1.5 font-bold">Unit Selling Price</td><td className="p-1.5 text-emerald-700 font-bold">Auto Formula</td><td className="p-1.5">MRP per tablet (= Strip MRP Price ÷ Strip Unit Qty)</td><td className="p-1.5 font-mono">2.00</td></tr>
+                        <tr><td className="p-1.5 font-bold">GST Rate (%)</td><td className="p-1.5 text-slate-500">Optional</td><td className="p-1.5">Applicable GST percentage (e.g. 5, 12, 18, defaults to 5%)</td><td className="p-1.5 font-mono">5</td></tr>
                       </tbody>
                     </table>
                   </div>
@@ -2364,19 +2566,26 @@ export const PurchasesPage: React.FC<PurchasesPageProps> = ({ prefilledIndent, o
                   </div>
 
                   {/* Staged Items Table */}
-                  <div className="border border-slate-200 rounded-lg overflow-hidden max-h-64 overflow-y-auto overflow-x-auto">
-                    <table className="w-full text-left text-xs min-w-[750px]">
-                      <thead className="bg-slate-50 border-b border-slate-200 text-[10px] font-bold text-slate-500 uppercase sticky top-0">
+                  <div className="border border-slate-200 rounded-lg overflow-hidden max-h-72 overflow-y-auto overflow-x-auto">
+                    <table className="w-full text-left text-xs min-w-[1300px]">
+                      <thead className="bg-slate-50 border-b border-slate-200 text-[10px] font-bold text-slate-500 uppercase tracking-wider sticky top-0">
                         <tr>
-                          <th className="p-2">Row #</th>
+                          <th className="p-2 text-center">Row #</th>
                           <th className="p-2 text-center">Status</th>
-                          <th className="p-2">Medicine / Product</th>
+                          <th className="p-2">Medicine Name</th>
                           <th className="p-2">Batch #</th>
                           <th className="p-2">Expiry</th>
-                          <th className="p-2 text-center">Quantity / Units</th>
-                          <th className="p-2 text-right">P.Rate</th>
-                          <th className="p-2 text-right">MRP</th>
-                          <th className="p-2 text-right">Line Total</th>
+                          <th className="p-2">HSN No</th>
+                          <th className="p-2">Manufacturer</th>
+                          <th className="p-2 text-center">Strip Qty in Box</th>
+                          <th className="p-2 text-center">Strip Unit Qty</th>
+                          <th className="p-2 text-center">Total Units</th>
+                          <th className="p-2 text-center font-bold text-emerald-800">Physical Units</th>
+                          <th className="p-2 text-right">Strip P.Price</th>
+                          <th className="p-2 text-right">Strip MRP</th>
+                          <th className="p-2 text-right">Unit P.Price</th>
+                          <th className="p-2 text-right font-bold text-emerald-800">Unit Selling Price</th>
+                          <th className="p-2 text-right font-bold">Line Total</th>
                           <th className="p-2">Validation Notes</th>
                           <th className="p-2 text-center">Action</th>
                         </tr>
@@ -2384,7 +2593,7 @@ export const PurchasesPage: React.FC<PurchasesPageProps> = ({ prefilledIndent, o
                       <tbody className="divide-y divide-slate-100 font-medium">
                         {importPreviewData.items.map((item: any, i: number) => (
                           <tr key={i} className={item.valid ? 'hover:bg-slate-50' : 'bg-rose-50/50 hover:bg-rose-50'}>
-                            <td className="p-2 font-mono font-bold text-slate-500">{item.rowNumber}</td>
+                            <td className="p-2 font-mono font-bold text-slate-500 text-center">{item.rowNumber}</td>
                             <td className="p-2 text-center">
                               {item.valid ? (
                                 <Badge variant="success" size="sm">Valid</Badge>
@@ -2393,17 +2602,30 @@ export const PurchasesPage: React.FC<PurchasesPageProps> = ({ prefilledIndent, o
                               )}
                             </td>
                             <td className="p-2">
-                              <span className="font-bold text-slate-900">{item.productName || item.brandName}</span>
+                              <span className="font-bold text-slate-900">{item.medicineName || item.productName || item.brandName}</span>
                               {item.strength && <span className="text-slate-500 ml-1">({item.strength})</span>}
                               {item.isNewProduct && <span className="ml-1.5 text-[9px] bg-blue-100 text-blue-800 font-bold px-1 rounded">NEW</span>}
                             </td>
                             <td className="p-2 font-mono font-semibold">{item.batchNumber}</td>
-                            <td className="p-2 font-mono text-slate-600">{item.expiryDate}</td>
+                            <td className="p-2 font-mono text-slate-600">{item.expiryDate ? String(item.expiryDate).slice(0, 10) : '-'}</td>
+                            <td className="p-2 font-mono text-slate-500">{item.hsnCode || '-'}</td>
+                            <td className="p-2 text-slate-700">{item.manufacturer || '-'}</td>
                             <td className="p-2 text-center font-mono font-bold text-slate-800">
-                              {item.quantity}
+                              {item.stripQuantityInBox !== undefined ? item.stripQuantityInBox : (item.quantity || 1)}
                             </td>
-                            <td className="p-2 text-right font-mono">₹{Number(item.purchaseRate || 0).toFixed(2)}</td>
-                            <td className="p-2 text-right font-mono">₹{Number(item.mrp || 0).toFixed(2)}</td>
+                            <td className="p-2 text-center font-mono font-bold text-slate-800">
+                              {item.stripUnitQuantity !== undefined ? item.stripUnitQuantity : (item.unitsPerPack || 10)}
+                            </td>
+                            <td className="p-2 text-center font-mono font-bold text-slate-800">
+                              {item.totalUnits !== undefined ? item.totalUnits : (item.quantity * (item.unitsPerPack || 1))}
+                            </td>
+                            <td className="p-2 text-center font-mono font-bold text-emerald-800 bg-emerald-50/40">
+                              {item.pharmacyPhysicalUnits !== undefined ? item.pharmacyPhysicalUnits : (item.totalUnits || item.quantity)}
+                            </td>
+                            <td className="p-2 text-right font-mono">₹{Number(item.stripPurchasePrice !== undefined ? item.stripPurchasePrice : item.purchaseRate).toFixed(2)}</td>
+                            <td className="p-2 text-right font-mono font-bold text-slate-900">₹{Number(item.stripMrpPrice !== undefined ? item.stripMrpPrice : item.mrp).toFixed(2)}</td>
+                            <td className="p-2 text-right font-mono text-blue-700">₹{Number(item.purchaseUnitPrice !== undefined ? item.purchaseUnitPrice : (item.purchaseRate / (item.unitsPerPack || 1))).toFixed(2)}</td>
+                            <td className="p-2 text-right font-mono font-black text-emerald-900 bg-emerald-50/40">₹{Number(item.unitSellingPrice !== undefined ? item.unitSellingPrice : (item.mrp / (item.unitsPerPack || 1))).toFixed(2)}</td>
                             <td className="p-2 text-right font-mono font-bold text-emerald-800">
                               ₹{Number(item.lineTotal || 0).toFixed(2)}
                             </td>
@@ -2496,150 +2718,297 @@ export const PurchasesPage: React.FC<PurchasesPageProps> = ({ prefilledIndent, o
 
                 <div className="space-y-3 max-h-96 overflow-y-auto pr-1">
                   {lines.map((l, idx) => {
-                    const qty = Number(l.quantity) || 0;
-                    const freeQty = Number(l.freeQuantity) || 0;
-                    const pRate = Number(l.purchaseRate) || 0;
-                    const sRate = Number(l.sellingRate) || Number(l.mrp) || 0;
-                    const factor = Number(l.conversionFactor) || 1;
-                    const gross = qty * pRate;
+                    const sq = Number(l.stripQuantityInBox !== undefined ? l.stripQuantityInBox : l.quantity) || 0;
+                    const su = Number(l.stripUnitQuantity !== undefined ? l.stripUnitQuantity : (l.conversionFactor || 10)) || 10;
+                    const totalUnits = Number(l.totalUnits) || (sq * su);
+                    const physicalUnits = Number(l.pharmacyPhysicalUnits !== undefined ? l.pharmacyPhysicalUnits : totalUnits);
+                    const stripPur = Number(l.stripPurchasePrice !== undefined ? l.stripPurchasePrice : l.purchaseRate) || 0;
+                    const stripMrp = Number(l.stripMrpPrice !== undefined ? l.stripMrpPrice : l.mrp) || 0;
+                    const purUnitPrice = su > 0 ? Number((stripPur / su).toFixed(2)) : 0;
+                    const unitSellPrice = su > 0 ? Number((stripMrp / su).toFixed(2)) : 0;
+
+                    const gross = sq * stripPur;
                     const taxable = gross;
                     const lineGst = Number(l.gstRate) || 0;
                     const lineTax = (taxable * lineGst) / 100;
-                    const lineCGST = lineTax / 2;
-                    const lineSGST = lineTax / 2;
-                    const totalUnits = qty + freeQty;
-                    const effectiveUnitCost = totalUnits > 0 ? taxable / totalUnits : pRate;
-                    const expectedMarginPct = sRate > 0 ? ((sRate - effectiveUnitCost) / sRate) * 100 : 0;
-                    const baseNormalizedQty = totalUnits * factor;
+                    const effectiveUnitCost = totalUnits > 0 ? taxable / totalUnits : purUnitPrice;
 
                     return (
-                      <div key={idx} className="p-3 bg-slate-50 rounded-xl border border-slate-200 text-xs space-y-2">
-                        {/* Primary Row: Medicine Brand Name, Quantity, Free Quantity, Batch Number, Batch Expiry Date */}
-                        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-12 gap-2 items-end">
-                          <div className="col-span-2 sm:col-span-4 lg:col-span-4">
-                            <div className="flex items-center justify-between mb-0.5">
-                              <label className="text-[10px] font-bold text-slate-700">Medicine Brand Name *</label>
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setInlineMedicineTargetIdx(idx);
-                                  setShowInlineMedicineModal(true);
-                                }}
-                                className="text-[10px] text-emerald-600 hover:text-emerald-800 font-bold flex items-center gap-0.5"
-                              >
-                                <Plus className="w-2.5 h-2.5" /> Quick Add
-                              </button>
-                            </div>
-                            <select
-                              required
-                              value={l.medicineId}
-                              onChange={(e) => updateLine(idx, 'medicineId', e.target.value)}
-                              className="w-full px-2 py-1.5 text-xs bg-white border border-slate-300 rounded font-medium"
+                      <div key={idx} className="p-3.5 bg-white rounded-xl border border-slate-200 shadow-xs space-y-3">
+                        {/* Line Header */}
+                        <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                          <div className="flex items-center gap-2">
+                            <span className="w-5 h-5 rounded-full bg-emerald-100 text-emerald-800 text-[11px] font-bold flex items-center justify-center">
+                              {idx + 1}
+                            </span>
+                            <span className="font-bold text-slate-800 text-xs">
+                              {l.brandName || (products.find((p) => p.id === l.medicineId)?.brandName) || `Invoice Item #${idx + 1}`}
+                            </span>
+                          </div>
+                          {lines.length > 1 && (
+                            <button
+                              type="button"
+                              onClick={() => removeLine(idx)}
+                              className="text-rose-600 hover:text-rose-800 text-xs font-bold flex items-center gap-1 px-2 py-0.5 rounded hover:bg-rose-50 transition-colors"
+                              title="Remove Line Item"
                             >
-                              <option value="">-- Choose Catalogue Medicine --</option>
-                              {products.map((p) => (
-                                <option key={p.id} value={p.id}>
-                                  {p.brandName}
-                                </option>
-                              ))}
-                            </select>
-                          </div>
+                              <Trash2 className="w-3.5 h-3.5" /> Remove
+                            </button>
+                          )}
+                        </div>
 
-                          <div className="col-span-1 sm:col-span-2 lg:col-span-2">
-                            <label className="text-[10px] font-bold text-slate-700 block mb-0.5">Quantity / Units *</label>
-                            <input
-                              type="number"
-                              min="1"
-                              required
-                              value={l.quantity}
-                              onChange={(e) => updateLine(idx, 'quantity', e.target.value)}
-                              className="w-full px-2 py-1.5 text-xs bg-white border border-slate-300 rounded font-mono text-center font-bold"
-                            />
-                          </div>
-
-                          <div className="col-span-1 sm:col-span-2 lg:col-span-2">
-                            <label className="text-[10px] font-bold text-emerald-700 block mb-0.5">Free Quantity</label>
-                            <input
-                              type="number"
-                              min="0"
-                              value={l.freeQuantity}
-                              onChange={(e) => updateLine(idx, 'freeQuantity', e.target.value)}
-                              className="w-full px-1.5 py-1.5 text-xs bg-white border border-emerald-300 rounded font-mono text-center text-emerald-800 font-bold"
-                              placeholder="0"
-                            />
-                          </div>
-
-                          <div className="col-span-1 sm:col-span-2 lg:col-span-2">
-                            <label className="text-[10px] font-bold text-slate-700 block mb-0.5">Batch # *</label>
-                            <input
-                              type="text"
-                              required
-                              placeholder="e.g. DL-24A01"
-                              value={l.batchNumber}
-                              onChange={(e) => updateLine(idx, 'batchNumber', e.target.value)}
-                              className="w-full px-2 py-1.5 text-xs bg-white border border-slate-300 rounded font-mono font-bold"
-                            />
-                          </div>
-
-                          <div className="col-span-1 sm:col-span-1 lg:col-span-2">
-                            <label className="text-[10px] font-bold text-slate-700 block mb-0.5">Expiry Date *</label>
-                            <input
-                              type="date"
-                              required
-                              value={l.expiryDate}
-                              onChange={(e) => updateLine(idx, 'expiryDate', e.target.value)}
-                              className="w-full px-2 py-1.5 text-xs bg-white border border-slate-300 rounded font-mono"
-                            />
-                          </div>
-
-                          <div className="col-span-2 sm:col-span-1 lg:col-span-1 flex items-center justify-end">
-                            {lines.length > 1 && (
-                              <button
-                                type="button"
-                                onClick={() => removeLine(idx)}
-                                className="text-rose-600 hover:text-rose-800 p-1 text-base font-bold"
-                                title="Remove Line"
+                        {/* Section 1: Medicine & Batch Details */}
+                        <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-3">
+                          <p className="text-[11px] font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+                            <span>1. Medicine & Batch Information</span>
+                          </p>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                            <div className="sm:col-span-2 lg:col-span-1">
+                              <div className="flex items-center justify-between mb-1">
+                                <label className="text-xs font-bold text-slate-700">
+                                  Medicine Name <span className="text-rose-500">*</span>
+                                </label>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setInlineMedicineTargetIdx(idx);
+                                    setShowInlineMedicineModal(true);
+                                  }}
+                                  className="text-[10px] text-emerald-600 hover:text-emerald-800 font-bold flex items-center gap-0.5"
+                                >
+                                  <Plus className="w-2.5 h-2.5" /> Quick Add
+                                </button>
+                              </div>
+                              <select
+                                value={l.medicineId}
+                                onChange={(e) => updateLine(idx, 'medicineId', e.target.value)}
+                                className="w-full px-2.5 py-1.5 text-xs bg-white border border-slate-300 rounded-lg font-medium focus:ring-2 focus:ring-emerald-500"
                               >
-                                &times;
-                              </button>
-                            )}
+                                <option value="">-- Choose Catalogue Medicine --</option>
+                                {products.map((p) => (
+                                  <option key={p.id} value={p.id}>
+                                    {p.brandName}
+                                  </option>
+                                ))}
+                              </select>
+                              <input
+                                type="text"
+                                required
+                                placeholder="e.g. Paracetamol 500mg"
+                                value={l.brandName || ''}
+                                onChange={(e) => updateLine(idx, 'brandName', e.target.value)}
+                                className="mt-1.5 w-full px-2.5 py-1.5 text-xs bg-white border border-slate-300 rounded-lg font-medium focus:ring-2 focus:ring-emerald-500"
+                              />
+                            </div>
+
+                            <div>
+                              <label className="text-xs font-bold text-slate-700 block mb-1">
+                                Batch Number <span className="text-rose-500">*</span>
+                              </label>
+                              <input
+                                type="text"
+                                required
+                                placeholder="e.g. BATCH-001"
+                                value={l.batchNumber}
+                                onChange={(e) => updateLine(idx, 'batchNumber', e.target.value)}
+                                className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-lg font-mono font-bold focus:ring-2 focus:ring-emerald-500"
+                              />
+                            </div>
+
+                            <div>
+                              <label className="text-xs font-bold text-slate-700 block mb-1">
+                                Expiry Date <span className="text-rose-500">*</span>
+                              </label>
+                              <input
+                                type="date"
+                                required
+                                value={l.expiryDate}
+                                onChange={(e) => updateLine(idx, 'expiryDate', e.target.value)}
+                                className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-lg font-mono focus:ring-2 focus:ring-emerald-500"
+                              />
+                            </div>
+
+                            <div>
+                              <label className="text-xs font-bold text-slate-700 block mb-1">
+                                HSN Number
+                              </label>
+                              <input
+                                type="text"
+                                placeholder="e.g. 30049099"
+                                value={l.hsnCode || ''}
+                                onChange={(e) => updateLine(idx, 'hsnCode', e.target.value)}
+                                className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-lg font-mono focus:ring-2 focus:ring-emerald-500"
+                              />
+                            </div>
+
+                            <div className="sm:col-span-2">
+                              <label className="text-xs font-bold text-slate-700 block mb-1">
+                                Manufacturer <span className="text-rose-500">*</span>
+                              </label>
+                              <input
+                                type="text"
+                                required
+                                placeholder="e.g. Micro Labs Ltd"
+                                value={l.manufacturer || ''}
+                                onChange={(e) => updateLine(idx, 'manufacturer', e.target.value)}
+                                className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 font-medium"
+                              />
+                            </div>
                           </div>
                         </div>
 
-                        {/* Secondary Row: Rates, GST, Line Total */}
-                        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-12 gap-2 pt-1 border-t border-slate-200/60 items-center text-[11px]">
-                          <div className="col-span-1 sm:col-span-2 lg:col-span-3">
-                            <label className="text-[10px] text-blue-900 block font-bold">Purchase Rate (₹) *</label>
-                            <input
-                              type="number"
-                              step="0.01"
-                              required
-                              value={l.purchaseRate}
-                              onChange={(e) => updateLine(idx, 'purchaseRate', e.target.value)}
-                              className="w-full px-2 py-1 bg-white border border-blue-300 rounded font-mono font-bold text-blue-900 text-xs"
-                            />
-                          </div>
+                        {/* Section 2: Box & Strip Packaging */}
+                        <div className="p-3 bg-emerald-50/30 rounded-xl border border-emerald-200 space-y-2">
+                          <p className="text-[11px] font-bold text-emerald-900 uppercase tracking-wider">
+                            2. Packaging & Units (Formulas: Total Units = Strip Qty in Box × Strip Unit Qty)
+                          </p>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                            <div>
+                              <label className="text-xs font-bold text-slate-700 block mb-1">
+                                Strip Qty in Box <span className="text-rose-500">*</span>
+                              </label>
+                              <input
+                                type="number"
+                                min="1"
+                                step="1"
+                                required
+                                placeholder="e.g. 10"
+                                value={l.stripQuantityInBox ?? ''}
+                                onChange={(e) => updateLine(idx, 'stripQuantityInBox', e.target.value)}
+                                className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-lg font-mono font-bold text-slate-900 focus:ring-2 focus:ring-emerald-500"
+                              />
+                              <span className="text-[10px] text-slate-500 block mt-0.5">Number of strips per box.</span>
+                            </div>
 
-                          <div className="col-span-1 sm:col-span-2 lg:col-span-3">
-                            <label className="text-[10px] text-slate-700 block font-bold">Maximum Retail Price (MRP) *</label>
-                            <input
-                              type="number"
-                              step="0.01"
-                              required
-                              value={l.mrp}
-                              onChange={(e) => updateLine(idx, 'mrp', e.target.value)}
-                              className="w-full px-2 py-1 bg-white border border-slate-300 rounded font-mono text-xs"
-                            />
-                          </div>
+                            <div>
+                              <label className="text-xs font-bold text-slate-700 block mb-1">
+                                Strip Unit Qty <span className="text-rose-500">*</span>
+                              </label>
+                              <input
+                                type="number"
+                                min="1"
+                                step="1"
+                                required
+                                placeholder="e.g. 10"
+                                value={l.stripUnitQuantity ?? ''}
+                                onChange={(e) => updateLine(idx, 'stripUnitQuantity', e.target.value)}
+                                className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-lg font-mono font-bold text-slate-900 focus:ring-2 focus:ring-emerald-500"
+                              />
+                              <span className="text-[10px] text-slate-500 block mt-0.5">Tablets per strip.</span>
+                            </div>
 
-                          <div className="col-span-1 sm:col-span-2 lg:col-span-3">
-                            <label className="text-[10px] text-slate-700 block font-bold">
-                              GST Rate ({l.gstRate}%)
+                            <div>
+                              <label className="text-xs font-bold text-slate-700 block mb-1 flex items-center justify-between">
+                                <span>Total Units</span>
+                                <span className="text-[10px] text-emerald-700 font-normal">Formula</span>
+                              </label>
+                              <input
+                                type="text"
+                                readOnly
+                                value={l.totalUnits ?? ''}
+                                className="w-full px-3 py-2 text-xs bg-emerald-50/60 border border-emerald-300 rounded-lg font-mono font-bold text-emerald-900 cursor-not-allowed"
+                              />
+                              <span className="text-[10px] text-emerald-700 block mt-0.5">Total tablets (Box × Strip).</span>
+                            </div>
+
+                            <div>
+                              <label className="text-xs font-bold text-emerald-900 block mb-1 flex items-center justify-between">
+                                <span>Physical Units</span>
+                                <span className="text-[10px] text-slate-500 font-normal">Editable</span>
+                              </label>
+                              <input
+                                type="number"
+                                min="0"
+                                step="1"
+                                value={l.pharmacyPhysicalUnits ?? ''}
+                                onChange={(e) => updateLine(idx, 'pharmacyPhysicalUnits', e.target.value)}
+                                className="w-full px-3 py-2 text-xs bg-white border border-emerald-400 rounded-lg font-mono font-bold text-slate-900 focus:ring-2 focus:ring-emerald-500"
+                              />
+                              <span className="text-[10px] text-slate-500 block mt-0.5">Initial physical count.</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Section 3: Strip & Unit Pricing */}
+                        <div className="p-3 bg-amber-50/30 rounded-xl border border-amber-200 space-y-2">
+                          <p className="text-[11px] font-bold text-amber-900 uppercase tracking-wider">
+                            3. Pricing Structure (Formulas: Unit Price = Strip Price ÷ Strip Unit Qty)
+                          </p>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                            <div>
+                              <label className="text-xs font-bold text-blue-900 block mb-1">
+                                Strip Purchase Price (₹) <span className="text-rose-500">*</span>
+                              </label>
+                              <input
+                                type="number"
+                                step="0.01"
+                                min="0"
+                                required
+                                placeholder="e.g. 10.00"
+                                value={l.stripPurchasePrice ?? ''}
+                                onChange={(e) => updateLine(idx, 'stripPurchasePrice', e.target.value)}
+                                className="w-full px-3 py-2 text-xs bg-white border border-blue-200 rounded-lg font-mono font-bold text-blue-900 focus:ring-2 focus:ring-blue-500"
+                              />
+                              <span className="text-[10px] text-slate-500 block mt-0.5">Purchase cost per strip.</span>
+                            </div>
+
+                            <div>
+                              <label className="text-xs font-bold text-amber-900 block mb-1">
+                                Strip MRP Price (₹) <span className="text-rose-500">*</span>
+                              </label>
+                              <input
+                                type="number"
+                                step="0.01"
+                                min="0"
+                                required
+                                placeholder="e.g. 20.00"
+                                value={l.stripMrpPrice ?? ''}
+                                onChange={(e) => updateLine(idx, 'stripMrpPrice', e.target.value)}
+                                className="w-full px-3 py-2 text-xs bg-white border border-amber-300 rounded-lg font-mono font-bold text-amber-900 focus:ring-2 focus:ring-amber-500"
+                              />
+                              <span className="text-[10px] text-slate-500 block mt-0.5">Retail MRP per strip.</span>
+                            </div>
+
+                            <div>
+                              <label className="text-xs font-bold text-blue-900 block mb-1 flex items-center justify-between">
+                                <span>Pur Unit Price (₹)</span>
+                                <span className="text-[10px] text-blue-700 font-normal">Formula</span>
+                              </label>
+                              <input
+                                type="text"
+                                readOnly
+                                value={l.purchaseUnitPrice ?? ''}
+                                className="w-full px-3 py-2 text-xs bg-blue-50/50 border border-blue-200 rounded-lg font-mono font-bold text-blue-900 cursor-not-allowed"
+                              />
+                              <span className="text-[10px] text-blue-700 block mt-0.5">Cost per tablet.</span>
+                            </div>
+
+                            <div>
+                              <label className="text-xs font-bold text-emerald-900 block mb-1 flex items-center justify-between">
+                                <span>Unit Selling Price (₹)</span>
+                                <span className="text-[10px] text-emerald-700 font-normal">Formula</span>
+                              </label>
+                              <input
+                                type="text"
+                                readOnly
+                                value={l.unitSellingPrice ?? ''}
+                                className="w-full px-3 py-2 text-xs bg-emerald-50/50 border border-emerald-300 rounded-lg font-mono font-bold text-emerald-900 cursor-not-allowed"
+                              />
+                              <span className="text-[10px] text-emerald-700 block mt-0.5">MRP per tablet.</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Line Tax & Summary */}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-3 pt-1 border-t border-slate-200/60 items-center">
+                          <div className="col-span-1 sm:col-span-1 lg:col-span-4">
+                            <label className="text-xs font-bold text-slate-700 block mb-1">
+                              GST Rate ({l.gstRate}%) *
                             </label>
                             <select
                               value={l.gstRate}
                               onChange={(e) => updateLine(idx, 'gstRate', e.target.value)}
-                              className="w-full px-2 py-1 bg-white border border-slate-300 rounded text-xs font-semibold"
+                              className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs font-bold font-mono focus:ring-2 focus:ring-emerald-500"
                             >
                               <option value="0">0% (Nil)</option>
                               <option value="5">5% (CGST 2.5% + SGST 2.5%)</option>
@@ -2649,13 +3018,20 @@ export const PurchasesPage: React.FC<PurchasesPageProps> = ({ prefilledIndent, o
                             </select>
                           </div>
 
-                          <div className="col-span-1 sm:col-span-2 lg:col-span-3 flex flex-col items-end justify-center font-mono text-xs">
-                            <span className="text-[10px] text-slate-500 font-sans">Line Total (incl. GST)</span>
-                            <span className="font-bold text-emerald-800 font-mono text-sm">
-                              ₹{(taxable + lineTax).toFixed(2)}
-                            </span>
-                            <span className="text-[10px] text-slate-400">
-                              Base: {totalUnits} units @ ₹{effectiveUnitCost.toFixed(2)}/u
+                          <div className="col-span-1 sm:col-span-1 lg:col-span-8 flex flex-col items-end justify-center font-mono text-xs bg-slate-50 p-2.5 rounded-lg border border-slate-200">
+                            <div className="flex items-center gap-3">
+                              <span className="text-slate-600 text-[11px]">
+                                Subtotal: <strong className="text-slate-900">₹{taxable.toFixed(2)}</strong> ({sq} strips @ ₹{stripPur}/strip)
+                              </span>
+                              <span className="text-slate-600 text-[11px]">
+                                GST: <strong className="text-slate-900">₹{lineTax.toFixed(2)}</strong>
+                              </span>
+                              <span className="text-xs text-emerald-800 font-black">
+                                Total: ₹{(taxable + lineTax).toFixed(2)}
+                              </span>
+                            </div>
+                            <span className="text-[10px] text-slate-400 mt-0.5">
+                              Base: {totalUnits} tablets (Physical: {physicalUnits} tablets) @ ₹{effectiveUnitCost.toFixed(2)}/tablet
                             </span>
                           </div>
                         </div>
@@ -2867,89 +3243,259 @@ export const PurchasesPage: React.FC<PurchasesPageProps> = ({ prefilledIndent, o
       </Modal>
 
       {/* Inline Quick Add Medicine Modal */}
-      <Modal isOpen={showInlineMedicineModal} onClose={() => setShowInlineMedicineModal(false)} title="Quick Register Medicine to Catalogue" maxWidth="md">
-        <form onSubmit={handleSaveInlineMedicine} className="space-y-3 text-xs">
+      <Modal isOpen={showInlineMedicineModal} onClose={() => setShowInlineMedicineModal(false)} title="Add Medicine to Master Catalogue" maxWidth="2xl">
+        <form onSubmit={handleSaveInlineMedicine} className="space-y-4 text-xs">
           {inlineMedicineError && (
-            <div className="p-2.5 bg-rose-50 border border-rose-200 text-rose-800 rounded-lg text-xs font-medium">
-              {inlineMedicineError}
+            <div className="p-3 bg-rose-50 border border-rose-200 text-rose-800 rounded-xl text-xs font-medium flex items-center gap-2">
+              <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+              <span>{inlineMedicineError}</span>
             </div>
           )}
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-            <div>
-              <label className="font-bold text-slate-700 block mb-1">Brand Name *</label>
-              <input
-                type="text"
-                required
-                placeholder="e.g. Dolo 650"
-                value={inlineMedicineForm.brandName}
-                onChange={(e) => setInlineMedicineForm({ ...inlineMedicineForm, brandName: e.target.value })}
-                className="w-full px-3 py-1.5 bg-slate-50 border border-slate-300 rounded-lg focus:bg-white"
-              />
-            </div>
-            <div>
-              <label className="font-bold text-slate-700 block mb-1">Manufacturer *</label>
-              <input
-                type="text"
-                required
-                placeholder="e.g. Micro Labs Ltd"
-                value={inlineMedicineForm.manufacturer}
-                onChange={(e) => setInlineMedicineForm({ ...inlineMedicineForm, manufacturer: e.target.value })}
-                className="w-full px-3 py-1.5 bg-slate-50 border border-slate-300 rounded-lg focus:bg-white"
-              />
+          {/* Section 1: Medicine & Batch Details */}
+          <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-3">
+            <p className="text-[11px] font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+              <span>1. Medicine & Batch Information</span>
+            </p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              <div className="sm:col-span-2 lg:col-span-1">
+                <label className="text-xs font-bold text-slate-700 block mb-1">
+                  Medicine Name <span className="text-rose-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. Paracetamol 500mg"
+                  value={inlineMedicineForm.brandName}
+                  onChange={(e) => handleInlineMedicineChange('brandName', e.target.value)}
+                  className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 font-medium"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-slate-700 block mb-1">
+                  Batch Number
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. BATCH-001"
+                  value={inlineMedicineForm.batchNumber}
+                  onChange={(e) => handleInlineMedicineChange('batchNumber', e.target.value)}
+                  className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-lg font-mono focus:ring-2 focus:ring-emerald-500"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-slate-700 block mb-1">
+                  Expiry Date
+                </label>
+                <input
+                  type="date"
+                  value={inlineMedicineForm.expiryDate}
+                  onChange={(e) => handleInlineMedicineChange('expiryDate', e.target.value)}
+                  className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-lg font-mono focus:ring-2 focus:ring-emerald-500"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-slate-700 block mb-1">
+                  HSN Number
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. 30049099"
+                  value={inlineMedicineForm.hsnCode}
+                  onChange={(e) => handleInlineMedicineChange('hsnCode', e.target.value)}
+                  className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-lg font-mono focus:ring-2 focus:ring-emerald-500"
+                />
+              </div>
+
+              <div className="sm:col-span-2">
+                <label className="text-xs font-bold text-slate-700 block mb-1">
+                  Manufacturer <span className="text-rose-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. Micro Labs Ltd"
+                  value={inlineMedicineForm.manufacturer}
+                  onChange={(e) => handleInlineMedicineChange('manufacturer', e.target.value)}
+                  className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 font-medium"
+                />
+              </div>
             </div>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-            <div>
-              <label className="font-bold text-slate-700 block mb-1">Purchase Rate (₹)</label>
-              <input
-                type="number"
-                step="0.01"
-                placeholder="e.g. 70.00"
-                value={inlineMedicineForm.defaultPurchaseRate}
-                onChange={(e) => setInlineMedicineForm({ ...inlineMedicineForm, defaultPurchaseRate: e.target.value })}
-                className="w-full px-3 py-1.5 bg-slate-50 border border-slate-300 rounded-lg focus:bg-white font-mono"
-              />
-            </div>
-            <div>
-              <label className="font-bold text-slate-700 block mb-1">MRP (₹) *</label>
-              <input
-                type="number"
-                step="0.01"
-                required
-                value={inlineMedicineForm.mrp}
-                onChange={(e) => setInlineMedicineForm({ ...inlineMedicineForm, mrp: e.target.value })}
-                className="w-full px-3 py-1.5 bg-slate-50 border border-slate-300 rounded-lg focus:bg-white font-mono"
-              />
-            </div>
-            <div>
-              <label className="font-bold text-slate-700 block mb-1">GST Rate (%) *</label>
-              <select
-                value={inlineMedicineForm.gstRate}
-                onChange={(e) => setInlineMedicineForm({ ...inlineMedicineForm, gstRate: e.target.value })}
-                className="w-full px-2 py-1.5 bg-slate-50 border border-slate-300 rounded-lg focus:bg-white"
-              >
-                <option value="5.0">5%</option>
-                <option value="12.0">12%</option>
-                <option value="18.0">18%</option>
-                <option value="28.0">28%</option>
-                <option value="0.0">0% (Nil)</option>
-              </select>
+
+          {/* Section 2: Box & Strip Packaging */}
+          <div className="p-3 bg-emerald-50/30 rounded-xl border border-emerald-200 space-y-3">
+            <p className="text-[11px] font-bold text-emerald-900 uppercase tracking-wider">
+              2. Packaging & Units (Formulas: Total Units = Strip Qty in Box × Strip Unit Qty)
+            </p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+              <div>
+                <label className="text-xs font-bold text-slate-700 block mb-1">
+                  Strip Qty in Box <span className="text-rose-500">*</span>
+                </label>
+                <input
+                  type="number"
+                  min="1"
+                  step="1"
+                  required
+                  placeholder="e.g. 10"
+                  value={inlineMedicineForm.stripQuantityInBox}
+                  onChange={(e) => handleInlineMedicineChange('stripQuantityInBox', e.target.value)}
+                  className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-lg font-mono font-bold text-slate-900 focus:ring-2 focus:ring-emerald-500"
+                />
+                <span className="text-[10px] text-slate-500 block mt-0.5">Number of strips per box.</span>
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-slate-700 block mb-1">
+                  Strip Unit Qty <span className="text-rose-500">*</span>
+                </label>
+                <input
+                  type="number"
+                  min="1"
+                  step="1"
+                  required
+                  placeholder="e.g. 10"
+                  value={inlineMedicineForm.stripUnitQuantity}
+                  onChange={(e) => handleInlineMedicineChange('stripUnitQuantity', e.target.value)}
+                  className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-lg font-mono font-bold text-slate-900 focus:ring-2 focus:ring-emerald-500"
+                />
+                <span className="text-[10px] text-slate-500 block mt-0.5">Tablets per strip.</span>
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-slate-700 block mb-1 flex items-center justify-between">
+                  <span>Total Units</span>
+                  <span className="text-[10px] text-emerald-700 font-normal">Formula</span>
+                </label>
+                <input
+                  type="text"
+                  readOnly
+                  value={inlineMedicineForm.totalUnits}
+                  className="w-full px-3 py-2 text-xs bg-emerald-50/60 border border-emerald-300 rounded-lg font-mono font-bold text-emerald-900 cursor-not-allowed"
+                />
+                <span className="text-[10px] text-emerald-700 block mt-0.5">Total tablets (Box × Strip).</span>
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-emerald-900 block mb-1 flex items-center justify-between">
+                  <span>Physical Units</span>
+                  <span className="text-[10px] text-slate-500 font-normal">Editable</span>
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  step="1"
+                  value={inlineMedicineForm.pharmacyPhysicalUnits}
+                  onChange={(e) => handleInlineMedicineChange('pharmacyPhysicalUnits', e.target.value)}
+                  className="w-full px-3 py-2 text-xs bg-white border border-emerald-400 rounded-lg font-mono font-bold text-slate-900 focus:ring-2 focus:ring-emerald-500"
+                />
+                <span className="text-[10px] text-slate-500 block mt-0.5">Initial physical count.</span>
+              </div>
             </div>
           </div>
+
+          {/* Section 3: Strip & Unit Pricing */}
+          <div className="p-3 bg-amber-50/30 rounded-xl border border-amber-200 space-y-3">
+            <p className="text-[11px] font-bold text-amber-900 uppercase tracking-wider">
+              3. Pricing Structure (Formulas: Unit Price = Strip Price ÷ Strip Unit Qty)
+            </p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+              <div>
+                <label className="text-xs font-bold text-blue-900 block mb-1">
+                  Strip Purchase Price (₹)
+                </label>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  placeholder="e.g. 10.00"
+                  value={inlineMedicineForm.stripPurchasePrice}
+                  onChange={(e) => handleInlineMedicineChange('stripPurchasePrice', e.target.value)}
+                  className="w-full px-3 py-2 text-xs bg-white border border-blue-200 rounded-lg font-mono font-bold text-blue-900 focus:ring-2 focus:ring-blue-500"
+                />
+                <span className="text-[10px] text-slate-500 block mt-0.5">Purchase cost per strip.</span>
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-amber-900 block mb-1">
+                  Strip MRP Price (₹) <span className="text-rose-500">*</span>
+                </label>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  required
+                  placeholder="e.g. 20.00"
+                  value={inlineMedicineForm.stripMrpPrice}
+                  onChange={(e) => handleInlineMedicineChange('stripMrpPrice', e.target.value)}
+                  className="w-full px-3 py-2 text-xs bg-white border border-amber-300 rounded-lg font-mono font-bold text-amber-900 focus:ring-2 focus:ring-amber-500"
+                />
+                <span className="text-[10px] text-slate-500 block mt-0.5">Retail MRP per strip.</span>
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-blue-900 block mb-1 flex items-center justify-between">
+                  <span>Pur Unit Price (₹)</span>
+                  <span className="text-[10px] text-blue-700 font-normal">Formula</span>
+                </label>
+                <input
+                  type="text"
+                  readOnly
+                  value={inlineMedicineForm.purchaseUnitPrice}
+                  className="w-full px-3 py-2 text-xs bg-blue-50/50 border border-blue-200 rounded-lg font-mono font-bold text-blue-900 cursor-not-allowed"
+                />
+                <span className="text-[10px] text-blue-700 block mt-0.5">Cost per tablet.</span>
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-emerald-900 block mb-1 flex items-center justify-between">
+                  <span>Unit Selling Price (₹)</span>
+                  <span className="text-[10px] text-emerald-700 font-normal">Formula</span>
+                </label>
+                <input
+                  type="text"
+                  readOnly
+                  value={inlineMedicineForm.unitSellingPrice}
+                  className="w-full px-3 py-2 text-xs bg-emerald-50/50 border border-emerald-300 rounded-lg font-mono font-bold text-emerald-900 cursor-not-allowed"
+                />
+                <span className="text-[10px] text-emerald-700 block mt-0.5">MRP per tablet.</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Section 4: Tax */}
+          <div>
+            <label className="text-xs font-bold text-slate-700 block mb-1">GST Rate (%) *</label>
+            <select
+              value={inlineMedicineForm.gstRate}
+              onChange={(e) => handleInlineMedicineChange('gstRate', e.target.value)}
+              className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg font-mono font-bold focus:ring-2 focus:ring-emerald-500"
+            >
+              <option value="5.0">5% (CGST 2.5% + SGST 2.5%)</option>
+              <option value="12.0">12%</option>
+              <option value="18.0">18%</option>
+              <option value="28.0">28%</option>
+              <option value="0.0">0% (Nil)</option>
+            </select>
+          </div>
+
           <div className="flex justify-end gap-2 pt-3 border-t border-slate-200">
             <button
               type="button"
               disabled={isSavingInlineMedicine}
               onClick={() => setShowInlineMedicineModal(false)}
-              className="px-3 py-1.5 border border-slate-300 rounded-lg text-slate-600 disabled:opacity-50"
+              className="px-4 py-2 border border-slate-300 rounded-lg text-slate-600 hover:bg-slate-50 disabled:opacity-50 font-semibold"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={isSavingInlineMedicine}
-              className="px-4 py-1.5 bg-brand-500 hover:bg-brand-600 active:bg-brand-700 text-white rounded-lg font-bold transition-colors disabled:opacity-50"
+              className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-bold transition-colors disabled:opacity-50 shadow-xs flex items-center gap-1.5"
             >
               {isSavingInlineMedicine ? 'Saving & Linking...' : 'Save & Link Medicine'}
             </button>

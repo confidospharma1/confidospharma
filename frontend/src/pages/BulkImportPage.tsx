@@ -468,53 +468,93 @@ export const BulkImportPage: React.FC = () => {
             )}
 
             <div className="overflow-x-auto touch-scroll max-h-96">
-              <table className="w-full text-left text-xs min-w-[750px]">
-                <thead className="bg-slate-50 text-slate-700 font-bold border-b border-slate-200 sticky top-0">
+              <table className="w-full text-left text-xs min-w-[1200px]">
+                <thead className="bg-slate-50 text-slate-700 font-bold border-b border-slate-200 sticky top-0 text-[11px] uppercase tracking-wider">
                   <tr>
                     <th className="py-2.5 px-3 text-center">Row</th>
-                    <th className="py-2.5 px-3">Status</th>
-                    <th className="py-2.5 px-3">Item / Description</th>
-                    <th className="py-2.5 px-3">Batch / Code</th>
-                    <th className="py-2.5 px-3 text-right">Price / MRP</th>
-                    <th className="py-2.5 px-4">Validation Notes / Errors</th>
+                    <th className="py-2.5 px-3 text-center">Status</th>
+                    <th className="py-2.5 px-3">Medicine Name</th>
+                    <th className="py-2.5 px-3">Batch No</th>
+                    <th className="py-2.5 px-3">Expiry Date</th>
+                    <th className="py-2.5 px-3">HSN No</th>
+                    <th className="py-2.5 px-3">Manufacturer</th>
+                    <th className="py-2.5 px-3 text-center">Strip Qty in Box</th>
+                    <th className="py-2.5 px-3 text-center">Strip Unit Qty</th>
+                    <th className="py-2.5 px-3 text-center">Total Units</th>
+                    <th className="py-2.5 px-3 text-center font-bold text-emerald-800">Physical Units</th>
+                    <th className="py-2.5 px-3 text-right">Strip P.Price</th>
+                    <th className="py-2.5 px-3 text-right">Strip MRP</th>
+                    <th className="py-2.5 px-3 text-right">Unit P.Price</th>
+                    <th className="py-2.5 px-3 text-right font-bold text-emerald-800">Unit Selling Price</th>
+                    <th className="py-2.5 px-4">Validation Notes</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 font-medium">
                   {filteredPreviewRows.length === 0 ? (
                     <tr>
-                      <td colSpan={6} className="py-8 text-center text-slate-400">
+                      <td colSpan={16} className="py-8 text-center text-slate-400">
                         No staging preview rows match the selected filters.
                       </td>
                     </tr>
                   ) : (
                     filteredPreviewRows.map((r: any, idx: number) => (
-                      <tr key={idx} className={r.status === 'ERROR' ? 'bg-rose-50/30' : 'hover:bg-slate-50/50'}>
-                        <td className="py-2.5 px-3 text-center font-mono font-bold text-slate-500">
+                      <tr key={idx} className={r.status === 'ERROR' ? 'bg-rose-50/40 hover:bg-rose-50/60' : 'hover:bg-slate-50/50'}>
+                        <td className="py-2 px-3 text-center font-mono font-bold text-slate-500">
                           {r.rowIndex}
                         </td>
-                        <td className="py-2.5 px-3">
+                        <td className="py-2 px-3 text-center">
                           <Badge variant={r.status === 'READY' ? 'success' : 'danger'} size="sm">
                             {r.status}
                           </Badge>
                         </td>
-                        <td className="py-2.5 px-3 font-bold text-slate-800">
-                          {r.brandName || r.internalCode}
+                        <td className="py-2 px-3 font-bold text-slate-900">
+                          {r.medicineName || r.brandName || r.internalCode || '-'}
                         </td>
-                        <td className="py-2.5 px-3 font-mono text-slate-700">
-                          {r.batchNumber || r.strength || '-'}
+                        <td className="py-2 px-3 font-mono text-slate-700 font-semibold">
+                          {r.batchNumber || '-'}
                         </td>
-                        <td className="py-2.5 px-3 text-right font-mono font-bold text-slate-800">
-                          ₹{(r.mrp || 0).toFixed(2)}
+                        <td className="py-2 px-3 font-mono text-slate-600">
+                          {r.expiryDate ? String(r.expiryDate).slice(0, 10) : '-'}
                         </td>
-                        <td className="py-2.5 px-4 text-[11px]">
+                        <td className="py-2 px-3 font-mono text-slate-500">
+                          {r.hsnCode || '-'}
+                        </td>
+                        <td className="py-2 px-3 text-slate-700">
+                          {r.manufacturer || '-'}
+                        </td>
+                        <td className="py-2 px-3 text-center font-mono font-semibold">
+                          {r.stripQuantityInBox !== undefined ? r.stripQuantityInBox : (r.quantity || 1)}
+                        </td>
+                        <td className="py-2 px-3 text-center font-mono font-semibold">
+                          {r.stripUnitQuantity !== undefined ? r.stripUnitQuantity : 10}
+                        </td>
+                        <td className="py-2 px-3 text-center font-mono font-bold text-slate-800">
+                          {r.totalUnits !== undefined ? r.totalUnits : (r.quantity || 10)}
+                        </td>
+                        <td className="py-2 px-3 text-center font-mono font-bold text-emerald-800 bg-emerald-50/40">
+                          {r.pharmacyPhysicalUnits !== undefined ? r.pharmacyPhysicalUnits : (r.totalUnits || r.quantity || 10)}
+                        </td>
+                        <td className="py-2 px-3 text-right font-mono text-slate-700">
+                          ₹{Number(r.stripPurchasePrice !== undefined ? r.stripPurchasePrice : (r.purchaseRate || 0)).toFixed(2)}
+                        </td>
+                        <td className="py-2 px-3 text-right font-mono font-bold text-slate-900">
+                          ₹{Number(r.stripMrpPrice !== undefined ? r.stripMrpPrice : (r.mrp || 0)).toFixed(2)}
+                        </td>
+                        <td className="py-2 px-3 text-right font-mono text-blue-700">
+                          ₹{Number(r.purchaseUnitPrice !== undefined ? r.purchaseUnitPrice : (r.stripUnitQuantity ? ((r.stripPurchasePrice || r.purchaseRate || 0) / r.stripUnitQuantity) : 0)).toFixed(2)}
+                        </td>
+                        <td className="py-2 px-3 text-right font-mono font-black text-emerald-900 bg-emerald-50/40">
+                          ₹{Number(r.unitSellingPrice !== undefined ? r.unitSellingPrice : (r.stripUnitQuantity ? ((r.stripMrpPrice || r.mrp || 0) / r.stripUnitQuantity) : 0)).toFixed(2)}
+                        </td>
+                        <td className="py-2 px-4 text-[11px]">
                           {r.errors && r.errors.length > 0 && (
                             <span className="text-rose-600 font-semibold block">{r.errors.join('; ')}</span>
                           )}
                           {r.warnings && r.warnings.length > 0 && (
                             <span className="text-amber-600 block">{r.warnings.join('; ')}</span>
                           )}
-                          {r.errors?.length === 0 && r.warnings?.length === 0 && (
-                            <span className="text-emerald-700">Validated</span>
+                          {(!r.errors || r.errors.length === 0) && (!r.warnings || r.warnings.length === 0) && (
+                            <span className="text-emerald-700 font-semibold">Ready to Import</span>
                           )}
                         </td>
                       </tr>

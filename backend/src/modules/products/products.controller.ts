@@ -129,14 +129,23 @@ export const createProduct = async (req: Request, res: Response) => {
     const {
       internalCode,
       brandName,
+      medicineName,
       genericName,
       strength,
       dosageForm,
       manufacturer,
       packSize,
       baseUnit = 'Tablet',
-      packageUnit = 'Tablet',
-      conversionFactor = 1,
+      packageUnit = 'Strip',
+      conversionFactor,
+      stripQuantityInBox,
+      stripUnitQuantity,
+      totalUnits,
+      pharmacyPhysicalUnits,
+      stripPurchasePrice,
+      stripMrpPrice,
+      purchaseUnitPrice,
+      unitSellingPrice,
       hsnCode,
       gstRate,
       mrp,
@@ -156,7 +165,7 @@ export const createProduct = async (req: Request, res: Response) => {
       branchId,
     } = req.body;
 
-    const effectiveBrandName = brandName ? String(brandName).trim() : '';
+    const effectiveBrandName = (medicineName || brandName) ? String(medicineName || brandName).trim() : '';
     const effectiveGeneric = genericName && String(genericName).trim() ? String(genericName).trim() : effectiveBrandName;
     const effectiveDosageForm = dosageForm && String(dosageForm).trim() ? String(dosageForm).trim() : 'Tablet';
     const effectivePackSize = packSize && String(packSize).trim() ? String(packSize).trim() : '1 Unit';
@@ -248,11 +257,54 @@ export const createProduct = async (req: Request, res: Response) => {
       }
     }
 
-    const factor = conversionFactor !== undefined && conversionFactor !== null && !isNaN(parseInt(String(conversionFactor)))
-      ? Math.max(1, parseInt(String(conversionFactor)))
+    const stripUnitQty = stripUnitQuantity && parseInt(String(stripUnitQuantity)) > 0
+      ? parseInt(String(stripUnitQuantity))
+      : (conversionFactor && parseInt(String(conversionFactor)) > 0 ? parseInt(String(conversionFactor)) : 10);
+    const stripQtyInBox = stripQuantityInBox && parseInt(String(stripQuantityInBox)) > 0
+      ? parseInt(String(stripQuantityInBox))
       : 1;
-    const isPackageUnit = quantityUnit && packageUnit && quantityUnit.trim().toLowerCase() === packageUnit.trim().toLowerCase();
-    const baseQuantity = isPackageUnit ? totalOpeningQty * factor : totalOpeningQty;
+
+    const computedTotalUnits = totalUnits && parseInt(String(totalUnits)) > 0
+      ? parseInt(String(totalUnits))
+      : stripQtyInBox * stripUnitQty;
+
+    const physicalUnits = pharmacyPhysicalUnits !== undefined && pharmacyPhysicalUnits !== null && pharmacyPhysicalUnits !== ''
+      ? parseInt(String(pharmacyPhysicalUnits))
+      : (totalOpeningQty > 0 ? totalOpeningQty : computedTotalUnits);
+
+    const stripPPrice = stripPurchasePrice !== undefined && stripPurchasePrice !== null && stripPurchasePrice !== ''
+      ? parseFloat(String(stripPurchasePrice))
+      : (defaultPurchaseRate ? parseFloat(String(defaultPurchaseRate)) : 0);
+
+    const stripMPrice = stripMrpPrice !== undefined && stripMrpPrice !== null && stripMrpPrice !== ''
+      ? parseFloat(String(stripMrpPrice))
+      : (mrp ? parseFloat(String(mrp)) : 0);
+
+    const pUnitPrice = purchaseUnitPrice !== undefined && purchaseUnitPrice !== null && purchaseUnitPrice !== ''
+      ? parseFloat(String(purchaseUnitPrice))
+      : (stripUnitQty > 0 ? Number((stripPPrice / stripUnitQty).toFixed(4)) : stripPPrice);
+
+    const uSellingPrice = unitSellingPrice !== undefined && unitSellingPrice !== null && unitSellingPrice !== ''
+      ? parseFloat(String(unitSellingPrice))
+      : (stripUnitQty > 0 ? Number((stripMPrice / stripUnitQty).toFixed(4)) : stripMPrice);
+
+    const unitConfig = JSON.stringify({
+      stripQuantityInBox: stripQtyInBox,
+      stripUnitQuantity: stripUnitQty,
+      totalUnits: computedTotalUnits,
+      pharmacyPhysicalUnits: physicalUnits,
+      stripPurchasePrice: stripPPrice,
+      stripMrpPrice: stripMPrice,
+      purchaseUnitPrice: pUnitPrice,
+      unitSellingPrice: uSellingPrice,
+      supportedUnits: [
+        { unit: 'Tablet', multiplierToBase: 1, isBaseUnit: true },
+        { unit: 'Strip', multiplierToBase: stripUnitQty },
+      ],
+    });
+
+    const factor = stripUnitQty;
+    const baseQuantity = physicalUnits;
 
     const batchNum = batchNumber && String(batchNumber).trim()
       ? String(batchNumber).trim().toUpperCase()
@@ -270,17 +322,13 @@ export const createProduct = async (req: Request, res: Response) => {
       expDate = d;
     }
 
-    const numMrp = parseFloat(String(mrp));
-    const numPurchaseRate = defaultPurchaseRate !== undefined && defaultPurchaseRate !== null && defaultPurchaseRate !== ''
-      ? parseFloat(String(defaultPurchaseRate))
-      : (numMrp * 0.7);
-    const numSellingRate = defaultSellingRate !== undefined && defaultSellingRate !== null && defaultSellingRate !== ''
-      ? parseFloat(String(defaultSellingRate))
-      : numMrp;
+    const numMrp = stripMPrice;
+    const numPurchaseRate = stripPPrice;
+    const numSellingRate = stripMPrice;
 
-    const basePurchaseRate = isPackageUnit ? parseFloat((numPurchaseRate / factor).toFixed(4)) : numPurchaseRate;
-    const baseMrp = isPackageUnit ? parseFloat((numMrp / factor).toFixed(4)) : numMrp;
-    const baseSellingPrice = isPackageUnit ? parseFloat((numSellingRate / factor).toFixed(4)) : numSellingRate;
+    const basePurchaseRate = pUnitPrice;
+    const baseMrp = uSellingPrice;
+    const baseSellingPrice = uSellingPrice;
 
     // Atomic database transaction ensuring medicine and initial stock batch succeed or rollback together
     const newProduct = await prisma.$transaction(async (tx) => {
@@ -293,24 +341,25 @@ export const createProduct = async (req: Request, res: Response) => {
           createdProduct = await tx.medicineProduct.create({
             data: {
               internalCode: code,
-              brandName: brandName.trim(),
+              brandName: effectiveBrandName,
               genericName: resolvedGeneric.trim(),
               strength: resolvedStrength.trim(),
-              dosageForm: dosageForm.trim(),
+              dosageForm: dosageForm ? dosageForm.trim() : 'Tablet',
               manufacturer: manufacturer.trim(),
-              packSize: packSize ? packSize.trim() : `${factor} ${baseUnit}s`,
-              baseUnit: baseUnit ? baseUnit.trim() : 'Tablet',
-              packageUnit: packageUnit ? packageUnit.trim() : 'Tablet',
+              packSize: packSize ? packSize.trim() : `${stripQtyInBox} Strips x ${stripUnitQty} Tablets`,
+              baseUnit: 'Tablet',
+              packageUnit: 'Strip',
               conversionFactor: factor,
               hsnCode: hsnCode ? hsnCode.trim() : null,
               gstRate: parseFloat(String(gstRate)),
               mrp: numMrp,
-              defaultPurchaseRate: defaultPurchaseRate !== undefined && defaultPurchaseRate !== null && defaultPurchaseRate !== '' ? parseFloat(String(defaultPurchaseRate)) : null,
-              defaultSellingRate: defaultSellingRate !== undefined && defaultSellingRate !== null && defaultSellingRate !== '' ? parseFloat(String(defaultSellingRate)) : null,
+              defaultPurchaseRate: numPurchaseRate,
+              defaultSellingRate: numSellingRate,
               reorderLevel: reorderLevel !== undefined && reorderLevel !== null && reorderLevel !== '' ? parseInt(String(reorderLevel)) : 10,
               barcode: barcode ? barcode.trim() : null,
               prescriptionType: effectivePrescriptionType,
               storageNotes: storageNotes ? storageNotes.trim() : null,
+              unitConfig,
             },
           });
           break;

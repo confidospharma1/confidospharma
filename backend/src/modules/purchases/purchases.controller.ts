@@ -11,6 +11,7 @@ import {
   parseCleanNumber,
   parseCleanInt,
   resolveProductAndBrandNames,
+  calculatePharmaRowUnitsAndPrices,
 } from '../imports/imports.mapper';
 import { matchProduct, CandidateProduct, areStrengthsCompatible, normalizeString, extractOrPreserveStrength } from '../../utils/productMatcher';
 import { buildProductUnitConfig, convertToBaseQuantity } from '../../utils/unitConverter';
@@ -1567,8 +1568,15 @@ export const previewPurchaseImport = async (req: Request, res: Response) => {
       const warnings: string[] = [];
       const mapped = extractMappedRow(row, headerMap);
 
-      const rawProductName = (mapped.productName || '').toString().trim();
-      const rawBrandName = (mapped.brandName || '').toString().trim();
+      const pharma = calculatePharmaRowUnitsAndPrices(mapped);
+
+      // Skip completely blank / trailing formula rows
+      if (!pharma.medicineName && !pharma.batchNumber) {
+        return;
+      }
+
+      const rawProductName = (mapped.productName || pharma.medicineName || '').toString().trim();
+      const rawBrandName = (mapped.brandName || pharma.medicineName || '').toString().trim();
 
       const {
         effectiveBrandName,
@@ -1584,53 +1592,57 @@ export const previewPurchaseImport = async (req: Request, res: Response) => {
         warnings.push(nameWarning);
       }
 
-      const brandName = effectiveBrandName;
-      const productName = effectiveProductName;
+      const brandName = effectiveBrandName || pharma.medicineName;
+      const productName = effectiveProductName || pharma.medicineName;
       const genericName = (mapped.genericName || '').toString().trim();
       const strength = (mapped.strength || '').toString().trim();
       const dosageForm = (mapped.dosageForm || 'Tablet').toString().trim();
-      const manufacturer = (mapped.manufacturer || '').toString().trim();
-      const hsnCode = (mapped.hsnCode || '').toString().trim() || null;
-      const batchNumber = (mapped.batchNumber || '').toString().trim();
-      const expiryRaw = mapped.expiryDate;
-      const purchaseUnit = (mapped.purchaseUnit || 'Tablet').toString().trim();
-      const sellingUnit = (mapped.sellingUnit || 'Tablet').toString().trim();
-      const quantity = parseCleanInt(mapped.quantity, 0);
+      const manufacturer = (mapped.manufacturer || pharma.manufacturer || '').toString().trim();
+      const hsnCode = (mapped.hsnCode || pharma.hsnCode || '').toString().trim() || null;
+      const batchNumber = (mapped.batchNumber || pharma.batchNumber || '').toString().trim();
+      const expiryRaw = mapped.expiryDate || pharma.expiryDate;
+
+      const stripQuantityInBox = pharma.stripQuantityInBox;
+      const stripUnitQuantity = pharma.stripUnitQuantity;
+      const totalUnits = pharma.totalUnits;
+      const pharmacyPhysicalUnits = pharma.pharmacyPhysicalUnits;
+      const stripPurchasePrice = pharma.stripPurchasePrice;
+      const stripMrpPrice = pharma.stripMrpPrice;
+      const purchaseUnitPrice = pharma.purchaseUnitPrice;
+      const unitSellingPrice = pharma.unitSellingPrice;
+
+      const purchaseUnit = 'Strip';
+      const sellingUnit = 'Tablet';
+      const quantity = stripQuantityInBox;
       const freeQuantity = parseCleanInt(mapped.freeQuantity, 0);
-      const unitsPerPack = parseCleanInt(mapped.unitsPerPack, 1);
-      const purchaseRate = parseCleanNumber(mapped.purchaseRate, 0);
-      const mrp = parseCleanNumber(mapped.mrp, 0);
-      const sellingRate = parseCleanNumber(mapped.sellingRate, mrp);
+      const unitsPerPack = stripUnitQuantity;
+      const purchaseRate = stripPurchasePrice;
+      const mrp = stripMrpPrice;
+      const sellingRate = stripMrpPrice;
       const gstRate = parseCleanNumber(mapped.gstRate, 5.0);
       const discountPercent = parseCleanNumber(mapped.discountPercent, 0);
 
       // Validation
       if (!brandName && !productName) {
-        errors.push('Product / Brand Name is required');
+        errors.push('Medicine Name is required');
       }
       if (!batchNumber) {
         errors.push('Batch Number is required');
       }
-      if (isNaN(quantity) || quantity <= 0) {
-        errors.push('Quantity is required and must be greater than zero');
+      if (isNaN(stripQuantityInBox) || stripQuantityInBox <= 0) {
+        errors.push('Strip Quantity in Box must be greater than zero');
       }
-      if (isNaN(freeQuantity) || freeQuantity < 0) {
-        errors.push('Free quantity cannot be negative');
+      if (isNaN(stripUnitQuantity) || stripUnitQuantity <= 0) {
+        errors.push('Strip Unit Quantity (tablets per strip) must be greater than zero');
       }
-      if (isNaN(purchaseRate) || purchaseRate < 0) {
-        errors.push('Purchase rate is required and cannot be negative');
+      if (isNaN(stripPurchasePrice) || stripPurchasePrice < 0) {
+        errors.push('Strip purchase price cannot be negative');
       }
-      if (isNaN(mrp) || mrp < purchaseRate) {
-        errors.push('MRP must be greater than or equal to purchase rate');
+      if (isNaN(stripMrpPrice) || stripMrpPrice < 0) {
+        errors.push('Strip MRP price cannot be negative');
       }
-      if (!isNaN(sellingRate) && sellingRate > mrp) {
-        errors.push('Selling rate cannot exceed printed MRP');
-      }
-      if (isNaN(discountPercent) || discountPercent < 0 || discountPercent > 20) {
-        errors.push('Discount % must be between 0% and 20%');
-      }
-      if (isNaN(gstRate) || gstRate < 0) {
-        errors.push('Valid GST Rate is required');
+      if (stripMrpPrice > 0 && stripPurchasePrice > stripMrpPrice) {
+        warnings.push('Strip purchase price is higher than strip MRP price');
       }
 
       // Safe expiry parsing
@@ -1641,7 +1653,7 @@ export const previewPurchaseImport = async (req: Request, res: Response) => {
         errors.push('Batch is already expired. Expired stock cannot be accepted into inventory.');
       }
 
-      // Phase 6 Product Matching
+      // Product Matching
       const matchResult = matchProduct(
         {
           brandName: effectiveBrandName,
@@ -1686,19 +1698,10 @@ export const previewPurchaseImport = async (req: Request, res: Response) => {
         warnings.push(`Existing batch: will add stock to current inventory (${existingBatch.availableQuantity} units)`);
       }
 
-      // Unit conversion
-      const unitConfig = buildProductUnitConfig(
-        matchedProd?.baseUnit || sellingUnit,
-        matchedProd?.packageUnit || purchaseUnit,
-        matchedProd?.conversionFactor || unitsPerPack,
-        dosageForm
-      );
+      const conversionFactor = stripUnitQuantity > 0 ? stripUnitQuantity : 1;
 
-      const conversionFactor = unitsPerPack > 0 ? unitsPerPack : 1;
-      const totalUnits = (quantity + freeQuantity) * conversionFactor;
-
-      // Derived financial amounts
-      const lineGrossDec = new Decimal(isNaN(quantity) ? 0 : quantity).times(isNaN(purchaseRate) ? 0 : purchaseRate);
+      // Derived financial amounts based on Strip Purchase Price * Strip Quantity
+      const lineGrossDec = new Decimal(stripQuantityInBox).times(stripPurchasePrice);
       const lineDiscDec = lineGrossDec.times(isNaN(discountPercent) ? 0 : discountPercent).dividedBy(100);
       const lineTaxableDec = lineGrossDec.minus(lineDiscDec);
       const lineTaxDec = lineTaxableDec.times(isNaN(gstRate) ? 0 : gstRate).dividedBy(100);
@@ -1706,7 +1709,7 @@ export const previewPurchaseImport = async (req: Request, res: Response) => {
 
       if (errors.length === 0) {
         validRowsCount++;
-        totalQuantity += (quantity + freeQuantity);
+        totalQuantity += totalUnits;
         totalGrossDec = totalGrossDec.plus(lineGrossDec);
         totalDiscountDec = totalDiscountDec.plus(lineDiscDec);
         totalTaxableDec = totalTaxableDec.plus(lineTaxableDec);
@@ -1718,6 +1721,21 @@ export const previewPurchaseImport = async (req: Request, res: Response) => {
 
       if (warnings.length > 0) warningRowsCount++;
 
+      const unitConfigStr = JSON.stringify({
+        stripQuantityInBox,
+        stripUnitQuantity,
+        totalUnits,
+        pharmacyPhysicalUnits,
+        stripPurchasePrice,
+        stripMrpPrice,
+        purchaseUnitPrice,
+        unitSellingPrice,
+        supportedUnits: [
+          { unit: 'Tablet', multiplierToBase: 1, isBaseUnit: true },
+          { unit: 'Strip', multiplierToBase: stripUnitQuantity },
+        ],
+      });
+
       validatedRows.push({
         rowIndex,
         rowNumber: rowIndex,
@@ -1726,34 +1744,42 @@ export const previewPurchaseImport = async (req: Request, res: Response) => {
         matchedProductId: matchedProd?.id || null,
         productName: effectiveProductName,
         brandName: effectiveBrandName,
-        genericName: genericName || matchedProd?.genericName || '',
-        strength: strength || matchedProd?.strength || '',
+        medicineName: effectiveBrandName,
+        genericName: genericName || matchedProd?.genericName || effectiveBrandName,
+        strength: strength || matchedProd?.strength || 'Standard',
         dosageForm: dosageForm || matchedProd?.dosageForm || 'Tablet',
         manufacturer: manufacturer || matchedProd?.manufacturer || 'Standard Pharma',
         hsnCode: hsnCode || matchedProd?.hsnCode || '30049099',
         batchNumber,
         expiryDate: expDateIso || (expiryRaw ? String(expiryRaw) : ''),
-        unit: purchaseUnit,
-        purchaseUnit,
-        sellingUnit: matchedProd?.baseUnit || sellingUnit,
-        quantity,
+        unit: 'Strip',
+        purchaseUnit: 'Strip',
+        sellingUnit: 'Tablet',
+        quantity: stripQuantityInBox,
         freeQuantity,
-        unitsPerPack: conversionFactor,
-        conversionFactor,
+        unitsPerPack: stripUnitQuantity,
+        conversionFactor: stripUnitQuantity,
+        stripQuantityInBox,
+        stripUnitQuantity,
         totalUnits,
-        purchaseRate,
-        sellingRate,
-        mrp,
+        pharmacyPhysicalUnits,
+        stripPurchasePrice,
+        stripMrpPrice,
+        purchaseUnitPrice,
+        unitSellingPrice,
+        purchaseRate: stripPurchasePrice,
+        sellingRate: stripMrpPrice,
+        mrp: stripMrpPrice,
         gstRate,
         discountPercent,
         discountAmount: lineDiscDec.toDecimalPlaces(2).toNumber(),
         taxableAmount: lineTaxableDec.toDecimalPlaces(2).toNumber(),
         taxAmount: lineTaxDec.toDecimalPlaces(2).toNumber(),
         lineTotal: lineTotalDec.toDecimalPlaces(2).toNumber(),
-        effectiveBaseUnitCost: totalUnits > 0 ? lineTaxableDec.dividedBy(totalUnits).toDecimalPlaces(4).toNumber() : (conversionFactor > 0 ? new Decimal(purchaseRate).dividedBy(conversionFactor).toDecimalPlaces(4).toNumber() : purchaseRate),
-        basePurchaseRate: conversionFactor > 0 ? new Decimal(purchaseRate).dividedBy(conversionFactor).toDecimalPlaces(4).toNumber() : purchaseRate,
-        baseMrp: conversionFactor > 0 ? new Decimal(mrp).dividedBy(conversionFactor).toDecimalPlaces(4).toNumber() : mrp,
-        baseSellingRate: conversionFactor > 0 ? new Decimal(sellingRate).dividedBy(conversionFactor).toDecimalPlaces(4).toNumber() : sellingRate,
+        effectiveBaseUnitCost: purchaseUnitPrice,
+        basePurchaseRate: purchaseUnitPrice,
+        baseMrp: unitSellingPrice,
+        baseSellingRate: unitSellingPrice,
         status: errors.length > 0 ? 'ERROR' : 'READY',
         errors,
         warnings,
@@ -1763,22 +1789,20 @@ export const previewPurchaseImport = async (req: Request, res: Response) => {
         newMedicine: isNewProd
           ? {
               brandName: effectiveBrandName,
-              genericName: genericName || 'Generic Formulation',
+              genericName: genericName || effectiveBrandName,
               strength: strength || 'Standard',
-              dosageForm: dosageForm || 'Tablet',
+              dosageForm: 'Tablet',
               manufacturer: manufacturer || 'Standard Pharma',
+              packSize: `${stripQuantityInBox} Strips x ${stripUnitQuantity} Tablets`,
               hsnCode: hsnCode || '30049099',
               gstRate,
-              mrp,
-              defaultPurchaseRate: purchaseRate,
-              defaultSellingRate: sellingRate,
-              baseUnit: sellingUnit,
-              packageUnit: purchaseUnit,
-              conversionFactor,
-              storageNotes:
-                rawProductName && rawBrandName && rawProductName !== rawBrandName
-                  ? `Imported Product Name: ${rawProductName} | Brand: ${rawBrandName}`
-                  : undefined,
+              mrp: stripMrpPrice,
+              defaultPurchaseRate: stripPurchasePrice,
+              defaultSellingRate: stripMrpPrice,
+              baseUnit: 'Tablet',
+              packageUnit: 'Strip',
+              conversionFactor: stripUnitQuantity,
+              unitConfig: unitConfigStr,
             }
           : undefined,
       });
@@ -1834,46 +1858,34 @@ export const downloadPurchaseTemplate = async (req: Request, res: Response) => {
 
     const templateRows = [
       {
-        'Brand Name': 'Dolo 650',
-        'Quantity': 100,
-        'Free Quantity': 10,
-        'Batch Number': 'DL-2026-X1',
+        'Medicine Name': 'Dolo 650',
+        'Batch No': 'DL-2028-01',
         'Expiry Date': '2028-12-31',
+        'HSN No': '30049099',
         'Manufacturer': 'Micro Labs Ltd',
-        'Purchase Rate': 20.00,
-        'MRP': 30.00,
-        'GST Rate': 5,
-        'HSN Code': '30049099',
-        'Barcode': '8901234567890',
-        'Category': 'OTC',
+        'STRIP QUANTITY IN THE BOX': 10,
+        'STRIP UNIT QUANTITY': 10,
+        'Total Units': 100,
+        'pharmacy Physical Units': 100,
+        'Strip Purchase Price': 10.00,
+        'Strip MRP Price': 20.00,
+        'Purchase Unit Price': 1.00,
+        'unit Selling Price': 2.00,
       },
       {
-        'Brand Name': 'Azithral 500',
-        'Quantity': 50,
-        'Free Quantity': 0,
-        'Batch Number': 'AZ-2026-B9',
+        'Medicine Name': 'Augmentin 625 Duo',
+        'Batch No': 'AUG-2028-B2',
         'Expiry Date': '2028-06-30',
-        'Manufacturer': 'Alembic Pharmaceuticals',
-        'Purchase Rate': 85.00,
-        'MRP': 125.00,
-        'GST Rate': 12,
-        'HSN Code': '30049099',
-        'Barcode': '8901117008888',
-        'Category': 'Schedule H',
-      },
-      {
-        'Brand Name': 'Benadryl Cough Formula',
-        'Quantity': 20,
-        'Free Quantity': 2,
-        'Batch Number': 'BN-2026-S3',
-        'Expiry Date': '2027-11-30',
-        'Manufacturer': 'Johnson & Johnson',
-        'Purchase Rate': 95.00,
-        'MRP': 140.00,
-        'GST Rate': 12,
-        'HSN Code': '30049099',
-        'Barcode': '8901117007777',
-        'Category': 'OTC',
+        'HSN No': '30041010',
+        'Manufacturer': 'GSK Pharma',
+        'STRIP QUANTITY IN THE BOX': 20,
+        'STRIP UNIT QUANTITY': 20,
+        'Total Units': 400,
+        'pharmacy Physical Units': 400,
+        'Strip Purchase Price': 20.00,
+        'Strip MRP Price': 40.00,
+        'Purchase Unit Price': 1.00,
+        'unit Selling Price': 2.00,
       },
     ];
 

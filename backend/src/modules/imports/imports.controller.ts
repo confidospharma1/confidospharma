@@ -8,6 +8,7 @@ import {
   parseExpiryDate,
   parseCleanNumber,
   parseCleanInt,
+  calculatePharmaRowUnitsAndPrices,
 } from './imports.mapper';
 import { extractOrPreserveStrength } from '../../utils/productMatcher';
 
@@ -97,152 +98,103 @@ export const uploadAndPreviewImport = async (req: Request, res: Response) => {
 
     rawRows.forEach((row, index) => {
       const rowIndex = index + 2; // Accounting for 1-based header
+      const mapped = extractMappedRow(row, headerMap);
+      const pharma = calculatePharmaRowUnitsAndPrices(mapped);
+
+      // Skip completely empty or trailing blank/formula rows
+      if (!pharma.medicineName && !pharma.batchNumber) {
+        return;
+      }
+
       const errors: string[] = [];
       const warnings: string[] = [];
-      const mapped = extractMappedRow(row, headerMap);
 
-      if (importType === 'CATALOGUE') {
-        const brandName = (mapped.brandName || mapped.productName || '').toString().trim();
-        const genericNameRaw = (mapped.genericName || brandName).toString().trim();
-        const rawStrength = (mapped.strength || 'Standard').toString().trim();
-        const { genericName, strength } = extractOrPreserveStrength(genericNameRaw, rawStrength);
-        const dosageForm = (mapped.dosageForm || 'Tablet').toString().trim();
-        const manufacturer = (mapped.manufacturer || 'Standard Pharma').toString().trim();
-        const packSize = (mapped.packSize || '1 Unit').toString().trim();
-        const rawHsn = (mapped.hsnCode || '').toString().trim();
-        const hsnCode = rawHsn ? rawHsn : null;
-        const gstRate = parseCleanNumber(mapped.gstRate, 5);
-        const mrp = parseCleanNumber(mapped.mrp, 0);
-        const defaultPurchaseRate = parseCleanNumber(mapped.defaultPurchaseRate, NaN);
-        const defaultSellingRate = parseCleanNumber(mapped.defaultSellingRate, NaN);
-        const reorderLevel = parseCleanInt(mapped.reorderLevel, 10);
-        const barcode = (mapped.barcode || '').toString().trim();
-        const prescriptionType = (mapped.prescriptionType || 'OTC').toString().trim();
+      if (!pharma.medicineName) errors.push('Medicine Name is required');
+      if (!pharma.batchNumber) errors.push('Batch Number is required');
 
-        const quantity = parseCleanInt(mapped.quantity, 0);
-        const freeQuantity = parseCleanInt(mapped.freeQuantity, 0);
-        const batchNumber = (mapped.batchNumber || '').toString().trim();
-        const expiryDate = (mapped.expiryDate || '').toString().trim();
-
-        if (!brandName) errors.push('Brand Name is required');
-        if (isNaN(mrp) || mrp <= 0) errors.push('Valid positive MRP is required');
-        if (isNaN(gstRate) || gstRate < 0) errors.push('Valid GST Rate is required');
-
-        const dedupKey = brandName.toLowerCase();
-        if (seenKeys.has(dedupKey)) {
-          duplicateCount++;
-          errors.push('Duplicate row within uploaded file');
-        } else {
-          seenKeys.add(dedupKey);
-        }
-
-        if (productMap.has(dedupKey)) {
-          warnings.push('Medicine already exists in catalogue (will be updated or skipped)');
-          warningCount++;
-        }
-
-        const processed = {
-          rowIndex,
-          brandName,
-          genericName: genericName || brandName,
-          strength: strength || 'Standard',
-          dosageForm: dosageForm || 'Tablet',
-          manufacturer: manufacturer || 'Standard Pharma',
-          packSize: packSize || '1 Unit',
-          hsnCode,
-          gstRate: isNaN(gstRate) ? 5 : gstRate,
-          mrp: isNaN(mrp) ? 0 : mrp,
-          defaultPurchaseRate: isNaN(defaultPurchaseRate) ? null : defaultPurchaseRate,
-          defaultSellingRate: isNaN(defaultSellingRate) ? null : defaultSellingRate,
-          reorderLevel: isNaN(reorderLevel) ? 10 : reorderLevel,
-          barcode: barcode || null,
-          prescriptionType: prescriptionType || 'OTC',
-          quantity: isNaN(quantity) ? 0 : Math.max(0, quantity),
-          freeQuantity: isNaN(freeQuantity) ? 0 : Math.max(0, freeQuantity),
-          batchNumber: batchNumber || (quantity > 0 ? `OPN-${Date.now().toString().slice(-6)}` : null),
-          expiryDate: expiryDate || null,
-          status: errors.length > 0 ? 'ERROR' : 'READY',
-          errors,
-          warnings,
-        };
-
-        if (errors.length > 0) {
-          errorCount++;
-          errorRows.push(processed);
-        } else {
-          validCount++;
-        }
-        validatedRows.push(processed);
-      } else {
-        // STOCK_RECEIPT IMPORT
-        const internalCode = (mapped.internalCode || '').toString().trim();
-        const brandName = (mapped.brandName || mapped.productName || '').toString().trim();
-        const batchNumber = (mapped.batchNumber || '').toString().trim();
-        const expiryRaw = mapped.expiryDate;
-        const quantity = parseCleanInt(mapped.quantity, 0);
-        const purchaseRate = parseCleanNumber(mapped.purchaseRate, 0);
-        const mrp = parseCleanNumber(mapped.mrp, 0);
-
-        if (!internalCode && !brandName) errors.push('Either Internal Code or Brand Name is required');
-        if (!batchNumber) errors.push('Batch Number is required');
-
-        // Safe Date validation (no uncaught RangeError on invalid dates)
-        const { date: parsedDate, isoString: parsedDateIso, error: dateError } = parseExpiryDate(expiryRaw);
-        if (dateError) {
-          errors.push(dateError);
-        } else if (parsedDate && parsedDate <= new Date()) {
-          errors.push('Batch is already expired. Expired stock cannot be imported as live inventory.');
-        }
-
-        if (isNaN(quantity) || quantity <= 0) errors.push('Quantity must be greater than zero');
-        if (isNaN(purchaseRate) || purchaseRate < 0) errors.push('Valid purchase rate is required');
-        if (isNaN(mrp) || mrp < purchaseRate) errors.push('MRP must be greater than or equal to purchase rate');
-
-        let matchedProduct = null;
-        if (internalCode && productMap.has(internalCode.toLowerCase())) {
-          matchedProduct = productMap.get(internalCode.toLowerCase());
-        } else if (brandName) {
-          matchedProduct = existingProducts.find(
-            (p) => (p.brandName || '').toLowerCase() === brandName.toLowerCase()
-          );
-        }
-
-        if (!matchedProduct) {
-          errors.push(`Medicine '${brandName || internalCode}' not found in catalogue. Please import into catalogue first.`);
-        }
-
-        const dedupKey = `${(matchedProduct?.id || brandName)}_${batchNumber.toLowerCase()}`;
-        if (seenKeys.has(dedupKey)) {
-          duplicateCount++;
-          errors.push('Duplicate batch record within uploaded file');
-        } else {
-          seenKeys.add(dedupKey);
-        }
-
-        const processed = {
-          rowIndex,
-          medicineId: matchedProduct?.id,
-          brandName: matchedProduct?.brandName || brandName,
-          internalCode: matchedProduct?.internalCode || internalCode,
-          batchNumber,
-          expiryDate: parsedDateIso || (expiryRaw ? String(expiryRaw) : ''),
-          quantity: isNaN(quantity) ? 0 : quantity,
-          purchaseRate: isNaN(purchaseRate) ? 0 : purchaseRate,
-          mrp: isNaN(mrp) ? 0 : mrp,
-          status: errors.length > 0 ? 'ERROR' : 'READY',
-          errors,
-          warnings,
-        };
-
-        if (errors.length > 0) {
-          errorCount++;
-          errorRows.push(processed);
-        } else {
-          validCount++;
-          estimatedStockUnits += processed.quantity;
-        }
-        validatedRows.push(processed);
+      // Safe Date validation (no uncaught RangeError on invalid dates)
+      const { date: parsedDate, isoString: parsedDateIso, error: dateError } = parseExpiryDate(pharma.expiryDate);
+      if (dateError) {
+        errors.push(dateError);
+      } else if (parsedDate && parsedDate <= new Date()) {
+        errors.push('Batch is already expired. Expired stock cannot be imported as live inventory.');
       }
+
+      if (pharma.stripQuantityInBox <= 0) errors.push('Strip quantity in box must be greater than zero');
+      if (pharma.stripUnitQuantity <= 0) errors.push('Strip unit quantity (tablets per strip) must be greater than zero');
+      if (pharma.stripPurchasePrice < 0 || pharma.purchaseUnitPrice < 0) errors.push('Purchase price cannot be negative');
+      if (pharma.stripMrpPrice < 0 || pharma.unitSellingPrice < 0) errors.push('MRP price cannot be negative');
+      if (pharma.stripMrpPrice > 0 && pharma.stripPurchasePrice > pharma.stripMrpPrice) {
+        warnings.push('Strip purchase price is higher than strip MRP price');
+      }
+
+      const rawStrength = (mapped.strength || 'Standard').toString().trim();
+      const { genericName, strength } = extractOrPreserveStrength(pharma.medicineName, rawStrength);
+
+      const dedupKey = `${pharma.medicineName.toLowerCase()}_${pharma.batchNumber.toLowerCase()}`;
+      if (seenKeys.has(dedupKey)) {
+        duplicateCount++;
+        errors.push('Duplicate batch record within uploaded file');
+      } else {
+        seenKeys.add(dedupKey);
+      }
+
+      let matchedProduct = null;
+      if (mapped.internalCode && productMap.has(String(mapped.internalCode).toLowerCase())) {
+        matchedProduct = productMap.get(String(mapped.internalCode).toLowerCase());
+      } else if (productMap.has(pharma.medicineName.toLowerCase())) {
+        matchedProduct = productMap.get(pharma.medicineName.toLowerCase());
+      } else {
+        matchedProduct = existingProducts.find(
+          (p) => (p.brandName || '').toLowerCase() === pharma.medicineName.toLowerCase()
+        );
+      }
+
+      if (matchedProduct) {
+        warnings.push('Medicine already exists in catalogue (batch stock will be added)');
+        warningCount++;
+      } else if (importType === 'STOCK_RECEIPT') {
+        warnings.push('New medicine: will be registered into catalogue during stock import');
+      }
+
+      const processed = {
+        rowIndex,
+        medicineId: matchedProduct?.id,
+        medicineName: pharma.medicineName,
+        brandName: pharma.medicineName,
+        genericName: genericName || pharma.medicineName,
+        strength: strength || 'Standard',
+        dosageForm: 'Tablet',
+        manufacturer: pharma.manufacturer || 'Standard Pharma',
+        packSize: `${pharma.stripQuantityInBox} Strips x ${pharma.stripUnitQuantity} Tablets`,
+        hsnCode: pharma.hsnCode,
+        batchNumber: pharma.batchNumber,
+        expiryDate: parsedDateIso || pharma.expiryDate,
+        stripQuantityInBox: pharma.stripQuantityInBox,
+        stripUnitQuantity: pharma.stripUnitQuantity,
+        totalUnits: pharma.totalUnits,
+        pharmacyPhysicalUnits: pharma.pharmacyPhysicalUnits,
+        stripPurchasePrice: pharma.stripPurchasePrice,
+        stripMrpPrice: pharma.stripMrpPrice,
+        purchaseUnitPrice: pharma.purchaseUnitPrice,
+        unitSellingPrice: pharma.unitSellingPrice,
+        quantity: pharma.pharmacyPhysicalUnits,
+        purchaseRate: pharma.purchaseUnitPrice,
+        mrp: pharma.stripMrpPrice,
+        gstRate: parseCleanNumber(mapped.gstRate, 5),
+        status: errors.length > 0 ? 'ERROR' : 'READY',
+        errors,
+        warnings,
+      };
+
+      if (errors.length > 0) {
+        errorCount++;
+        errorRows.push(processed);
+      } else {
+        validCount++;
+        estimatedStockUnits += pharma.pharmacyPhysicalUnits;
+      }
+      validatedRows.push(processed);
     });
 
     // Save Staging record in ImportJob table
@@ -359,92 +311,99 @@ export const commitImportJob = async (req: Request, res: Response) => {
     let insertedCount = 0;
 
     await prisma.$transaction(async (tx) => {
-      if (job.importType === 'CATALOGUE') {
-        let codeCounter = await tx.medicineProduct.count();
+      let codeCounter = await tx.medicineProduct.count();
 
-        for (const row of validRows) {
-          const existing = await tx.medicineProduct.findFirst({
-            where: {
-              brandName: { equals: row.brandName, mode: 'insensitive' },
-              genericName: { equals: row.genericName, mode: 'insensitive' },
-              strength: { equals: row.strength, mode: 'insensitive' },
-              dosageForm: { equals: row.dosageForm, mode: 'insensitive' },
+      for (const row of validRows) {
+        const stripUnitQty = row.stripUnitQuantity && row.stripUnitQuantity > 0 ? row.stripUnitQuantity : 10;
+        const stripQtyInBox = row.stripQuantityInBox && row.stripQuantityInBox > 0 ? row.stripQuantityInBox : 1;
+        const totalUnits = row.totalUnits || (stripQtyInBox * stripUnitQty);
+        const physicalUnits = row.pharmacyPhysicalUnits !== undefined && row.pharmacyPhysicalUnits !== null ? row.pharmacyPhysicalUnits : totalUnits;
+        const stripPPrice = row.stripPurchasePrice !== undefined && row.stripPurchasePrice !== null ? row.stripPurchasePrice : (row.purchaseRate || 0);
+        const stripMPrice = row.stripMrpPrice !== undefined && row.stripMrpPrice !== null ? row.stripMrpPrice : (row.mrp || 0);
+        const pUnitPrice = row.purchaseUnitPrice !== undefined && row.purchaseUnitPrice !== null ? row.purchaseUnitPrice : (stripUnitQty > 0 ? stripPPrice / stripUnitQty : stripPPrice);
+        const uSellingPrice = row.unitSellingPrice !== undefined && row.unitSellingPrice !== null ? row.unitSellingPrice : (stripUnitQty > 0 ? stripMPrice / stripUnitQty : stripMPrice);
+
+        const unitConfig = JSON.stringify({
+          stripQuantityInBox: stripQtyInBox,
+          stripUnitQuantity: stripUnitQty,
+          totalUnits,
+          pharmacyPhysicalUnits: physicalUnits,
+          stripPurchasePrice: stripPPrice,
+          stripMrpPrice: stripMPrice,
+          purchaseUnitPrice: pUnitPrice,
+          unitSellingPrice: uSellingPrice,
+          supportedUnits: [
+            { unit: 'Tablet', multiplierToBase: 1, isBaseUnit: true },
+            { unit: 'Strip', multiplierToBase: stripUnitQty },
+          ],
+        });
+
+        const effectiveMedicineName = row.medicineName || row.brandName || row.productName;
+
+        let existingMed = await tx.medicineProduct.findFirst({
+          where: {
+            OR: [
+              { brandName: { equals: effectiveMedicineName, mode: 'insensitive' } },
+              ...(row.internalCode ? [{ internalCode: row.internalCode }] : []),
+            ],
+          },
+        });
+
+        if (existingMed) {
+          existingMed = await tx.medicineProduct.update({
+            where: { id: existingMed.id },
+            data: {
+              manufacturer: row.manufacturer || existingMed.manufacturer,
+              packSize: `${stripQtyInBox} Strips x ${stripUnitQty} Tablets`,
+              hsnCode: row.hsnCode || existingMed.hsnCode,
+              gstRate: row.gstRate ?? existingMed.gstRate,
+              mrp: stripMPrice,
+              defaultPurchaseRate: stripPPrice,
+              defaultSellingRate: stripMPrice,
+              conversionFactor: stripUnitQty,
+              packageUnit: 'Strip',
+              baseUnit: 'Tablet',
+              unitConfig,
             },
           });
+        } else {
+          let generatedCode = '';
+          do {
+            codeCounter++;
+            generatedCode = `MED-${String(codeCounter).padStart(4, '0')}`;
+          } while (await tx.medicineProduct.findUnique({ where: { internalCode: generatedCode } }));
 
-          if (existing) {
-            await tx.medicineProduct.update({
-              where: { id: existing.id },
-              data: {
-                manufacturer: row.manufacturer || existing.manufacturer,
-                packSize: row.packSize || existing.packSize,
-                hsnCode: row.hsnCode || existing.hsnCode,
-                gstRate: row.gstRate ?? existing.gstRate,
-                mrp: row.mrp ?? existing.mrp,
-                defaultPurchaseRate: row.defaultPurchaseRate !== null ? row.defaultPurchaseRate : existing.defaultPurchaseRate,
-                defaultSellingRate: row.defaultSellingRate !== null ? row.defaultSellingRate : existing.defaultSellingRate,
-                reorderLevel: row.reorderLevel ?? existing.reorderLevel,
-                barcode: row.barcode || existing.barcode,
-                prescriptionType: row.prescriptionType || existing.prescriptionType,
-              },
-            });
-          } else {
-            let generatedCode = '';
-            do {
-              codeCounter++;
-              generatedCode = `MED-${String(codeCounter).padStart(4, '0')}`;
-            } while (await tx.medicineProduct.findUnique({ where: { internalCode: generatedCode } }));
-
-            await tx.medicineProduct.create({
-              data: {
-                internalCode: generatedCode,
-                brandName: row.brandName,
-                genericName: row.genericName,
-                strength: row.strength,
-                dosageForm: row.dosageForm,
-                manufacturer: row.manufacturer,
-                packSize: row.packSize,
-                baseUnit: 'Tablet',
-                hsnCode: row.hsnCode || null,
-                gstRate: row.gstRate,
-                mrp: row.mrp,
-                defaultPurchaseRate: row.defaultPurchaseRate || null,
-                defaultSellingRate: row.defaultSellingRate || null,
-                reorderLevel: row.reorderLevel || 10,
-                barcode: row.barcode,
-                prescriptionType: row.prescriptionType,
-              },
-            });
-          }
-          insertedCount++;
+          existingMed = await tx.medicineProduct.create({
+            data: {
+              internalCode: generatedCode,
+              brandName: effectiveMedicineName,
+              genericName: row.genericName || effectiveMedicineName,
+              strength: row.strength || 'Standard',
+              dosageForm: 'Tablet',
+              manufacturer: row.manufacturer || 'Standard Pharma',
+              packSize: `${stripQtyInBox} Strips x ${stripUnitQty} Tablets`,
+              baseUnit: 'Tablet',
+              packageUnit: 'Strip',
+              conversionFactor: stripUnitQty,
+              hsnCode: row.hsnCode || null,
+              gstRate: row.gstRate || 5,
+              mrp: stripMPrice,
+              defaultPurchaseRate: stripPPrice,
+              defaultSellingRate: stripMPrice,
+              reorderLevel: row.reorderLevel || 10,
+              barcode: row.barcode || null,
+              prescriptionType: row.prescriptionType || 'OTC',
+              unitConfig,
+            },
+          });
         }
-      } else {
-        // STOCK_RECEIPT COMMIT
-        for (const row of validRows) {
-          // Verify medicine exists or resolve it
-          let targetMedId = row.medicineId;
-          const medExists = await tx.medicineProduct.findUnique({ where: { id: targetMedId } });
-          if (!medExists) {
-            const fallbackMed = await tx.medicineProduct.findFirst({
-              where: {
-                OR: [
-                  { internalCode: row.productCode || row.internalCode || '' },
-                  { brandName: { equals: row.brandName || row.productName || '', mode: 'insensitive' } },
-                ],
-              },
-            });
-            if (fallbackMed) {
-              targetMedId = fallbackMed.id;
-            } else {
-              throw new Error(`Medicine '${row.brandName || row.productName || targetMedId}' does not exist in catalogue.`);
-            }
-          }
 
-          // Check if batch exists
+        // If batch number is provided and physical stock > 0, create or update stock batch
+        if (row.batchNumber && physicalUnits > 0) {
           let batch = await tx.stockBatch.findFirst({
             where: {
               branchId: job.branchId,
-              medicineId: targetMedId,
+              medicineId: existingMed.id,
               batchNumber: row.batchNumber,
             },
           });
@@ -453,11 +412,11 @@ export const commitImportJob = async (req: Request, res: Response) => {
             batch = await tx.stockBatch.update({
               where: { id: batch.id },
               data: {
-                quantityReceived: batch.quantityReceived + row.quantity,
-                availableQuantity: batch.availableQuantity + row.quantity,
-                purchaseRate: row.purchaseRate,
-                mrp: row.mrp,
-                sellingPrice: row.mrp,
+                quantityReceived: batch.quantityReceived + physicalUnits,
+                availableQuantity: batch.availableQuantity + physicalUnits,
+                purchaseRate: pUnitPrice,
+                mrp: uSellingPrice,
+                sellingPrice: uSellingPrice,
                 status: 'ACTIVE',
               },
             });
@@ -465,14 +424,14 @@ export const commitImportJob = async (req: Request, res: Response) => {
             batch = await tx.stockBatch.create({
               data: {
                 branchId: job.branchId,
-                medicineId: targetMedId,
+                medicineId: existingMed.id,
                 batchNumber: row.batchNumber,
                 expiryDate: new Date(row.expiryDate),
-                quantityReceived: row.quantity,
-                availableQuantity: row.quantity,
-                purchaseRate: row.purchaseRate,
-                mrp: row.mrp,
-                sellingPrice: row.mrp,
+                quantityReceived: physicalUnits,
+                availableQuantity: physicalUnits,
+                purchaseRate: pUnitPrice,
+                mrp: uSellingPrice,
+                sellingPrice: uSellingPrice,
                 purchaseInvoiceRef: `IMPORT-${job.id.substring(0, 8)}`,
                 status: 'ACTIVE',
               },
@@ -483,20 +442,20 @@ export const commitImportJob = async (req: Request, res: Response) => {
           await tx.stockMovement.create({
             data: {
               branchId: job.branchId,
-              medicineId: targetMedId,
+              medicineId: existingMed.id,
               batchId: batch.id,
               movementType: 'PURCHASE_RECEIPT',
-              quantityDelta: row.quantity,
-              unitPrice: row.purchaseRate,
+              quantityDelta: physicalUnits,
+              unitPrice: pUnitPrice,
               referenceDocType: 'BULK_IMPORT',
               referenceDocId: job.id,
-              reason: `Bulk stock receipt import: ${job.fileName}`,
+              reason: `Bulk ${job.importType} import: ${job.fileName}`,
               performedByUserId: req.user!.id,
             },
           });
-
-          insertedCount++;
         }
+
+        insertedCount++;
       }
 
       // Mark job as committed
@@ -564,40 +523,40 @@ export const downloadTemplate = async (req: Request, res: Response) => {
   const { type } = req.params;
 
   let templateData: any[] = [];
-  let fileName = 'template.csv';
+  let fileName = type === 'catalogue' ? 'confidos_catalogue_template.csv' : 'confidos_stock_receipt_template.csv';
 
-  if (type === 'catalogue') {
-    fileName = 'confidos_catalogue_template.csv';
-    templateData = [
-      {
-        'Brand Name': 'Telma 20',
-        'Quantity': 100,
-        'Free Quantity': 10,
-        'Batch Number': 'TLM-2026-01',
-        'Batch Expiry Date': '2028-12-31',
-        'Manufacturer': 'Glenmark',
-        'Purchase Rate': 75.00,
-        'MRP': 98.00,
-        'GST Rate': 5,
-        'HSN Code': '30049099',
-        'Barcode': '8901117009999',
-        'Category': 'OTC',
-      },
-    ];
-  } else {
-    fileName = 'confidos_stock_receipt_template.csv';
-    templateData = [
-      {
-        'Internal Code': 'MED-001',
-        'Brand Name': 'Dolo 650',
-        'Batch Number': 'DL-2026-X1',
-        'Expiry Date': '2027-12-31',
-        'Quantity': 50,
-        'Purchase Rate': 23.50,
-        'MRP': 33.50,
-      },
-    ];
-  }
+  templateData = [
+    {
+      'Medicine Name': 'Dolo 650',
+      'Batch No': 'DL-2028-01',
+      'Expiry Date': '2028-12-31',
+      'HSN No': '30049099',
+      'Manufacturer': 'Micro Labs Ltd',
+      'STRIP QUANTITY IN THE BOX': 10,
+      'STRIP UNIT QUANTITY': 10,
+      'Total Units': 100,
+      'pharmacy Physical Units': 100,
+      'Strip Purchase Price': 10.00,
+      'Strip MRP Price': 20.00,
+      'Purchase Unit Price': 1.00,
+      'unit Selling Price': 2.00,
+    },
+    {
+      'Medicine Name': 'Augmentin 625 Duo',
+      'Batch No': 'AUG-2028-B2',
+      'Expiry Date': '2028-06-30',
+      'HSN No': '30041010',
+      'Manufacturer': 'GSK Pharma',
+      'STRIP QUANTITY IN THE BOX': 20,
+      'STRIP UNIT QUANTITY': 20,
+      'Total Units': 400,
+      'pharmacy Physical Units': 400,
+      'Strip Purchase Price': 20.00,
+      'Strip MRP Price': 40.00,
+      'Purchase Unit Price': 1.00,
+      'unit Selling Price': 2.00,
+    },
+  ];
 
   const worksheet = xlsx.utils.json_to_sheet(templateData);
   const csv = xlsx.utils.sheet_to_csv(worksheet);

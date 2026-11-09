@@ -1,4 +1,4 @@
-# Confidos Pharma Enterprise OS — Complete User Manual
+# Confidos Pharma Enterprise OS � Complete User Manual
 **Enterprise Multi-Branch Pharmacy Management, Point-of-Sale Billing & Inventory Operating System**
 
 ---
@@ -46,44 +46,44 @@
 The recommended sequence for setting up and operating Confidos Pharma is shown below:
 
 ```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│ 1. INITIAL SETUP: Onboarding Wizard (Company, Super Admin & Primary Branch) │
-└──────────────────────────────────────┬──────────────────────────────────────┘
-                                       │
-                                       ▼
-┌─────────────────────────────────────────────────────────────────────────────┐
-│ 2. INFRASTRUCTURE: Additional Branches & Staff Users (Admins & Cashiers)   │
-└──────────────────────────────────────┬──────────────────────────────────────┘
-                                       │
-                                       ▼
-┌─────────────────────────────────────────────────────────────────────────────┐
-│ 3. MASTER DATA: Suppliers Directory & Medicine Catalogue (Brands & Units)   │
-└──────────────────────────────────────┬──────────────────────────────────────┘
-                                       │
-                                       ▼
-┌─────────────────────────────────────────────────────────────────────────────┐
-│ 4. BULK IMPORTS: Import Medicines Catalogue (Type A) & Opening Stock (Type B│
-└──────────────────────────────────────┬──────────────────────────────────────┘
-                                       │
-                                       ▼
-┌─────────────────────────────────────────────────────────────────────────────┐
-│ 5. PROCUREMENT: Purchase Indents -> Approved -> Inward Supplier Purchases   │
-└──────────────────────────────────────┬──────────────────────────────────────┘
-                                       │
-                                       ▼
-┌─────────────────────────────────────────────────────────────────────────────┐
-│ 6. STOCK MANAGEMENT: Real-Time FEFO Inventory, Adjustments & Branch Transfers│
-└──────────────────────────────────────┬──────────────────────────────────────┘
-                                       │
-                                       ▼
-┌─────────────────────────────────────────────────────────────────────────────┐
-│ 7. DISPENSING & POS BILLING: Barcode / Fast Search -> FEFO Cart -> Receipt  │
-└──────────────────────────────────────┬──────────────────────────────────────┘
-                                       │
-                                       ▼
-┌─────────────────────────────────────────────────────────────────────────────┐
-│ 8. AUDIT & REPORTING: Sales Register, P&L, Expiry Forecast, Schedule H1 Log │
-└─────────────────────────────────────────────────────────────────────────────┘
++-----------------------------------------------------------------------------+
+� 1. INITIAL SETUP: Onboarding Wizard (Company, Super Admin & Primary Branch) �
++-----------------------------------------------------------------------------+
+                                       �
+                                       ?
++-----------------------------------------------------------------------------+
+� 2. INFRASTRUCTURE: Additional Branches & Staff Users (Admins & Cashiers)   �
++-----------------------------------------------------------------------------+
+                                       �
+                                       ?
++-----------------------------------------------------------------------------+
+� 3. MASTER DATA: Suppliers Directory & Medicine Catalogue (Brands & Units)   �
++-----------------------------------------------------------------------------+
+                                       �
+                                       ?
++-----------------------------------------------------------------------------+
+� 4. BULK IMPORTS: Import Medicines Catalogue (Type A) & Opening Stock (Type B�
++-----------------------------------------------------------------------------+
+                                       �
+                                       ?
++-----------------------------------------------------------------------------+
+� 5. PROCUREMENT: Purchase Indents -> Approved -> Inward Supplier Purchases   �
++-----------------------------------------------------------------------------+
+                                       �
+                                       ?
++-----------------------------------------------------------------------------+
+� 6. STOCK MANAGEMENT: Real-Time FEFO Inventory, Adjustments & Branch Transfers�
++-----------------------------------------------------------------------------+
+                                       �
+                                       ?
++-----------------------------------------------------------------------------+
+� 7. DISPENSING & POS BILLING: Barcode / Fast Search -> FEFO Cart -> Receipt  �
++-----------------------------------------------------------------------------+
+                                       �
+                                       ?
++-----------------------------------------------------------------------------+
+� 8. AUDIT & REPORTING: Sales Register, P&L, Expiry Forecast, Schedule H1 Log �
++-----------------------------------------------------------------------------+
 ```
 
 ---
@@ -117,21 +117,21 @@ Confidos Pharma enforces Role-Based Access Control (RBAC) at both the API and da
 When Confidos Pharma is launched on an empty database (or after a fresh reset), the system automatically detects that zero user accounts exist (`GET /api/auth/setup-status` returns `needsSetup: true`) and presents the **Initial Database Onboarding Wizard**.
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                   Confidos Pharma OS                        │
-│             INITIAL DATABASE ONBOARDING                     │
-│                                                             │
-│ Full Name:       [ Dr. Ramesh Kumar                       ] │
-│ Username:        [ admin                                  ] │
-│ Official Email:  [ admin@confidospharma.com               ] │
-│ Password:        [ ••••••••••••                           ] │
-│ Confirm Password:[ ••••••••••••                           ] │
-│ Company Name:    [ Confidos Pharma Ltd.                   ] │
-│ Primary Branch:  [ Vijayawada Central Branch              ] │
-│ Branch Code:     [ B-VJA                                  ] │
-│                                                             │
-│ [ CREATE SUPER ADMINISTRATOR & INITIALIZE OS ]              │
-└─────────────────────────────────────────────────────────────┘
++-------------------------------------------------------------+
+�                   Confidos Pharma OS                        �
+�             INITIAL DATABASE ONBOARDING                     �
+�                                                             �
+� Full Name:       [ Dr. Ramesh Kumar                       ] �
+� Username:        [ admin                                  ] �
+� Official Email:  [ admin@confidospharma.com               ] �
+� Password:        [ ������������                           ] �
+� Confirm Password:[ ������������                           ] �
+� Company Name:    [ Confidos Pharma Ltd.                   ] �
+� Primary Branch:  [ Vijayawada Central Branch              ] �
+� Branch Code:     [ B-VJA                                  ] �
+�                                                             �
+� [ CREATE SUPER ADMINISTRATOR & INITIALIZE OS ]              �
++-------------------------------------------------------------+
 ```
 
 ### Required Fields for Setup
@@ -142,7 +142,7 @@ When Confidos Pharma is launched on an empty database (or after a fresh reset), 
 5. **Confirm Password:** Must match password exactly.
 6. **Company Name:** Corporate legal entity (e.g., `Confidos Pharma Ltd.`).
 7. **Primary Branch Name (Optional but Recommended):** Name of the first operating pharmacy (e.g., `Vijayawada Central Branch`).
-8. **Branch Code (Optional):** Unique 3–6 character code (e.g., `B-VJA`).
+8. **Branch Code (Optional):** Unique 3�6 character code (e.g., `B-VJA`).
 
 ### Submission & Immediate Access
 - Clicking **Create Super Administrator & Initialize OS** executes an atomic transaction creating the Company, primary Branch, and the Super Admin account.
@@ -156,15 +156,15 @@ When Confidos Pharma is launched on an empty database (or after a fresh reset), 
 The **Branches** page allows the Super Admin to configure multiple pharmacy locations across cities.
 
 ```
-┌──────────────────────────────────────────────────────────────┐
-│ [+] Add New Branch                                           │
-├──────────────────┬─────────────────┬───────────┬─────────────┤
-│ Branch Code      │ Name            │ Phone     │ Status      │
-├──────────────────┼─────────────────┼───────────┼─────────────┤
-│ B-VJA            │ Vijayawada Main │ 8662471122│ ACTIVE      │
-│ B-GNT            │ Guntur Hospital │ 8632234455│ ACTIVE      │
-│ B-TNL            │ Tenali Market   │ 8644223344│ ACTIVE      │
-└──────────────────┴─────────────────┴───────────┴─────────────┘
++--------------------------------------------------------------+
+� [+] Add New Branch                                           �
++--------------------------------------------------------------�
+� Branch Code      � Name            � Phone     � Status      �
++------------------+-----------------+-----------+-------------�
+� B-VJA            � Vijayawada Main � 8662471122� ACTIVE      �
+� B-GNT            � Guntur Hospital � 8632234455� ACTIVE      �
+� B-TNL            � Tenali Market   � 8644223344� ACTIVE      �
++--------------------------------------------------------------+
 ```
 
 #### Creating a New Branch
@@ -231,15 +231,15 @@ Before recording inward purchase invoices, configure your approved pharmaceutica
 The **Medicine Catalogue** (`/products`) is the central master repository for all medicines and surgical items sold across the pharmacy chain.
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│ Medicines Catalogue                                         │
-│ Search: [ Dolo                                            ] │
-├──────────┬──────────────┬────────┬────────┬───────┬─────────┤
-│ Code     │ Brand Name   │ Generic│ Strength│ MRP  │ Stock   │
-├──────────┼──────────────┼────────┼────────┼───────┼─────────┤
-│ MED-001  │ Dolo 650     │ Paracet│ 650 mg │ 35.00 │ 120 Tab │
-│ MED-002  │ Augmentin 625│ Amox+Cl│ 625 mg │220.00 │  40 Tab │
-└──────────┴──────────────┴────────┴────────┴───────┴─────────┘
++-------------------------------------------------------------+
+� Medicines Catalogue                                         �
+� Search: [ Dolo                                            ] �
++-------------------------------------------------------------�
+� Code     � Brand Name   � Generic� Strength� MRP  � Stock   �
++----------+--------------+--------+--------+-------+---------�
+� MED-001  � Dolo 650     � Paracet� 650 mg � 35.00 � 120 Tab �
+� MED-002  � Augmentin 625� Amox+Cl� 625 mg �220.00 �  40 Tab �
++-------------------------------------------------------------+
 ```
 
 ### Adding a Medicine Manually
@@ -248,7 +248,7 @@ Click **Add New Medicine** and fill in the technical attributes:
 2. **Generic / Active Ingredient (*):** Active pharmaceutical ingredient (e.g., `Azithromycin`). Required. Combined salt + strength inputs (e.g., `Paracetamol 650 mg`) are automatically parsed without requiring separate fields.
 3. **Dosage Form (*):** Choose from `Tablet`, `Capsule`, `Syrup`, `Injection`, `Ointment`, `Drops`. Required.
 4. **Manufacturer (*):** Pharmaceutical manufacturing company (e.g., `Alembic Pharmaceuticals`). Required.
-5. **Maximum Retail Price - MRP (*) (₹):** Printed maximum consumer retail price. Required. Must be non-negative.
+5. **Maximum Retail Price - MRP (*) (?):** Printed maximum consumer retail price. Required. Must be non-negative.
 6. **GST Rate (%) (*):** Standard Indian GST slab (`0%`, `5%`, `12%`, `18%`, `28%`). Required.
 7. **Packaging & Unit Conversion:**
    - **Base Unit:** Smallest physical dispensing unit (e.g., `Strip`, `Tablet`, `Bottle`).
@@ -277,8 +277,8 @@ Click **Add New Medicine** and fill in the technical attributes:
 Confidos Pharma features a deterministic two-stage bulk import engine (`/bulk-import`) that parses, validates, stages, and commits hundreds of medicines and stock batches in seconds without fabricating data.
 
 ### Workflow Overview
-1. **Stage 1 — Upload & Validate:** Upload your file (`.csv`, `.xlsx`, or `.xls`). The server parses headers, normalizes data, and produces a live **Staged Preview**.
-2. **Stage 2 — Review & Commit:** Inspect the valid rows, errors, duplicates, and warnings. If satisfied, click **Commit Import to Live Database**.
+1. **Stage 1 � Upload & Validate:** Upload your file (`.csv`, `.xlsx`, or `.xls`). The server parses headers, normalizes data, and produces a live **Staged Preview**.
+2. **Stage 2 � Review & Commit:** Inspect the valid rows, errors, duplicates, and warnings. If satisfied, click **Commit Import to Live Database**.
 
 ---
 
@@ -296,7 +296,7 @@ Confidos Pharma features a deterministic two-stage bulk import engine (`/bulk-im
 | **Dosage Form** | No | `form`, `type`, `dosage_form` | `Tablet` | Default: `Tablet` |
 | **Manufacturer** | No | `mfg`, `company`, `make` | `Glenmark` | Manufacturing pharma |
 | **Pack Size** | No | `pack_size`, `packaging` | `15 Tablets` | Packaging description |
-| **HSN Code** | No | `hsn_code`, `hsn` | `30049099` | 4–8 digit Indian HSN |
+| **HSN Code** | No | `hsn_code`, `hsn` | `30049099` | 4�8 digit Indian HSN |
 | **GST Rate** | No | `gst_rate`, `tax_rate` | `12` | GST percentage (0, 5, 12, 18) |
 | **MRP** | **YES** | `maximum_retail_price`, `price` | `98.00` | Max Retail Price |
 | **Barcode** | No | `ean`, `upc`, `code128` | `8901117009999`| EAN/UPC barcode |
@@ -346,18 +346,18 @@ Benadryl Cough Syrup,BND-2026-S1,2027-12-31,30,85.00,125.00
 The **Purchases Module** (`/purchases`) handles recording supplier tax invoices, verifying GST, applying trade discounts, and tracking accounts payable.
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│ RECORD INWARD PURCHASE INVOICE                              │
-│ Supplier: [ Sri Balaji Pharma   ] Inv #: [ BAL-9841       ] │
-│ Date:     [ 2026-11-01          ] Branch:[ Vijayawada     ] │
-├─────────────────────────────────────────────────────────────┤
-│ Line Items:                                                 │
-│ 1. Dolo 650      | Batch: B-771 | Exp: 2028-12 | Qty: 100   │
-│    Rate: ₹24.50  | MRP: ₹35.00  | Disc: 15%    | GST: 12%   │
-│                                                             │
-│ Subtotal: ₹2,082.50  |  Tax (12%): ₹249.90  | Total: ₹2,332 │
-│ [ SAVE & CONFIRM PURCHASE INWARD ]                          │
-└─────────────────────────────────────────────────────────────┘
++-------------------------------------------------------------+
+� RECORD INWARD PURCHASE INVOICE                              �
+� Supplier: [ Sri Balaji Pharma   ] Inv #: [ BAL-9841       ] �
+� Date:     [ 2026-11-01          ] Branch:[ Vijayawada     ] �
++-------------------------------------------------------------�
+� Line Items:                                                 �
+� 1. Dolo 650      | Batch: B-771 | Exp: 2028-12 | Qty: 100   �
+�    Rate: ?24.50  | MRP: ?35.00  | Disc: 15%    | GST: 12%   �
+�                                                             �
+� Subtotal: ?2,082.50  |  Tax (12%): ?249.90  | Total: ?2,332 �
+� [ SAVE & CONFIRM PURCHASE INWARD ]                          �
++-------------------------------------------------------------+
 ```
 
 ### Steps to Record an Inward Invoice
@@ -381,16 +381,16 @@ The **Purchases Module** (`/purchases`) handles recording supplier tax invoices,
 Branch Pharmacists can submit procurement requisitions to corporate administration using **Indents** (`/indents`).
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│ CREATE INDENT REQUISITION                                   │
-│ Supplier (Optional): [ Micro Labs Ltd                    ] │
-│ Required By Date:    [ 2026-11-15                        ] │
-│ Instructions:        [ Emergency antibiotic restocking   ] │
-│ Requested Items:                                            │
-│ • Augmentin 625 mg  | Box  | Qty: 20 | Est Rate: ₹165.00    │
-│ • Pantocid 40 mg    | Box  | Qty: 30 | Est Rate: ₹110.00    │
-│ [ SUBMIT INDENT REQUISITION ]                               │
-└─────────────────────────────────────────────────────────────┘
++-------------------------------------------------------------+
+� CREATE INDENT REQUISITION                                   �
+� Supplier (Optional): [ Micro Labs Ltd                    ] �
+� Required By Date:    [ 2026-11-15                        ] �
+� Instructions:        [ Emergency antibiotic restocking   ] �
+� Requested Items:                                            �
+� � Augmentin 625 mg  | Box  | Qty: 20 | Est Rate: ?165.00    �
+� � Pantocid 40 mg    | Box  | Qty: 30 | Est Rate: ?110.00    �
+� [ SUBMIT INDENT REQUISITION ]                               �
++-------------------------------------------------------------+
 ```
 
 ### Requisition Lifecycle
@@ -405,15 +405,15 @@ Branch Pharmacists can submit procurement requisitions to corporate administrati
 Move medicines between company branches without purchasing new stock using **Transfers** (`/transfers`).
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│ INITIATE INTER-BRANCH STOCK TRANSFER                        │
-│ Source Branch:      [ Vijayawada Central Branch          ] │
-│ Destination Branch: [ Guntur Hospital Road Branch        ] │
-│ Medicine:           [ Dolo 650 (MED-001)                 ] │
-│ Batch Number:       [ DL-2026-X1 (Exp: 2028-12-31)       ] │
-│ Transfer Quantity:  [ 25 Strips                          ] │
-│ [ DISPATCH STOCK TRANSFER ]                                 │
-└─────────────────────────────────────────────────────────────┘
++-------------------------------------------------------------+
+� INITIATE INTER-BRANCH STOCK TRANSFER                        �
+� Source Branch:      [ Vijayawada Central Branch          ] �
+� Destination Branch: [ Guntur Hospital Road Branch        ] �
+� Medicine:           [ Dolo 650 (MED-001)                 ] �
+� Batch Number:       [ DL-2026-X1 (Exp: 2028-12-31)       ] �
+� Transfer Quantity:  [ 25 Strips                          ] �
+� [ DISPATCH STOCK TRANSFER ]                                 �
++-------------------------------------------------------------+
 ```
 
 ### Two-Step Transfer Protocol
@@ -456,20 +456,20 @@ If an audit reveals physical discrepancies (spillage, breakage, or recount adjus
 The **POS Billing** console (`/pos`) is engineered for rapid counter checkout with full keyboard accessibility and seamless navigation.
 
 ```
-┌───────────────────────────────────────────────────────────────────────────┐
-│ [F2] Search: [ Dolo 650                                ] [Barcode Scan]   │
-├───────────────────────────────────────────────────────────────────────────┤
-│ Active Cart Items:                                                        │
-│ 1. Dolo 650 (Paracetamol) | Batch: B-771 (Exp: 2028-12)                   │
-│    Qty: [ 2 ] Strip | MRP: ₹35.00 | Disc: [ 5 ]% | GST: 12% | Total: ₹66.50 │
-├──────────────────────────────────────────────────────────┬────────────────┤
-│ Customer Name:  [ Rajesh Sharma                        ] │ Subtotal: ₹62.7│
-│ Mobile Number:  [ 9876543210                           ] │ Tax:      ₹3.8 │
-│ Doctor Name:    [ Dr. K. Rao (Reg: AP-4421)            ] │ Disc:     ₹3.5 │
-│ Payment Mode:   (•) Cash   ( ) UPI   ( ) Card   ( ) Credit│ GRAND:   ₹67.0 │
-│                                                          ├────────────────┤
-│ [F4] COMPLETE SALE & CHECKOUT                            │ [CLEAR CART]   │
-└──────────────────────────────────────────────────────────┴────────────────┘
++---------------------------------------------------------------------------+
+� [F2] Search: [ Dolo 650                                ] [Barcode Scan]   �
++---------------------------------------------------------------------------�
+� Active Cart Items:                                                        �
+� 1. Dolo 650 (Paracetamol) | Batch: B-771 (Exp: 2028-12)                   �
+�    Qty: [ 2 ] Strip | MRP: ?35.00 | Disc: [ 5 ]% | GST: 12% | Total: ?66.50 �
++---------------------------------------------------------------------------�
+� Customer Name:  [ Rajesh Sharma                        ] � Subtotal: ?62.7�
+� Mobile Number:  [ 9876543210                           ] � Tax:      ?3.8 �
+� Doctor Name:    [ Dr. K. Rao (Reg: AP-4421)            ] � Disc:     ?3.5 �
+� Payment Mode:   (�) Cash   ( ) UPI   ( ) Card   ( ) Credit� GRAND:   ?67.0 �
+�                                                          +----------------�
+� [F4] COMPLETE SALE & CHECKOUT                            � [CLEAR CART]   �
++---------------------------------------------------------------------------+
 ```
 
 ### Complete Global Keyboard Shortcuts Suite
