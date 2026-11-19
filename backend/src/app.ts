@@ -22,38 +22,33 @@ import stockMonitoringRoutes from './modules/inventory/stockMonitoring.routes';
 const app = express();
 
 const allowedOrigins = [
-  'https://confidospharma-b3lv.vercel.app',
-  'https://confidospharma.onrender.com',
+  'https://confidospharma.vercel.app',
   'http://localhost:3000',
   'http://localhost:5173',
   'http://localhost:4173',
+  'http://127.0.0.1:3000',
+  'http://127.0.0.1:5173',
+  'http://127.0.0.1:4173',
   process.env.FRONTEND_URL,
 ].filter(Boolean) as string[];
 
+function isOriginAllowed(origin?: string): boolean {
+  if (!origin) return true;
+  const clean = origin.trim().replace(/\/+$/, '');
+  return (
+    clean === 'https://confidospharma.vercel.app' ||
+    clean.startsWith('http://localhost:') ||
+    clean.startsWith('http://127.0.0.1:') ||
+    allowedOrigins.some((ao) => ao.trim().replace(/\/+$/, '') === clean)
+  );
+}
+
 const corsOptions: cors.CorsOptions = {
   origin: (origin, callback) => {
-    // Allow non-browser requests (mobile, curl, server-to-server)
-    if (!origin) return callback(null, true);
-
-    try {
-      const parsed = new URL(origin);
-      const hostname = parsed.hostname;
-      if (
-        allowedOrigins.includes(origin) ||
-        hostname.endsWith('.vercel.app') ||
-        hostname.endsWith('.onrender.com') ||
-        hostname === 'localhost' ||
-        hostname === '127.0.0.1' ||
-        process.env.NODE_ENV !== 'production'
-      ) {
-        return callback(null, true);
-      }
-    } catch {
-      if (allowedOrigins.includes(origin)) {
-        return callback(null, true);
-      }
+    if (!origin || isOriginAllowed(origin)) {
+      return callback(null, true);
     }
-    return callback(null, true); // Permissive fallback to echo origin for preview deploys
+    return callback(new Error(`CORS policy: Origin ${origin} not allowed.`));
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS', 'HEAD'],
@@ -120,7 +115,7 @@ app.use('/api/stock-monitoring', stockMonitoringRoutes);
 // Centralized 404 handler
 app.use((req: Request, res: Response) => {
   const origin = req.headers.origin;
-  if (origin) {
+  if (origin && isOriginAllowed(origin)) {
     res.setHeader('Access-Control-Allow-Origin', origin);
     res.setHeader('Access-Control-Allow-Credentials', 'true');
   }
@@ -131,7 +126,7 @@ app.use((req: Request, res: Response) => {
 app.use((err: any, req: Request, res: Response, next: NextFunction) => {
   console.error('Unhandled Server Error:', err);
   const origin = req.headers.origin;
-  if (origin) {
+  if (origin && isOriginAllowed(origin)) {
     res.setHeader('Access-Control-Allow-Origin', origin);
     res.setHeader('Access-Control-Allow-Credentials', 'true');
   }

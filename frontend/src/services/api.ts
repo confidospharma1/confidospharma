@@ -1,4 +1,4 @@
-const PRIMARY_RENDER_API = 'https://confidospharma.onrender.com/api';
+const PRIMARY_RENDER_API = 'https://confidospharma-tm8i.onrender.com/api';
 
 const getBaseUrl = (): string => {
   const envUrl = import.meta.env.VITE_API_URL;
