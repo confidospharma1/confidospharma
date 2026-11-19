@@ -247,8 +247,8 @@ export const uploadAndPreviewImport = async (req: Request, res: Response) => {
         duplicateRows: duplicateCount,
         estimatedStockUnits: importType === 'STOCK_RECEIPT' ? estimatedStockUnits : undefined,
       },
-      previewRows: validatedRows.slice(0, 50), // Send first 50 rows for fast UI table preview
-      hasMore: validatedRows.length > 50,
+      previewRows: validatedRows,
+      hasMore: false,
     });
   } catch (error: any) {
     console.error('Import preview error:', error);
@@ -276,7 +276,7 @@ export const getImportJob = async (req: Request, res: Response) => {
     return res.json({
       ...job,
       stagingData: undefined, // Don't send huge raw string
-      rows: rows.slice(0, 100),
+      rows: rows,
       totalRowsCount: rows.length,
     });
   } catch (error) {
