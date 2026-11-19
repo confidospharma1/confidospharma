@@ -318,7 +318,7 @@ export const commitImportJob = async (req: Request, res: Response) => {
       let codeCounter = await tx.medicineProduct.count();
 
       for (const row of validRows) {
-        const stripUnitQty = row.stripUnitQuantity && row.stripUnitQuantity > 0 ? row.stripUnitQuantity : 10;
+        const stripUnitQty = row.stripUnitQuantity && row.stripUnitQuantity > 0 ? row.stripUnitQuantity : 1;
         const stripQtyInBox = row.stripQuantityInBox && row.stripQuantityInBox > 0 ? row.stripQuantityInBox : 1;
         const totalUnits = row.totalUnits || (stripQtyInBox * stripUnitQty);
         const physicalUnits = row.pharmacyPhysicalUnits !== undefined && row.pharmacyPhysicalUnits !== null ? row.pharmacyPhysicalUnits : totalUnits;

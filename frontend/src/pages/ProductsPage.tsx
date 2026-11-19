@@ -729,7 +729,7 @@ export const ProductsPage: React.FC = () => {
                     </td>
                     <td className="py-3 px-3 text-slate-600 truncate max-w-[140px]">{p.manufacturer}</td>
                     <td className="py-3 px-3 text-center font-mono text-[11px] text-slate-700">
-                      {p.stripUnitQuantity || p.conversionFactor || 10} Tabs / Strip
+                      {p.stripUnitQuantity || p.conversionFactor || 1} Units / Strip
                     </td>
                     <td className="py-3 px-3 text-center bg-emerald-50/10">
                       {(p.totalAvailableStock || 0) > 0 ? (
@@ -751,7 +751,7 @@ export const ProductsPage: React.FC = () => {
                       ₹{(p.stripMrpPrice || p.mrp || 0).toFixed(2)}
                     </td>
                     <td className="py-3 px-3 text-right font-mono font-bold text-emerald-800 bg-emerald-50/20">
-                      ₹{(p.unitSellingPrice || ((p.stripMrpPrice || p.mrp || 0) / (p.stripUnitQuantity || p.conversionFactor || 10))).toFixed(2)}
+                      ₹{(p.unitSellingPrice || ((p.stripMrpPrice || p.mrp || 0) / (p.stripUnitQuantity || p.conversionFactor || 1))).toFixed(2)}
                     </td>
                     {!isBillingUser && (
                       <td className="py-3 px-4 text-center">

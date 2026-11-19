@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { api } from '../services/api';
 import { SalesInvoice } from '../types';
-import { Receipt, Search, Printer, Ban, AlertCircle, Filter, X } from 'lucide-react';
+import { Receipt, Search, Printer, MessageCircle, Ban, AlertCircle, Filter, X } from 'lucide-react';
 import { Badge } from '../components/Badge';
 import { Modal } from '../components/Modal';
 import { ReceiptModal } from '../components/ReceiptModal';
@@ -334,11 +334,11 @@ export const InvoicesPage: React.FC = () => {
                       <div className="flex items-center justify-end gap-2">
                         <button
                           onClick={() => handleOpenReceipt(inv.id)}
-                          className="flex items-center gap-1 px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded text-xs transition-colors"
-                          title="Print or view tax invoice"
+                          className="flex items-center gap-1 px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-semibold rounded text-xs transition-colors border border-emerald-200"
+                          title="View digital invoice and send to WhatsApp"
                         >
-                          <Printer className="w-3.5 h-3.5" />
-                          <span>Receipt</span>
+                          <MessageCircle className="w-3.5 h-3.5 text-emerald-600" />
+                          <span>Digital Bill</span>
                         </button>
                         {inv.status === 'COMPLETED' && !isBillingUser && (
                           <button

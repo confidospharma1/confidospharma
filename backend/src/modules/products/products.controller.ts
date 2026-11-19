@@ -260,7 +260,7 @@ export const createProduct = async (req: Request, res: Response) => {
 
     const stripUnitQty = stripUnitQuantity && parseInt(String(stripUnitQuantity)) > 0
       ? parseInt(String(stripUnitQuantity))
-      : (conversionFactor && parseInt(String(conversionFactor)) > 0 ? parseInt(String(conversionFactor)) : 10);
+      : (conversionFactor && parseInt(String(conversionFactor)) > 0 ? parseInt(String(conversionFactor)) : 1);
     const stripQtyInBox = stripQuantityInBox && parseInt(String(stripQuantityInBox)) > 0
       ? parseInt(String(stripQuantityInBox))
       : 1;
@@ -520,7 +520,7 @@ export const updateProduct = async (req: Request, res: Response) => {
         ...(packSize && { packSize: packSize.trim() }),
         ...(baseUnit && { baseUnit: baseUnit.trim() }),
         ...(packageUnit !== undefined && { packageUnit: packageUnit ? packageUnit.trim() : null }),
-        ...(conversionFactor !== undefined && { conversionFactor: conversionFactor !== null && !isNaN(parseInt(conversionFactor)) ? Math.max(1, parseInt(conversionFactor)) : 10 }),
+        ...(conversionFactor !== undefined && { conversionFactor: conversionFactor !== null && !isNaN(parseInt(conversionFactor)) ? Math.max(1, parseInt(conversionFactor)) : 1 }),
         ...(hsnCode !== undefined && { hsnCode: hsnCode ? hsnCode.trim() : null }),
         ...(gstRate !== undefined && { gstRate: parseFloat(gstRate) }),
         ...(mrp !== undefined && { mrp: parseFloat(mrp) }),

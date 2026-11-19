@@ -1067,7 +1067,7 @@ export function calculatePharmaRowUnitsAndPrices(mapped: Record<string, any>): P
 
   // If one of them is provided or fallbacks:
   let stripQuantityInBox = !isNaN(stripQtyInBoxRaw) && stripQtyInBoxRaw > 0 ? stripQtyInBoxRaw : 1;
-  let stripUnitQuantity = !isNaN(stripUnitQtyRaw) && stripUnitQtyRaw > 0 ? stripUnitQtyRaw : 10;
+  let stripUnitQuantity = !isNaN(stripUnitQtyRaw) && stripUnitQtyRaw > 0 ? stripUnitQtyRaw : 1;
 
   // Total Units (Column H: Strip Quantity in Box * Strip Unit Quantity)
   let totalUnits = parseCleanInt(mapped.totalUnits, NaN);

@@ -42,7 +42,7 @@ export function buildProductUnitConfig(
       const parsed = JSON.parse(customConfigJson);
       if (parsed && typeof parsed === 'object') {
         if (parsed.stripUnitQuantity || (parsed.supportedUnits && Array.isArray(parsed.supportedUnits))) {
-          const stripUnitQty = parsed.stripUnitQuantity || conversionFactorInput || 10;
+          const stripUnitQty = parsed.stripUnitQuantity || conversionFactorInput || 1;
           return {
             baseUnit: 'Tablet',
             packageUnit: 'Strip',

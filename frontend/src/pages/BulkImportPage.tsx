@@ -526,13 +526,13 @@ export const BulkImportPage: React.FC = () => {
                           {r.stripQuantityInBox !== undefined ? r.stripQuantityInBox : (r.quantity || 1)}
                         </td>
                         <td className="py-2 px-3 text-center font-mono font-semibold">
-                          {r.stripUnitQuantity !== undefined ? r.stripUnitQuantity : 10}
+                          {r.stripUnitQuantity !== undefined ? r.stripUnitQuantity : 1}
                         </td>
                         <td className="py-2 px-3 text-center font-mono font-bold text-slate-800">
-                          {r.totalUnits !== undefined ? r.totalUnits : (r.quantity || 10)}
+                          {r.totalUnits !== undefined ? r.totalUnits : (r.quantity || 1)}
                         </td>
                         <td className="py-2 px-3 text-center font-mono font-bold text-emerald-800 bg-emerald-50/40">
-                          {r.pharmacyPhysicalUnits !== undefined ? r.pharmacyPhysicalUnits : (r.totalUnits || r.quantity || 10)}
+                          {r.pharmacyPhysicalUnits !== undefined ? r.pharmacyPhysicalUnits : (r.totalUnits || r.quantity || 1)}
                         </td>
                         <td className="py-2 px-3 text-right font-mono text-slate-700">
                           ₹{Number(r.stripPurchasePrice !== undefined ? r.stripPurchasePrice : (r.purchaseRate || 0)).toFixed(2)}
@@ -541,10 +541,10 @@ export const BulkImportPage: React.FC = () => {
                           ₹{Number(r.stripMrpPrice !== undefined ? r.stripMrpPrice : (r.mrp || 0)).toFixed(2)}
                         </td>
                         <td className="py-2 px-3 text-right font-mono text-blue-700">
-                          ₹{Number(r.purchaseUnitPrice !== undefined ? r.purchaseUnitPrice : (r.stripUnitQuantity ? ((r.stripPurchasePrice || r.purchaseRate || 0) / r.stripUnitQuantity) : 0)).toFixed(2)}
+                          ₹{Number(r.purchaseUnitPrice !== undefined ? r.purchaseUnitPrice : (r.stripUnitQuantity ? ((r.stripPurchasePrice || r.purchaseRate || 0) / r.stripUnitQuantity) : (r.stripPurchasePrice || r.purchaseRate || 0))).toFixed(2)}
                         </td>
                         <td className="py-2 px-3 text-right font-mono font-black text-emerald-900 bg-emerald-50/40">
-                          ₹{Number(r.unitSellingPrice !== undefined ? r.unitSellingPrice : (r.stripUnitQuantity ? ((r.stripMrpPrice || r.mrp || 0) / r.stripUnitQuantity) : 0)).toFixed(2)}
+                          ₹{Number(r.unitSellingPrice !== undefined ? r.unitSellingPrice : (r.stripUnitQuantity ? ((r.stripMrpPrice || r.mrp || 0) / r.stripUnitQuantity) : (r.stripMrpPrice || r.mrp || 0))).toFixed(2)}
                         </td>
                         <td className="py-2 px-4 text-[11px]">
                           {r.errors && r.errors.length > 0 && (

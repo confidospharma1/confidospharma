@@ -1,7 +1,9 @@
-import React, { useRef } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import { SalesInvoice } from '../types';
-import { Printer, Download, CheckCircle2 } from 'lucide-react';
+import { CheckCircle2, MessageCircle, Send, Copy, Check, Printer, Smartphone, Building2 } from 'lucide-react';
 import { Modal } from './Modal';
+
+export const OFFICE_PHONE = '6302931223';
 
 interface ReceiptModalProps {
   isOpen: boolean;
@@ -9,18 +11,102 @@ interface ReceiptModalProps {
   invoice: SalesInvoice | null;
 }
 
+/**
+ * Formats a lightweight plain-text digital receipt (< 1 KB) optimized for WhatsApp delivery.
+ * Contains all GST, batch, expiry, and legal details without heavy PDF overhead.
+ */
+export const formatWhatsAppBillText = (invoice: SalesInvoice, officeNumber = OFFICE_PHONE): string => {
+  const branch = invoice.branch;
+  const createdDate = new Date(invoice.createdAt);
+  const formattedDate = createdDate.toLocaleDateString('en-IN', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+  });
+  const formattedTime = createdDate.toLocaleTimeString('en-IN', {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: true,
+  });
+
+  const linesText = (invoice.lines || [])
+    .map((line, idx) => {
+      const expStr = line.expiryDate
+        ? new Date(line.expiryDate).toLocaleDateString('en-IN', { month: '2-digit', year: '2-digit' })
+        : '-';
+      const discStr = line.discountPercent > 0 ? ` (Disc ${line.discountPercent}%)` : '';
+      return `${idx + 1}. *${line.medicineName}*\n   Batch: ${line.batchNumber} | Exp: ${expStr}\n   Qty: ${line.quantity} ${line.unit || 'units'} x ₹${line.unitMrp.toFixed(2)} = *₹${line.lineTotal.toFixed(2)}*${discStr}`;
+    })
+    .join('\n\n');
+
+  let text = `🏥 *CONFIDOS PHARMA*\n`;
+  if (branch?.name) text += `📍 *${branch.name}*\n`;
+  if (branch?.address) text += `${branch.address}\n`;
+  if (branch?.gstin) text += `GSTIN: ${branch.gstin} `;
+  if (branch?.drugLicenseNo) text += `| DL: ${branch.drugLicenseNo}`;
+  text += `\n📞 *Office/Helpline: ${officeNumber}*\n`;
+  text += `━━━━━━━━━━━━━━━━━━━━━\n`;
+  text += `🧾 *DIGITAL TAX INVOICE*\n`;
+  text += `━━━━━━━━━━━━━━━━━━━━━\n`;
+  text += `*Invoice No:* #${invoice.invoiceNumber}\n`;
+  text += `*Date:* ${formattedDate} ${formattedTime}\n`;
+  text += `*Customer:* ${invoice.customerName || 'Retail Customer'}\n`;
+  if (invoice.customerPhone) text += `*Mobile:* ${invoice.customerPhone}\n`;
+  if (invoice.doctorName) text += `*Doctor:* ${invoice.doctorName}\n`;
+  text += `*Payment Mode:* ${invoice.paymentMethod}\n`;
+  text += `━━━━━━━━━━━━━━━━━━━━━\n`;
+  text += `*ITEMS DISPENSED:*\n\n`;
+  text += `${linesText}\n\n`;
+  text += `━━━━━━━━━━━━━━━━━━━━━\n`;
+  text += `Taxable Value: ₹${invoice.subtotal.toFixed(2)}\n`;
+  if (invoice.discountTotal > 0) {
+    text += `Discount Saved: -₹${invoice.discountTotal.toFixed(2)}\n`;
+  }
+  text += `CGST: ₹${invoice.cgstTotal.toFixed(2)}\n`;
+  text += `SGST: ₹${invoice.sgstTotal.toFixed(2)}\n`;
+  text += `Total GST: ₹${invoice.taxTotal.toFixed(2)}\n`;
+  if (invoice.roundOff !== 0) {
+    text += `Round-off: ${invoice.roundOff > 0 ? `+₹${invoice.roundOff.toFixed(2)}` : `-₹${Math.abs(invoice.roundOff).toFixed(2)}`}\n`;
+  }
+  text += `━━━━━━━━━━━━━━━━━━━━━\n`;
+  text += `💰 *NET PAYABLE: ₹${invoice.grandTotal.toFixed(2)}*\n`;
+  text += `━━━━━━━━━━━━━━━━━━━━━\n`;
+  text += `🙏 *Thank you for choosing Confidos Pharma!*\n`;
+  text += `_Eco-friendly Digital Invoice (< 1 KB) saved securely in system._\n`;
+  text += `_For refills or support, contact office: *${officeNumber}*_\n`;
+
+  return text;
+};
+
+export const getWhatsAppSendUrl = (phoneNumber: string, text: string): string => {
+  const cleanDigits = (phoneNumber || '').replace(/\D/g, '');
+  const fullNumber = cleanDigits.length === 10 ? `91${cleanDigits}` : cleanDigits;
+  return `https://api.whatsapp.com/send?phone=${fullNumber}&text=${encodeURIComponent(text)}`;
+};
+
 export const ReceiptModal: React.FC<ReceiptModalProps> = ({
   isOpen,
   onClose,
   invoice,
 }) => {
   const receiptRef = useRef<HTMLDivElement>(null);
+  const [customerPhoneInput, setCustomerPhoneInput] = useState('');
+  const [copied, setCopied] = useState(false);
+  const [sentCustomer, setSentCustomer] = useState(false);
+  const [sentOffice, setSentOffice] = useState(false);
+  const [phoneError, setPhoneError] = useState('');
+
+  useEffect(() => {
+    if (invoice) {
+      setCustomerPhoneInput(invoice.customerPhone || '');
+      setCopied(false);
+      setSentCustomer(false);
+      setSentOffice(false);
+      setPhoneError('');
+    }
+  }, [invoice]);
 
   if (!invoice) return null;
-
-  const handlePrint = () => {
-    window.print();
-  };
 
   const branch = invoice.branch;
   const createdDate = new Date(invoice.createdAt);
@@ -32,56 +118,190 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
   const formattedTime = createdDate.toLocaleTimeString('en-IN', {
     hour: '2-digit',
     minute: '2-digit',
+    hour12: true,
   });
 
+  const billText = formatWhatsAppBillText(invoice, OFFICE_PHONE);
+
+  const handleSendToCustomer = () => {
+    const cleanDigits = customerPhoneInput.replace(/\D/g, '');
+    if (!cleanDigits || cleanDigits.length < 10) {
+      setPhoneError('Please enter a valid 10-digit WhatsApp phone number.');
+      return;
+    }
+    setPhoneError('');
+    const url = getWhatsAppSendUrl(customerPhoneInput, billText);
+    window.open(url, '_blank');
+    setSentCustomer(true);
+    setTimeout(() => setSentCustomer(false), 4000);
+  };
+
+  const handleSendToOffice = () => {
+    const url = getWhatsAppSendUrl(OFFICE_PHONE, billText);
+    window.open(url, '_blank');
+    setSentOffice(true);
+    setTimeout(() => setSentOffice(false), 4000);
+  };
+
+  const handleCopyText = async () => {
+    try {
+      await navigator.clipboard.writeText(billText);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 3000);
+    } catch {
+      // Fallback
+    }
+  };
+
+  const handleOptionalPrint = () => {
+    window.print();
+  };
+
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Tax Invoice & Receipt" maxWidth="2xl">
-      <div className="space-y-6">
-        {/* Success header */}
-        <div className="flex items-center gap-3 p-3 bg-pharmagreen-50 border border-pharmagreen-200 rounded-lg text-pharmagreen-800 text-sm print:hidden">
-          <CheckCircle2 className="w-5 h-5 text-pharmagreen-600 flex-shrink-0" />
-          <div>
-            <span className="font-semibold">Invoice Generated Successfully!</span> Stock has been deducted from the branch inventory.
+    <Modal isOpen={isOpen} onClose={onClose} title="Digital Tax Invoice & WhatsApp Bill" maxWidth="2xl">
+      <div className="space-y-4">
+        {/* Success / Status header */}
+        <div className="flex items-center gap-3 p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-800 text-xs sm:text-sm print:hidden">
+          <CheckCircle2 className="w-5 h-5 text-emerald-600 flex-shrink-0" />
+          <div className="flex-1">
+            <span className="font-bold">Invoice #{invoice.invoiceNumber} Saved to Database!</span>
+            <span className="block text-[11px] text-emerald-700">
+              Stock deducted from branch. Digital bill ready for WhatsApp delivery (No PDF required • lightweight &lt; 1 KB).
+            </span>
           </div>
         </div>
 
-        {/* Action buttons */}
-        <div className="flex items-center justify-between gap-3 print:hidden">
-          <div className="text-xs text-slate-500">
-            Use standard <kbd className="px-1.5 py-0.5 bg-slate-100 border border-slate-300 rounded text-slate-700">Ctrl+P</kbd> or click Print.
+        {/* WhatsApp Dispatch Control Panel */}
+        <div className="bg-slate-50 border border-emerald-200/80 rounded-xl p-3.5 print:hidden space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className="p-1.5 bg-emerald-600 text-white rounded-lg">
+                <MessageCircle className="w-4 h-4" />
+              </span>
+              <div>
+                <h4 className="text-xs font-bold text-slate-800">Send Digital Bill to WhatsApp</h4>
+                <p className="text-[10px] text-slate-500">
+                  Instant paperless bill sent directly to customer's mobile number.
+                </p>
+              </div>
+            </div>
+            <span className="text-[10px] font-mono font-semibold px-2 py-0.5 bg-emerald-100 text-emerald-800 rounded-full">
+              Size: ~{Math.round(billText.length / 1024 * 10) / 10 || '< 1'} KB
+            </span>
           </div>
-          <button
-            onClick={handlePrint}
-            className="flex items-center gap-2 px-4 py-2 bg-brand-500 hover:bg-brand-600 active:bg-brand-700 text-white rounded-lg font-medium shadow-xs transition-colors focus:ring-2 focus:ring-brand-500"
-          >
-            <Printer className="w-4 h-4" />
-            Print Receipt
-          </button>
+
+          {/* Customer Phone Input and Send Button */}
+          <div className="space-y-1.5">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+              <div className="relative flex-1">
+                <div className="absolute inset-y-0 left-0 pl-2.5 flex items-center pointer-events-none text-slate-400">
+                  <Smartphone className="w-3.5 h-3.5" />
+                </div>
+                <input
+                  type="text"
+                  maxLength={15}
+                  value={customerPhoneInput}
+                  onChange={(e) => {
+                    setCustomerPhoneInput(e.target.value);
+                    if (phoneError) setPhoneError('');
+                  }}
+                  placeholder="Customer WhatsApp Number (10 digits)"
+                  className="w-full pl-8 pr-3 py-2 text-xs bg-white border border-slate-300 rounded-lg focus:outline-hidden focus:ring-2 focus:ring-emerald-500 font-mono"
+                />
+              </div>
+
+              <button
+                type="button"
+                onClick={handleSendToCustomer}
+                className="flex items-center justify-center gap-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white rounded-lg text-xs font-bold shadow-xs transition-colors"
+              >
+                {sentCustomer ? (
+                  <>
+                    <Check className="w-4 h-4 text-white" />
+                    Opening WhatsApp...
+                  </>
+                ) : (
+                  <>
+                    <Send className="w-3.5 h-3.5" />
+                    Send to Customer WhatsApp
+                  </>
+                )}
+              </button>
+            </div>
+
+            {phoneError && (
+              <p className="text-[11px] text-rose-600 font-medium pl-1">{phoneError}</p>
+            )}
+          </div>
+
+          {/* Secondary Actions: Copy and Send to Office */}
+          <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-200 text-xs">
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={handleSendToOffice}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-300 hover:bg-slate-100 text-slate-700 rounded-lg text-[11px] font-semibold transition-colors"
+                title="Send a copy of this bill to office WhatsApp number"
+              >
+                <Building2 className="w-3.5 h-3.5 text-emerald-600" />
+                {sentOffice ? 'Sent to Office!' : `Copy to Office (${OFFICE_PHONE})`}
+              </button>
+
+              <button
+                type="button"
+                onClick={handleCopyText}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-300 hover:bg-slate-100 text-slate-700 rounded-lg text-[11px] font-semibold transition-colors"
+              >
+                {copied ? (
+                  <>
+                    <Check className="w-3.5 h-3.5 text-emerald-600" />
+                    Copied!
+                  </>
+                ) : (
+                  <>
+                    <Copy className="w-3.5 h-3.5 text-slate-500" />
+                    Copy Bill Text
+                  </>
+                )}
+              </button>
+            </div>
+
+            {/* Optional Print Button (non-intrusive fallback) */}
+            <button
+              type="button"
+              onClick={handleOptionalPrint}
+              className="text-[11px] text-slate-400 hover:text-slate-600 flex items-center gap-1 py-1 px-2"
+              title="Print only if paper thermal copy is specifically requested"
+            >
+              <Printer className="w-3 h-3" />
+              Optional: Print Thermal
+            </button>
+          </div>
         </div>
 
-        {/* Printable Invoice Container - Formatted for 3-inch (76mm–80mm) Thermal Printer */}
+        {/* Printable / Preview Invoice Container */}
         <div
           id="printable-receipt"
           ref={receiptRef}
           className="border border-slate-300 rounded-xl p-5 bg-white font-mono text-[11px] text-slate-800 leading-normal shadow-sm w-full max-w-[340px] sm:max-w-[350px] mx-auto text-center"
         >
-          {/* Centered Logo on the very top */}
+          {/* Centered Logo on top */}
           <div className="mb-2.5">
             <img
               src="/confidos-logo.png"
               alt="Confidos Pharma"
               className="h-10 w-auto max-w-[150px] object-contain mx-auto block mb-1.5"
             />
-            {/* Pharmacy Branch & Legal Info - Centered under the logo */}
+            {/* Pharmacy Branch & Legal Info */}
             <h2 className="text-xs font-bold text-slate-900 tracking-wide uppercase">
               {branch?.name || 'Central Pharmacy Branch'}
             </h2>
             {branch?.address && (
               <p className="text-[10px] text-slate-600 mt-0.5 leading-tight">{branch.address}</p>
             )}
-            {branch?.phone && (
-              <p className="text-[10px] text-slate-600 leading-tight">Tel: {branch.phone}</p>
-            )}
+            <p className="text-[10px] text-emerald-800 font-semibold mt-0.5 leading-tight">
+              Office / Helpline: {OFFICE_PHONE}
+            </p>
             <div className="flex flex-wrap items-center justify-center gap-x-2.5 text-[9.5px] text-slate-700 mt-0.5">
               <span><strong>GSTIN:</strong> {branch?.gstin || 'N/A'}</span>
               {branch?.drugLicenseNo && <span><strong>DL:</strong> {branch.drugLicenseNo}</span>}
@@ -91,7 +311,7 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
             </div>
           </div>
 
-          {/* Invoice & Patient Details - Centered Block with Spacing */}
+          {/* Invoice & Patient Details */}
           <div className="border-t border-b border-dashed border-slate-300 py-2.5 my-2.5 text-[10px] space-y-1 text-slate-700">
             <div className="flex justify-between items-center px-1">
               <span className="font-semibold text-slate-600">Invoice No:</span>
@@ -106,7 +326,7 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
               <span className="font-bold text-brand-700 uppercase">{invoice.paymentMethod}</span>
             </div>
             <div className="flex justify-between items-center px-1">
-              <span className="font-semibold text-slate-600">Patient/Customer:</span>
+              <span className="font-semibold text-slate-600">Customer:</span>
               <span className="font-bold text-slate-900">{invoice.customerName || 'Retail Customer'}</span>
             </div>
             {invoice.customerPhone && (
@@ -123,7 +343,7 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
             )}
           </div>
 
-          {/* Items Table - Scaled for 3-inch (76mm) thermal rolls without clipping */}
+          {/* Items Table */}
           <div className="w-full mb-2.5">
             <table className="w-full text-left text-[10px] border-collapse">
               <thead>
@@ -135,7 +355,7 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200">
-                {invoice.lines.map((line, idx) => {
+                {(invoice.lines || []).map((line, idx) => {
                   const expStr = line.expiryDate
                     ? new Date(line.expiryDate).toLocaleDateString('en-IN', { month: '2-digit', year: '2-digit' })
                     : '-';
@@ -178,7 +398,7 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
             </div>
             {invoice.discountTotal > 0 && (
               <div className="flex justify-between px-1 text-emerald-700 font-semibold">
-                <span>Discount ({((invoice.discountTotal / (invoice.subtotal + invoice.discountTotal)) * 100).toFixed(1)}%):</span>
+                <span>Discount Saved:</span>
                 <span className="font-mono">-₹{invoice.discountTotal.toFixed(2)}</span>
               </div>
             )}
@@ -191,7 +411,7 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
               <span className="font-mono">₹{invoice.sgstTotal.toFixed(2)}</span>
             </div>
             <div className="flex justify-between px-1 text-slate-700 font-semibold">
-              <span>Total GST ({invoice.subtotal > 0 ? ((invoice.taxTotal / invoice.subtotal) * 100).toFixed(1) : '5.0'}%):</span>
+              <span>Total GST:</span>
               <span className="font-mono">₹{invoice.taxTotal.toFixed(2)}</span>
             </div>
             {invoice.roundOff !== 0 && (
@@ -208,9 +428,9 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
 
           {/* Footer terms */}
           <div className="mt-3 pt-2.5 border-t border-dashed border-slate-300 text-center text-[8.5px] text-slate-500 space-y-0.5">
-            <p>Medicines once sold will be taken back only within 7 days in original pack with this bill.</p>
-            <p>Schedule H / H1 drugs dispensed strictly on registered medical practitioner prescription.</p>
+            <p>Medicines once sold will be taken back only within 7 days in original pack with this digital bill.</p>
             <p className="font-bold text-slate-800 mt-1">*** Thank you for choosing Confidos Pharma ***</p>
+            <p className="text-emerald-800 font-semibold">Customer Helpline / Office: {OFFICE_PHONE}</p>
             <p className="text-slate-500">Wish you a speedy recovery!</p>
           </div>
         </div>

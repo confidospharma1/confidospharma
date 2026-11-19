@@ -566,16 +566,16 @@ export const PurchasesPage: React.FC<PurchasesPageProps> = ({ prefilledIndent, o
         item.hsnCode = prod.hsnCode || '30049099';
         item.gstRate = prod.gstRate !== undefined ? prod.gstRate : configuredCombinedGST;
         item.stripQuantityInBox = parsedConfig?.stripQuantityInBox || prod.stripQuantityInBox || item.stripQuantityInBox || 10;
-        item.stripUnitQuantity = parsedConfig?.stripUnitQuantity || prod.stripUnitQuantity || prod.conversionFactor || 10;
-        item.stripPurchasePrice = parsedConfig?.stripPurchasePrice || prod.stripPurchasePrice || prod.defaultPurchaseRate || 10;
-        item.stripMrpPrice = parsedConfig?.stripMrpPrice || prod.stripMrpPrice || prod.mrp || 20;
-        item.totalUnits = (item.stripQuantityInBox || 10) * (item.stripUnitQuantity || 10);
+        item.stripUnitQuantity = parsedConfig?.stripUnitQuantity || prod.stripUnitQuantity || prod.conversionFactor || 1;
+        item.stripPurchasePrice = parsedConfig?.stripPurchasePrice || prod.stripPurchasePrice || prod.defaultPurchaseRate || 0;
+        item.stripMrpPrice = parsedConfig?.stripMrpPrice || prod.stripMrpPrice || prod.mrp || 0;
+        item.totalUnits = (item.stripQuantityInBox || 1) * (item.stripUnitQuantity || 1);
         item.pharmacyPhysicalUnits = item.totalUnits;
-        item.purchaseUnitPrice = Number(((item.stripPurchasePrice || 10) / (item.stripUnitQuantity || 10)).toFixed(2));
-        item.unitSellingPrice = Number(((item.stripMrpPrice || 20) / (item.stripUnitQuantity || 10)).toFixed(2));
-        item.quantity = item.stripQuantityInBox || 10;
-        item.conversionFactor = item.stripUnitQuantity || 10;
-        item.purchaseRate = item.stripPurchasePrice || 10;
+        item.purchaseUnitPrice = Number(((item.stripPurchasePrice || 0) / (item.stripUnitQuantity || 1)).toFixed(2));
+        item.unitSellingPrice = Number(((item.stripMrpPrice || 0) / (item.stripUnitQuantity || 1)).toFixed(2));
+        item.quantity = item.stripQuantityInBox || 1;
+        item.conversionFactor = item.stripUnitQuantity || 1;
+        item.purchaseRate = item.stripPurchasePrice || 0;
         item.mrp = item.stripMrpPrice || 20;
         item.sellingRate = item.stripMrpPrice || 20;
         item.unit = 'Strip';
@@ -726,7 +726,7 @@ export const PurchasesPage: React.FC<PurchasesPageProps> = ({ prefilledIndent, o
       quantity: Number(it.stripQuantityInBox || it.quantity) || 1,
       freeQuantity: Number(it.freeQuantity) || 0,
       unit: 'Strip',
-      conversionFactor: Number(it.stripUnitQuantity || it.conversionFactor || 10),
+      conversionFactor: Number(it.stripUnitQuantity || it.conversionFactor || 1),
       purchaseRate: Number(it.stripPurchasePrice || it.purchaseRate) || 0,
       sellingRate: Number(it.stripMrpPrice || it.sellingRate || it.mrp) || 0,
       mrp: Number(it.stripMrpPrice || it.mrp) || 0,
@@ -990,7 +990,7 @@ export const PurchasesPage: React.FC<PurchasesPageProps> = ({ prefilledIndent, o
         notes,
         lines: lines.map((l) => {
           const sq = Number(l.stripQuantityInBox !== undefined ? l.stripQuantityInBox : l.quantity) || 1;
-          const su = Number(l.stripUnitQuantity !== undefined ? l.stripUnitQuantity : (l.conversionFactor || 10)) || 10;
+          const su = Number(l.stripUnitQuantity !== undefined ? l.stripUnitQuantity : (l.conversionFactor || 1)) || 1;
           const tot = Number(l.totalUnits) || (sq * su);
           const phys = Number(l.pharmacyPhysicalUnits !== undefined ? l.pharmacyPhysicalUnits : tot);
           const sp = Number(l.stripPurchasePrice !== undefined ? l.stripPurchasePrice : l.purchaseRate) || 0;
@@ -1140,7 +1140,7 @@ export const PurchasesPage: React.FC<PurchasesPageProps> = ({ prefilledIndent, o
 
     try {
       const stripQty = parseFloat(inlineMedicineForm.stripQuantityInBox) || 10;
-      const stripUnitQty = parseFloat(inlineMedicineForm.stripUnitQuantity) || 10;
+      const stripUnitQty = parseFloat(inlineMedicineForm.stripUnitQuantity) || 1;
       const totalUnits = stripQty * stripUnitQty;
       const physicalUnits = inlineMedicineForm.pharmacyPhysicalUnits ? parseFloat(inlineMedicineForm.pharmacyPhysicalUnits) : totalUnits;
       const stripPur = parseFloat(inlineMedicineForm.stripPurchasePrice) || 0;
@@ -2618,7 +2618,7 @@ export const PurchasesPage: React.FC<PurchasesPageProps> = ({ prefilledIndent, o
                               {item.stripQuantityInBox !== undefined ? item.stripQuantityInBox : (item.quantity || 1)}
                             </td>
                             <td className="p-2 text-center font-mono font-bold text-slate-800">
-                              {item.stripUnitQuantity !== undefined ? item.stripUnitQuantity : (item.unitsPerPack || 10)}
+                              {item.stripUnitQuantity !== undefined ? item.stripUnitQuantity : (item.unitsPerPack || 1)}
                             </td>
                             <td className="p-2 text-center font-mono font-bold text-slate-800">
                               {item.totalUnits !== undefined ? item.totalUnits : (item.quantity * (item.unitsPerPack || 1))}
@@ -2723,7 +2723,7 @@ export const PurchasesPage: React.FC<PurchasesPageProps> = ({ prefilledIndent, o
                 <div className="space-y-3 max-h-96 overflow-y-auto pr-1">
                   {lines.map((l, idx) => {
                     const sq = Number(l.stripQuantityInBox !== undefined ? l.stripQuantityInBox : l.quantity) || 0;
-                    const su = Number(l.stripUnitQuantity !== undefined ? l.stripUnitQuantity : (l.conversionFactor || 10)) || 10;
+                    const su = Number(l.stripUnitQuantity !== undefined ? l.stripUnitQuantity : (l.conversionFactor || 1)) || 1;
                     const totalUnits = Number(l.totalUnits) || (sq * su);
                     const physicalUnits = Number(l.pharmacyPhysicalUnits !== undefined ? l.pharmacyPhysicalUnits : totalUnits);
                     const stripPur = Number(l.stripPurchasePrice !== undefined ? l.stripPurchasePrice : l.purchaseRate) || 0;

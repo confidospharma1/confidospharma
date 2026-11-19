@@ -14,6 +14,7 @@ import {
   Banknote,
   QrCode,
   Printer,
+  MessageCircle,
   Sparkles,
   Calendar,
   ArrowRight,
@@ -1145,15 +1146,15 @@ export const POSBillingPage: React.FC = () => {
               <div className="grid grid-cols-2 gap-2">
                 <div>
                   <label className="text-[11px] font-semibold text-slate-600 block mb-1">
-                    Phone (10-digit)
+                    WhatsApp Phone (10-digit)
                   </label>
                   <input
                     type="text"
                     maxLength={10}
                     value={customerPhone}
                     onChange={(e) => setCustomerPhone(e.target.value)}
-                    placeholder="98480xxxxx"
-                    className="w-full px-3 py-1.5 text-xs bg-slate-50 border border-slate-300 rounded-lg focus:bg-white focus:ring-2 focus:ring-emerald-500"
+                    placeholder="e.g. 98480xxxxx"
+                    className="w-full px-3 py-1.5 text-xs bg-slate-50 border border-slate-300 rounded-lg focus:bg-white focus:ring-2 focus:ring-emerald-500 font-mono"
                   />
                 </div>
                 <div>
@@ -1273,8 +1274,8 @@ export const POSBillingPage: React.FC = () => {
               <span className="inline-block animate-pulse">Processing & Deducting Stock...</span>
             ) : (
               <>
-                <Printer className="w-5 h-5" />
-                <span>Complete Bill & Print (₹{grandTotal.toFixed(2)})</span>
+                <MessageCircle className="w-5 h-5 text-white" />
+                <span>Save Invoice & WhatsApp Bill (₹{grandTotal.toFixed(2)})</span>
               </>
             )}
           </button>
