@@ -1,7 +1,6 @@
 import React, { useRef, useState, useEffect } from 'react';
 import { SalesInvoice } from '../types';
-import { api } from '../services/api';
-import { CheckCircle2, MessageCircle, Send, Copy, Check, Printer, Smartphone, Building2, ExternalLink, Zap } from 'lucide-react';
+import { CheckCircle2, MessageCircle, Send, Copy, Check, Printer, Smartphone, Building2, ExternalLink } from 'lucide-react';
 import { Modal } from './Modal';
 
 export const OFFICE_PHONE = '6302931223';
@@ -97,19 +96,12 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
   const [customerPhoneInput, setCustomerPhoneInput] = useState('');
   const [copied, setCopied] = useState(false);
   const [phoneError, setPhoneError] = useState('');
-  const [isDirectSending, setIsDirectSending] = useState(false);
-  const [directSendSuccess, setDirectSendSuccess] = useState<string | null>(null);
 
   useEffect(() => {
     if (invoice) {
       setCustomerPhoneInput(invoice.customerPhone || '');
       setCopied(false);
       setPhoneError('');
-      if (invoice.customerPhone) {
-        setDirectSendSuccess(`Direct automated WhatsApp dispatch initialized from Office (${OFFICE_PHONE}) to ${invoice.customerPhone}`);
-      } else {
-        setDirectSendSuccess(null);
-      }
     }
   }, [invoice]);
 
@@ -132,36 +124,19 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
 
   const billText = formatWhatsAppBillText(invoice, OFFICE_PHONE);
 
-  // Direct automated WhatsApp dispatch without redirection
-  const handleDirectSendFromOffice = async () => {
+  const handleOpenWhatsApp = () => {
     const cleanDigits = customerPhoneInput.replace(/\D/g, '');
     if (!cleanDigits || cleanDigits.length < 10) {
       setPhoneError('Please enter a valid 10-digit WhatsApp phone number.');
       return;
     }
     setPhoneError('');
-    setIsDirectSending(true);
-    setDirectSendSuccess(null);
-
-    try {
-      await api.sendInvoiceWhatsApp(invoice.id, customerPhoneInput);
-      setDirectSendSuccess(`Automated bill sent directly from Office (${OFFICE_PHONE}) to +91 ${cleanDigits} without redirecting!`);
-      setTimeout(() => setDirectSendSuccess(null), 6000);
-    } catch (err: any) {
-      setPhoneError(err.message || 'Failed to dispatch WhatsApp message');
-    } finally {
-      setIsDirectSending(false);
-    }
+    const url = getWhatsAppSendUrl(customerPhoneInput, billText);
+    window.open(url, '_blank');
   };
 
-  // Optional manual fallback link (only if user explicitly opens web)
-  const handleOpenManualWhatsAppWeb = () => {
-    const cleanDigits = customerPhoneInput.replace(/\D/g, '');
-    if (!cleanDigits || cleanDigits.length < 10) {
-      setPhoneError('Please enter a valid 10-digit phone number.');
-      return;
-    }
-    const url = getWhatsAppSendUrl(customerPhoneInput, billText);
+  const handleSendToOffice = () => {
+    const url = getWhatsAppSendUrl(OFFICE_PHONE, billText);
     window.open(url, '_blank');
   };
 
@@ -180,7 +155,7 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
   };
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Digital Tax Invoice & Direct WhatsApp Bill" maxWidth="2xl">
+    <Modal isOpen={isOpen} onClose={onClose} title="Digital Tax Invoice & WhatsApp Bill" maxWidth="2xl">
       <div className="space-y-4">
         {/* Success / Status header */}
         <div className="flex items-center gap-3 p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-800 text-xs sm:text-sm print:hidden">
@@ -193,22 +168,22 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
           </div>
         </div>
 
-        {/* WhatsApp Direct Automated Messaging Control Panel */}
+        {/* WhatsApp Direct Action Control Panel */}
         <div className="bg-slate-50 border border-emerald-200/80 rounded-xl p-3.5 print:hidden space-y-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <span className="p-1.5 bg-emerald-600 text-white rounded-lg">
-                <Zap className="w-4 h-4" />
+                <MessageCircle className="w-4 h-4" />
               </span>
               <div>
                 <h4 className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
-                  Direct Automated WhatsApp Messaging
+                  Direct WhatsApp Delivery
                   <span className="text-[10px] px-1.5 py-0.2 bg-emerald-600 text-white rounded font-normal">
-                    From Office: {OFFICE_PHONE}
+                    Helpline: {OFFICE_PHONE}
                   </span>
                 </h4>
                 <p className="text-[10px] text-slate-500">
-                  Sends directly from company office number ({OFFICE_PHONE}) without page or window redirection.
+                  Opens WhatsApp Web or App with the pre-filled customer bill for instant sending.
                 </p>
               </div>
             </div>
@@ -217,15 +192,7 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
             </span>
           </div>
 
-          {/* Status feedback banner */}
-          {directSendSuccess && (
-            <div className="p-2.5 bg-emerald-100/80 border border-emerald-300 text-emerald-900 rounded-lg text-xs flex items-center gap-2">
-              <Check className="w-4 h-4 text-emerald-700 flex-shrink-0" />
-              <span className="font-medium">{directSendSuccess}</span>
-            </div>
-          )}
-
-          {/* Customer Phone Input and Direct Automated Send Button */}
+          {/* Customer Phone Input and Open WhatsApp Button */}
           <div className="space-y-1.5">
             <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
               <div className="relative flex-1">
@@ -247,21 +214,11 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
 
               <button
                 type="button"
-                onClick={handleDirectSendFromOffice}
-                disabled={isDirectSending}
-                className="flex items-center justify-center gap-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white rounded-lg text-xs font-bold shadow-xs transition-colors disabled:opacity-50"
+                onClick={handleOpenWhatsApp}
+                className="flex items-center justify-center gap-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white rounded-lg text-xs font-bold shadow-xs transition-colors"
               >
-                {isDirectSending ? (
-                  <>
-                    <div className="w-3.5 h-3.5 rounded-full border-2 border-white border-t-transparent animate-spin" />
-                    Sending from Office...
-                  </>
-                ) : (
-                  <>
-                    <Send className="w-3.5 h-3.5" />
-                    Direct Send from Office ({OFFICE_PHONE})
-                  </>
-                )}
+                <Send className="w-3.5 h-3.5" />
+                Open WhatsApp & Send Bill
               </button>
             </div>
 
@@ -270,9 +227,19 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
             )}
           </div>
 
-          {/* Secondary Actions: Copy and Manual Web Link */}
+          {/* Secondary Actions: Copy and Send to Office */}
           <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-200 text-xs">
             <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={handleSendToOffice}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-300 hover:bg-slate-100 text-slate-700 rounded-lg text-[11px] font-semibold transition-colors"
+                title="Send a copy to office WhatsApp number"
+              >
+                <Building2 className="w-3.5 h-3.5 text-emerald-600" />
+                Send Copy to Office ({OFFICE_PHONE})
+              </button>
+
               <button
                 type="button"
                 onClick={handleCopyText}
@@ -289,16 +256,6 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
                     Copy Bill Text
                   </>
                 )}
-              </button>
-
-              <button
-                type="button"
-                onClick={handleOpenManualWhatsAppWeb}
-                className="flex items-center gap-1 px-2.5 py-1.5 text-slate-500 hover:text-slate-700 text-[11px] font-medium"
-                title="Optional: Open chat in WhatsApp Web manually"
-              >
-                <ExternalLink className="w-3 h-3" />
-                Manual WhatsApp Web
               </button>
             </div>
 
@@ -328,7 +285,7 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
               alt="Confidos Pharma"
               className="h-10 w-auto max-w-[150px] object-contain mx-auto block mb-1.5"
             />
-            {/* Pharmacy Branch Name & Code - Prominently Displayed */}
+            {/* Pharmacy Branch Name & Code */}
             <h2 className="text-xs font-bold text-slate-900 tracking-wide uppercase">
               {branchName}
             </h2>

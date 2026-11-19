@@ -20,9 +20,10 @@ import {
   ArrowRight,
   ArrowLeft,
   ShoppingCart,
+  X,
 } from 'lucide-react';
 import { Badge } from '../components/Badge';
-import { ReceiptModal } from '../components/ReceiptModal';
+import { ReceiptModal, formatWhatsAppBillText, getWhatsAppSendUrl, OFFICE_PHONE } from '../components/ReceiptModal';
 
 interface BillItem {
   medicineId: string;
@@ -74,6 +75,11 @@ export const POSBillingPage: React.FC = () => {
   const [showReceiptModal, setShowReceiptModal] = useState(false);
   const [mobileView, setMobileView] = useState<'cart' | 'checkout'>('cart');
   const [maxDiscountLimit, setMaxDiscountLimit] = useState<number>(50);
+  const [successToast, setSuccessToast] = useState<{
+    invoiceNumber: string;
+    phone?: string | null;
+    grandTotal: number;
+  } | null>(null);
 
   const searchInputRef = useRef<HTMLInputElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -611,7 +617,7 @@ export const POSBillingPage: React.FC = () => {
   const cgst = totalGst / 2;
   const sgst = totalGst / 2;
 
-  // Complete bill submission
+  // Streamlined bill submission: opens WhatsApp Web with prefilled message & immediately resets counter for next sale
   const handleCompleteBill = async () => {
     if (billItems.length === 0) {
       setErrorMessage('Please add at least one medicine to the bill.');
@@ -621,11 +627,23 @@ export const POSBillingPage: React.FC = () => {
     setIsSubmitting(true);
     setErrorMessage('');
 
+    const cleanPhone = customerPhone.trim();
+    let waWindow: Window | null = null;
+
+    // Open new tab synchronously within user click event to prevent browser popup blockers
+    if (cleanPhone) {
+      try {
+        waWindow = window.open('about:blank', '_blank');
+      } catch {
+        // Fallback if browser security sandbox restricts window.open
+      }
+    }
+
     try {
       const payload = {
         branchId: selectedBranchId,
         customerName: customerName.trim() || undefined,
-        customerPhone: customerPhone.trim() || undefined,
+        customerPhone: cleanPhone || undefined,
         doctorName: doctorName.trim() || undefined,
         paymentMethod,
         items: billItems.map((item) => ({
@@ -638,16 +656,42 @@ export const POSBillingPage: React.FC = () => {
       };
 
       const invoice = await api.createInvoice(payload);
-      setCompletedInvoice(invoice);
-      setShowReceiptModal(true);
 
-      // Reset cart
+      // If customer phone is provided, redirect the new tab directly to WhatsApp Web/App with prefilled bill
+      if (cleanPhone && waWindow) {
+        const billText = formatWhatsAppBillText(invoice, OFFICE_PHONE);
+        const waUrl = getWhatsAppSendUrl(cleanPhone, billText);
+        waWindow.location.href = waUrl;
+      }
+
+      // Immediately reset cart and checkout form for the next transaction (no blocking modal!)
       setBillItems([]);
       setCustomerName('');
       setCustomerPhone('');
       setDoctorName('');
       setPaymentMethod('CASH');
+      setCompletedInvoice(invoice);
+      setShowReceiptModal(false);
+
+      // Non-blocking floating success notification
+      setSuccessToast({
+        invoiceNumber: invoice.invoiceNumber,
+        phone: cleanPhone || null,
+        grandTotal: invoice.grandTotal,
+      });
+
+      setTimeout(() => {
+        setSuccessToast(null);
+      }, 7000);
+
+      // Refocus search bar immediately for the next customer
+      setTimeout(() => {
+        searchInputRef.current?.focus();
+      }, 50);
     } catch (err: any) {
+      if (waWindow) {
+        waWindow.close();
+      }
       setErrorMessage(err.message || 'Failed to complete sales invoice.');
     } finally {
       setIsSubmitting(false);
@@ -655,7 +699,30 @@ export const POSBillingPage: React.FC = () => {
   };
 
   return (
-    <div className="min-h-[calc(100vh-4rem)] md:h-[calc(100vh-4rem)] flex flex-col md:flex-row overflow-y-auto md:overflow-hidden bg-slate-100">
+    <div className="min-h-[calc(100vh-4rem)] md:h-[calc(100vh-4rem)] flex flex-col md:flex-row overflow-y-auto md:overflow-hidden bg-slate-100 relative">
+      {/* Non-blocking Success Toast for instant checkout workflow */}
+      {successToast && (
+        <div className="fixed top-4 right-4 z-50 bg-emerald-700 text-white p-3.5 sm:p-4 rounded-xl shadow-xl flex items-start gap-3 max-w-md border border-emerald-500 animate-in fade-in slide-in-from-top-3">
+          <CheckCircle className="w-5 h-5 text-emerald-200 flex-shrink-0 mt-0.5" />
+          <div className="flex-1 text-xs space-y-0.5">
+            <p className="font-bold text-sm">Invoice #{successToast.invoiceNumber} Saved! (₹{successToast.grandTotal.toFixed(2)})</p>
+            {successToast.phone ? (
+              <p className="text-emerald-100">
+                WhatsApp Web opened in new tab with pre-filled bill for <strong>+91 {successToast.phone}</strong>. Press Enter to send.
+              </p>
+            ) : (
+              <p className="text-emerald-100">Saved to database. Ready for next customer sale.</p>
+            )}
+          </div>
+          <button
+            type="button"
+            onClick={() => setSuccessToast(null)}
+            className="text-emerald-200 hover:text-white p-1"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
       {/* Mobile Tab Switcher (Only visible on < md) */}
       <div className="md:hidden sticky top-0 z-20 bg-white border-b border-slate-200 px-3 py-2 flex items-center gap-2 shadow-2xs">
         <button

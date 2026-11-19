@@ -1,22 +1,8 @@
-import { logAuditEvent } from '../utils/audit';
-
 export const OFFICE_WHATSAPP_NUMBER = '6302931223';
 export const OFFICE_WHATSAPP_CLEAN = '916302931223';
 
-export interface WhatsAppDispatchResult {
-  success: boolean;
-  status: 'DELIVERED' | 'SENT' | 'FAILED' | 'SKIPPED';
-  from: string;
-  to: string;
-  messageId: string;
-  timestamp: string;
-  branchName?: string;
-  branchCode?: string;
-  error?: string;
-}
-
 /**
- * Formats a clean, lightweight digital invoice (< 1 KB) for WhatsApp.
+ * Formats a clean, lightweight digital invoice (< 1 KB) for WhatsApp Web & direct redirect.
  * Accurately displays originating branch name and code.
  */
 export function formatWhatsAppInvoiceText(invoice: any, officeNumber: string = OFFICE_WHATSAPP_NUMBER): string {
@@ -87,90 +73,10 @@ export function formatWhatsAppInvoiceText(invoice: any, officeNumber: string = O
 }
 
 /**
- * Sends automated WhatsApp message directly from the office number without any client redirection.
- * Dispatches via configured WhatsApp gateway API or logs deterministic delivery if gateway is local/unconfigured.
+ * Builds the direct WhatsApp Web / App redirect URL with prefilled phone and message.
  */
-export async function sendWhatsAppInvoiceDirect(
-  invoice: any,
-  overridePhone?: string
-): Promise<WhatsAppDispatchResult> {
-  const targetPhone = overridePhone || invoice.customerPhone;
-  const branch = invoice.branch || {};
-  const branchName = branch.name || 'Central Pharmacy';
-  const branchCode = branch.code || 'MAIN';
-
-  if (!targetPhone) {
-    return {
-      success: false,
-      status: 'SKIPPED',
-      from: OFFICE_WHATSAPP_CLEAN,
-      to: '',
-      messageId: '',
-      timestamp: new Date().toISOString(),
-      branchName,
-      branchCode,
-      error: 'No customer phone number provided for WhatsApp dispatch.',
-    };
-  }
-
-  const cleanDigits = targetPhone.replace(/\D/g, '');
+export function getWhatsAppRedirectUrl(phoneNumber: string, text: string): string {
+  const cleanDigits = (phoneNumber || '').replace(/\D/g, '');
   const recipientPhone = cleanDigits.length === 10 ? `91${cleanDigits}` : cleanDigits;
-
-  const billMessage = formatWhatsAppInvoiceText(invoice, OFFICE_WHATSAPP_NUMBER);
-  const messageId = `WA-${invoice.invoiceNumber}-${Date.now()}`;
-
-  try {
-    // Check if an external WhatsApp HTTP gateway (e.g., UltraMsg, Twilio, WhatsApp Cloud API) is configured
-    const gatewayUrl = process.env.WHATSAPP_API_URL;
-    const gatewayToken = process.env.WHATSAPP_API_TOKEN || process.env.WHATSAPP_API_KEY;
-
-    if (gatewayUrl) {
-      const response = await fetch(gatewayUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(gatewayToken && { Authorization: `Bearer ${gatewayToken}` }),
-        },
-        body: JSON.stringify({
-          from: OFFICE_WHATSAPP_CLEAN,
-          to: recipientPhone,
-          body: billMessage,
-          message: billMessage,
-        }),
-      });
-
-      if (!response.ok) {
-        console.warn(`[WhatsApp Direct API] Gateway returned status ${response.status}`);
-      }
-    }
-
-    console.log(
-      `[DIRECT AUTOMATED WHATSAPP] Dispatched bill from Office (${OFFICE_WHATSAPP_NUMBER}) to Customer (${recipientPhone}) for Invoice #${invoice.invoiceNumber} (Branch: ${branchName} [${branchCode}])`
-    );
-
-    return {
-      success: true,
-      status: 'DELIVERED',
-      from: OFFICE_WHATSAPP_CLEAN,
-      to: recipientPhone,
-      messageId,
-      timestamp: new Date().toISOString(),
-      branchName,
-      branchCode,
-    };
-  } catch (err: any) {
-    console.error('[WhatsApp Direct API Error]:', err.message);
-    // Still report success if system logged the dispatch, but record error note
-    return {
-      success: true,
-      status: 'SENT',
-      from: OFFICE_WHATSAPP_CLEAN,
-      to: recipientPhone,
-      messageId,
-      timestamp: new Date().toISOString(),
-      branchName,
-      branchCode,
-      error: err.message,
-    };
-  }
+  return `https://api.whatsapp.com/send?phone=${recipientPhone}&text=${encodeURIComponent(text)}`;
 }

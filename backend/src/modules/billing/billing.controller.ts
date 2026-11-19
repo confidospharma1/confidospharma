@@ -3,7 +3,7 @@ import Decimal from 'decimal.js';
 import prisma from '../../database/prisma';
 import { logAuditEvent } from '../../utils/audit';
 import { buildProductUnitConfig, determineDefaultSellingUnit } from '../../utils/unitConverter';
-import { sendWhatsAppInvoiceDirect } from '../../services/whatsapp.service';
+import { formatWhatsAppInvoiceText, getWhatsAppRedirectUrl, OFFICE_WHATSAPP_NUMBER } from '../../services/whatsapp.service';
 
 export const createInvoice = async (req: Request, res: Response) => {
   try {
@@ -318,19 +318,7 @@ export const createInvoice = async (req: Request, res: Response) => {
       req,
     });
 
-    let waDispatch = null;
-    if (result.customerPhone) {
-      try {
-        waDispatch = await sendWhatsAppInvoiceDirect(result);
-      } catch (waErr: any) {
-        console.warn('Direct WhatsApp dispatch non-fatal error:', waErr.message);
-      }
-    }
-
-    return res.status(201).json({
-      ...result,
-      whatsappDispatch: waDispatch,
-    });
+    return res.status(201).json(result);
   } catch (error: any) {
     console.error('Invoice error:', error);
     return res.status(400).json({ message: error.message || 'Failed to complete sales invoice' });
@@ -637,27 +625,34 @@ export const sendInvoiceWhatsApp = async (req: Request, res: Response) => {
       return res.status(403).json({ message: 'Access denied: Invoice belongs to another branch' });
     }
 
-    const dispatchResult = await sendWhatsAppInvoiceDirect(invoice, phone);
+    const targetPhone = phone || invoice.customerPhone || '';
+    const cleanDigits = targetPhone.replace(/\D/g, '');
+    const recipientPhone = cleanDigits.length === 10 ? `91${cleanDigits}` : cleanDigits;
+    const billText = formatWhatsAppInvoiceText(invoice, OFFICE_WHATSAPP_NUMBER);
+    const redirectUrl = getWhatsAppRedirectUrl(recipientPhone, billText);
 
     await logAuditEvent({
       userId: req.user.id,
       branchId: invoice.branchId,
-      action: 'WHATSAPP_DISPATCH',
+      action: 'WHATSAPP_PREPARED',
       targetEntity: 'SALES_INVOICE',
       entityId: invoice.id,
       details: {
         invoiceNumber: invoice.invoiceNumber,
-        to: dispatchResult.to,
-        from: dispatchResult.from,
-        branchName: dispatchResult.branchName,
-        branchCode: dispatchResult.branchCode,
+        to: recipientPhone,
+        from: OFFICE_WHATSAPP_NUMBER,
+        branchName: invoice.branch?.name,
+        branchCode: invoice.branch?.code,
       },
       req,
     });
 
     return res.json({
-      message: `Direct WhatsApp message dispatched to ${dispatchResult.to} from Office (${dispatchResult.from})`,
-      dispatch: dispatchResult,
+      message: 'WhatsApp redirect URL generated successfully',
+      phone: recipientPhone,
+      redirectUrl,
+      text: billText,
+      from: OFFICE_WHATSAPP_NUMBER,
     });
   } catch (error: any) {
     console.error('Send invoice WhatsApp error:', error);
