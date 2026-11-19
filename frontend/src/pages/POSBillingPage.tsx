@@ -444,7 +444,7 @@ export const POSBillingPage: React.FC = () => {
         selectedUnit: initialUnitObj.unit,
         unitMultiplier: initialMultiplier,
         supportedUnits,
-        discountPercent: 10,
+        discountPercent: 0,
         availableBatches: product.activeBatches || [bestBatch],
         baseUnit: product.baseUnit || 'Tablet',
         packageUnit: product.packageUnit || undefined,

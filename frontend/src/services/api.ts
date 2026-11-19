@@ -268,6 +268,11 @@ export const api = {
   getInvoice: (id: string) => apiRequest(`/billing/invoices/${id}`),
   cancelInvoice: (id: string, reason: string) =>
     apiRequest(`/billing/invoices/${id}/cancel`, { method: 'POST', body: JSON.stringify({ reason }) }),
+  deleteInvoice: (id: string) => apiRequest(`/billing/invoices/${id}`, { method: 'DELETE' }),
+  bulkDeleteInvoices: (data: { invoiceIds?: string[]; allCancelled?: boolean; branchId?: string }) =>
+    apiRequest('/billing/invoices/bulk-delete', { method: 'POST', body: JSON.stringify(data) }),
+  sendInvoiceWhatsApp: (id: string, phone?: string) =>
+    apiRequest(`/billing/invoices/${id}/send-whatsapp`, { method: 'POST', body: JSON.stringify({ phone }) }),
 
   // Purchases & Suppliers
   getSuppliers: (params?: { search?: string; includeInactive?: boolean }) => {

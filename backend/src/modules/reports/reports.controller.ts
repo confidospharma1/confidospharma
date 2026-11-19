@@ -374,6 +374,7 @@ export const getProfitLossReport = async (req: Request, res: Response) => {
           createdAt: { gte: start, lte: end },
         },
         include: {
+          branch: { select: { id: true, name: true, code: true } },
           lines: {
             include: {
               medicine: { select: { id: true, brandName: true, genericName: true, defaultPurchaseRate: true } },

@@ -2,7 +2,21 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { api } from '../services/api';
 import { SalesInvoice } from '../types';
-import { Receipt, Search, Printer, MessageCircle, Ban, AlertCircle, Filter, X } from 'lucide-react';
+import {
+  Receipt,
+  Search,
+  Printer,
+  MessageCircle,
+  Ban,
+  Trash2,
+  AlertCircle,
+  Filter,
+  X,
+  AlertTriangle,
+  CheckSquare,
+  Square,
+  RefreshCw,
+} from 'lucide-react';
 import { Badge } from '../components/Badge';
 import { Modal } from '../components/Modal';
 import { ReceiptModal } from '../components/ReceiptModal';
@@ -10,7 +24,7 @@ import { FilterButton } from '../components/FilterButton';
 import { FilterField, FilterSelect, FilterInput } from '../components/FilterControls';
 
 export const InvoicesPage: React.FC = () => {
-  const { currentBranch, selectedBranchId, isBillingUser } = useAuth();
+  const { currentBranch, selectedBranchId, isSuperAdmin, isBranchAdmin, isBillingUser } = useAuth();
 
   const [invoices, setInvoices] = useState<SalesInvoice[]>([]);
   const [loading, setLoading] = useState(true);
@@ -35,6 +49,13 @@ export const InvoicesPage: React.FC = () => {
     setStartDate('');
     setEndDate('');
   };
+
+  // Selection & Bulk Deletion State for Cancelled Bills
+  const [selectedCancelledIds, setSelectedCancelledIds] = useState<string[]>([]);
+  const [isBulkDeleting, setIsBulkDeleting] = useState(false);
+  const [deleteTargetInvoice, setDeleteTargetInvoice] = useState<SalesInvoice | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [showPurgeAllModal, setShowPurgeAllModal] = useState(false);
 
   // View Receipt Modal
   const [activeInvoice, setActiveInvoice] = useState<SalesInvoice | null>(null);
@@ -103,6 +124,86 @@ export const InvoicesPage: React.FC = () => {
     }
   };
 
+  // Single delete cancelled invoice
+  const handleDeleteSingleCancelled = async () => {
+    if (!deleteTargetInvoice) return;
+    setIsDeleting(true);
+    try {
+      await api.deleteInvoice(deleteTargetInvoice.id);
+      setMessage({
+        text: `Cancelled bill ${deleteTargetInvoice.invoiceNumber} was permanently deleted.`,
+        type: 'success',
+      });
+      setDeleteTargetInvoice(null);
+      setSelectedCancelledIds((prev) => prev.filter((id) => id !== deleteTargetInvoice.id));
+      loadInvoices();
+    } catch (err: any) {
+      setMessage({ text: err.message || 'Failed to delete cancelled invoice', type: 'error' });
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  // Bulk delete selected cancelled invoices
+  const handleBulkDeleteSelected = async () => {
+    if (selectedCancelledIds.length === 0) return;
+    setIsBulkDeleting(true);
+    try {
+      const res = await api.bulkDeleteInvoices({ invoiceIds: selectedCancelledIds });
+      setMessage({
+        text: res.message || `Deleted ${selectedCancelledIds.length} cancelled bill(s) permanently.`,
+        type: 'success',
+      });
+      setSelectedCancelledIds([]);
+      loadInvoices();
+    } catch (err: any) {
+      setMessage({ text: err.message || 'Failed to bulk delete cancelled invoices', type: 'error' });
+    } finally {
+      setIsBulkDeleting(false);
+    }
+  };
+
+  // Super admin bulk purge all cancelled invoices
+  const handlePurgeAllCancelled = async () => {
+    setIsBulkDeleting(true);
+    try {
+      const res = await api.bulkDeleteInvoices({
+        allCancelled: true,
+        branchId: selectedBranchId !== 'ALL' ? selectedBranchId : undefined,
+      });
+      setMessage({
+        text: res.message || 'All cancelled bills have been permanently purged.',
+        type: 'success',
+      });
+      setShowPurgeAllModal(false);
+      setSelectedCancelledIds([]);
+      loadInvoices();
+    } catch (err: any) {
+      setMessage({ text: err.message || 'Failed to purge cancelled invoices', type: 'error' });
+    } finally {
+      setIsBulkDeleting(false);
+    }
+  };
+
+  const cancelledInvoices = invoices.filter((i) => i.status === 'CANCELLED');
+  const allVisibleCancelledSelected =
+    cancelledInvoices.length > 0 &&
+    cancelledInvoices.every((i) => selectedCancelledIds.includes(i.id));
+
+  const toggleSelectAllCancelled = () => {
+    if (allVisibleCancelledSelected) {
+      setSelectedCancelledIds([]);
+    } else {
+      setSelectedCancelledIds(cancelledInvoices.map((i) => i.id));
+    }
+  };
+
+  const toggleSelectCancelledRow = (id: string) => {
+    setSelectedCancelledIds((prev) =>
+      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
+    );
+  };
+
   return (
     <div className="p-3.5 sm:p-5 md:p-8 space-y-4 sm:space-y-6 max-w-7xl mx-auto overflow-y-auto">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -114,16 +215,31 @@ export const InvoicesPage: React.FC = () => {
             </Badge>
           </div>
           <p className="text-xs text-slate-500 mt-0.5">
-            Immutable transaction record, reprint receipts, and audited cancellation management.
+            Immutable transaction record, direct WhatsApp delivery, and audited cancellation & purge management.
           </p>
         </div>
+
+        {/* Super Admin Bulk Purge Cancelled Bills Action */}
+        {(isSuperAdmin || isBranchAdmin) && (
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setShowPurgeAllModal(true)}
+              className="px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-lg text-xs font-bold flex items-center gap-1.5 shadow-2xs transition-colors"
+              title="Delete all cancelled bills across sections"
+            >
+              <Trash2 className="w-3.5 h-3.5 text-rose-600" />
+              Purge All Cancelled Bills
+            </button>
+          </div>
+        )}
       </div>
 
       {message && (
         <div
           className={`p-3.5 rounded-lg text-xs flex items-center justify-between ${
             message.type === 'success'
-              ? 'bg-pharmagreen-50 text-pharmagreen-800 border border-pharmagreen-200'
+              ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
               : 'bg-rose-50 text-rose-800 border border-rose-200'
           }`}
         >
@@ -131,6 +247,35 @@ export const InvoicesPage: React.FC = () => {
           <button onClick={() => setMessage(null)} className="font-bold underline ml-2">
             Dismiss
           </button>
+        </div>
+      )}
+
+      {/* Bulk Action Bar for Selected Cancelled Bills */}
+      {selectedCancelledIds.length > 0 && (
+        <div className="p-3 bg-rose-50 border border-rose-300 rounded-xl flex flex-wrap items-center justify-between gap-3 animate-in fade-in">
+          <div className="flex items-center gap-2 text-rose-900 text-xs font-bold">
+            <CheckSquare className="w-4 h-4 text-rose-600" />
+            <span>{selectedCancelledIds.length} Cancelled Bill(s) Selected</span>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setSelectedCancelledIds([])}
+              className="px-3 py-1.5 bg-white border border-slate-300 text-slate-700 hover:bg-slate-100 rounded-lg text-xs font-semibold"
+            >
+              Deselect All
+            </button>
+            <button
+              type="button"
+              disabled={isBulkDeleting}
+              onClick={handleBulkDeleteSelected}
+              className="px-4 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-xs font-bold flex items-center gap-1.5 shadow-xs transition-colors disabled:opacity-50"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              {isBulkDeleting ? 'Deleting...' : `Delete Selected (${selectedCancelledIds.length})`}
+            </button>
+          </div>
         </div>
       )}
 
@@ -250,10 +395,25 @@ export const InvoicesPage: React.FC = () => {
       {/* Invoices Table */}
       <div className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
         <div className="overflow-x-auto touch-scroll">
-          <table className="w-full text-left text-xs min-w-[850px]">
+          <table className="w-full text-left text-xs min-w-[950px]">
             <thead className="bg-slate-50 text-slate-700 font-bold border-b border-slate-200">
               <tr>
-                <th className="py-3 px-4">Invoice #</th>
+                <th className="py-3 px-3 text-center w-10">
+                  <button
+                    type="button"
+                    onClick={toggleSelectAllCancelled}
+                    className="text-slate-400 hover:text-slate-700"
+                    title={allVisibleCancelledSelected ? 'Deselect all cancelled' : 'Select all cancelled'}
+                  >
+                    {allVisibleCancelledSelected ? (
+                      <CheckSquare className="w-4 h-4 text-rose-600" />
+                    ) : (
+                      <Square className="w-4 h-4" />
+                    )}
+                  </button>
+                </th>
+                <th className="py-3 px-3">Invoice #</th>
+                <th className="py-3 px-3">Originating Branch</th>
                 <th className="py-3 px-3">Date & Time</th>
                 <th className="py-3 px-3">Customer / Patient</th>
                 <th className="py-3 px-3 text-center">Payment</th>
@@ -267,13 +427,13 @@ export const InvoicesPage: React.FC = () => {
             <tbody className="divide-y divide-slate-100 font-medium">
               {loading ? (
                 <tr>
-                  <td colSpan={9} className="py-8 text-center text-slate-400">
+                  <td colSpan={11} className="py-8 text-center text-slate-400">
                     Loading invoices...
                   </td>
                 </tr>
               ) : invoices.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="py-12 text-center text-slate-500">
+                  <td colSpan={11} className="py-12 text-center text-slate-500">
                     <p className="text-sm font-bold text-slate-800">
                       {activeFilterCount > 0 || search
                         ? 'No sales invoices match your filter criteria.'
@@ -299,63 +459,112 @@ export const InvoicesPage: React.FC = () => {
                   </td>
                 </tr>
               ) : (
-                invoices.map((inv) => (
-                  <tr key={inv.id} className="hover:bg-slate-50/80 transition-colors">
-                    <td className="py-3 px-4 font-mono font-bold text-slate-900">{inv.invoiceNumber}</td>
-                    <td className="py-3 px-3 text-slate-500 font-mono text-[11px]">
-                      {new Date(inv.createdAt).toLocaleString('en-IN', {
-                        day: '2-digit',
-                        month: 'short',
-                        year: 'numeric',
-                        hour: '2-digit',
-                        minute: '2-digit',
-                      })}
-                    </td>
-                    <td className="py-3 px-3 text-slate-800">
-                      {inv.customerName || 'Retail Customer'}
-                      {inv.customerPhone && <span className="block text-[11px] text-slate-400 font-mono">{inv.customerPhone}</span>}
-                    </td>
-                    <td className="py-3 px-3 text-center">
-                      <Badge variant="neutral" size="sm">
-                        {inv.paymentMethod}
-                      </Badge>
-                    </td>
-                    <td className="py-3 px-3 text-right font-mono text-slate-600">₹{inv.subtotal.toFixed(2)}</td>
-                    <td className="py-3 px-3 text-right font-mono text-slate-600">₹{inv.taxTotal.toFixed(2)}</td>
-                    <td className="py-3 px-4 text-right font-mono font-bold text-brand-900">
-                      ₹{inv.grandTotal.toFixed(2)}
-                    </td>
-                    <td className="py-3 px-3 text-center">
-                      <Badge variant={inv.status === 'COMPLETED' ? 'brandGreen' : 'danger'} size="sm">
-                        {inv.status}
-                      </Badge>
-                    </td>
-                    <td className="py-3 px-4 text-right">
-                      <div className="flex items-center justify-end gap-2">
-                        <button
-                          onClick={() => handleOpenReceipt(inv.id)}
-                          className="flex items-center gap-1 px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-semibold rounded text-xs transition-colors border border-emerald-200"
-                          title="View digital invoice and send to WhatsApp"
-                        >
-                          <MessageCircle className="w-3.5 h-3.5 text-emerald-600" />
-                          <span>Digital Bill</span>
-                        </button>
-                        {inv.status === 'COMPLETED' && !isBillingUser && (
-                          <button
-                            onClick={() => {
-                              setCancelInvoiceTarget(inv);
-                              setCancelReason('');
-                            }}
-                            className="p-1 text-slate-400 hover:text-rose-600 transition-colors"
-                            title="Cancel Invoice & Restore Stock"
-                          >
-                            <Ban className="w-4 h-4" />
-                          </button>
+                invoices.map((inv) => {
+                  const isCancelled = inv.status === 'CANCELLED';
+                  const isSelected = selectedCancelledIds.includes(inv.id);
+                  const bName = inv.branch?.name || currentBranch?.name || 'Central Pharmacy';
+                  const bCode = inv.branch?.code || currentBranch?.code || 'MAIN';
+
+                  return (
+                    <tr
+                      key={inv.id}
+                      className={`hover:bg-slate-50/80 transition-colors ${
+                        isSelected ? 'bg-rose-50/40' : ''
+                      }`}
+                    >
+                      <td className="py-3 px-3 text-center">
+                        {isCancelled ? (
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={() => toggleSelectCancelledRow(inv.id)}
+                            className="rounded border-slate-300 text-rose-600 focus:ring-rose-500"
+                            title="Select cancelled bill for deletion"
+                          />
+                        ) : (
+                          <span className="text-slate-300 text-[10px]">—</span>
                         )}
-                      </div>
-                    </td>
-                  </tr>
-                ))
+                      </td>
+                      <td className="py-3 px-3 font-mono font-bold text-slate-900">{inv.invoiceNumber}</td>
+                      <td className="py-3 px-3">
+                        <span className="font-bold text-slate-800 block text-xs">{bName}</span>
+                        <span className="font-mono text-[10px] text-slate-600 font-semibold bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">
+                          {bCode}
+                        </span>
+                      </td>
+                      <td className="py-3 px-3 text-slate-500 font-mono text-[11px]">
+                        {new Date(inv.createdAt).toLocaleString('en-IN', {
+                          day: '2-digit',
+                          month: 'short',
+                          year: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })}
+                      </td>
+                      <td className="py-3 px-3 text-slate-800">
+                        {inv.customerName || 'Retail Customer'}
+                        {inv.customerPhone && (
+                          <span className="block text-[11px] text-slate-400 font-mono">{inv.customerPhone}</span>
+                        )}
+                      </td>
+                      <td className="py-3 px-3 text-center">
+                        <Badge variant="neutral" size="sm">
+                          {inv.paymentMethod}
+                        </Badge>
+                      </td>
+                      <td className="py-3 px-3 text-right font-mono text-slate-600">₹{inv.subtotal.toFixed(2)}</td>
+                      <td className="py-3 px-3 text-right font-mono text-slate-600">₹{inv.taxTotal.toFixed(2)}</td>
+                      <td className="py-3 px-4 text-right font-mono font-bold text-brand-900">
+                        ₹{inv.grandTotal.toFixed(2)}
+                      </td>
+                      <td className="py-3 px-3 text-center">
+                        <Badge variant={inv.status === 'COMPLETED' ? 'brandGreen' : 'danger'} size="sm">
+                          {inv.status}
+                        </Badge>
+                      </td>
+                      <td className="py-3 px-4 text-right">
+                        <div className="flex items-center justify-end gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => handleOpenReceipt(inv.id)}
+                            className="flex items-center gap-1 px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-semibold rounded text-xs transition-colors border border-emerald-200"
+                            title="View digital invoice and WhatsApp details"
+                          >
+                            <MessageCircle className="w-3.5 h-3.5 text-emerald-600" />
+                            <span>Digital Bill</span>
+                          </button>
+
+                          {/* Cancel Invoice Action (Only if COMPLETED and user is authorized) */}
+                          {inv.status === 'COMPLETED' && !isBillingUser && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setCancelInvoiceTarget(inv);
+                                setCancelReason('');
+                              }}
+                              className="p-1 text-slate-400 hover:text-rose-600 transition-colors"
+                              title="Cancel Invoice & Restore Stock"
+                            >
+                              <Ban className="w-4 h-4" />
+                            </button>
+                          )}
+
+                          {/* Delete Cancelled Bill Action (Only if CANCELLED and authorized) */}
+                          {isCancelled && !isBillingUser && (
+                            <button
+                              type="button"
+                              onClick={() => setDeleteTargetInvoice(inv)}
+                              className="p-1 text-slate-400 hover:text-rose-700 transition-colors"
+                              title="Permanently Delete Cancelled Bill"
+                            >
+                              <Trash2 className="w-4 h-4 text-rose-500" />
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>
@@ -383,6 +592,7 @@ export const InvoicesPage: React.FC = () => {
 
             <div className="text-xs space-y-1">
               <p><strong>Invoice Number:</strong> {cancelInvoiceTarget.invoiceNumber}</p>
+              <p><strong>Originating Branch:</strong> {cancelInvoiceTarget.branch?.name || currentBranch?.name} ({cancelInvoiceTarget.branch?.code || currentBranch?.code})</p>
               <p><strong>Total Amount:</strong> ₹{cancelInvoiceTarget.grandTotal.toFixed(2)}</p>
               <p><strong>Customer:</strong> {cancelInvoiceTarget.customerName || 'Retail Customer'}</p>
             </div>
@@ -419,6 +629,97 @@ export const InvoicesPage: React.FC = () => {
             </div>
           </form>
         )}
+      </Modal>
+
+      {/* Modal: Permanent Single Delete Confirmation for Cancelled Bill */}
+      <Modal
+        isOpen={!!deleteTargetInvoice}
+        onClose={() => setDeleteTargetInvoice(null)}
+        title="Permanently Delete Cancelled Bill"
+        maxWidth="md"
+      >
+        {deleteTargetInvoice && (
+          <div className="space-y-4">
+            <div className="p-3 bg-rose-50 border border-rose-200 rounded-lg text-rose-900 text-xs flex items-start gap-2.5">
+              <AlertTriangle className="w-5 h-5 text-rose-600 flex-shrink-0 mt-0.5" />
+              <div>
+                <p className="font-bold">Permanent Deletion Warning</p>
+                <p className="mt-0.5 text-slate-700">
+                  This bill is already cancelled and stock has been restored. Deleting will permanently remove invoice <strong>{deleteTargetInvoice.invoiceNumber}</strong> from the database.
+                </p>
+              </div>
+            </div>
+
+            <div className="text-xs space-y-1 bg-slate-50 p-3 rounded-lg border border-slate-200">
+              <p><strong>Invoice Number:</strong> {deleteTargetInvoice.invoiceNumber}</p>
+              <p><strong>Originating Branch:</strong> {deleteTargetInvoice.branch?.name || currentBranch?.name} ({deleteTargetInvoice.branch?.code || currentBranch?.code})</p>
+              <p><strong>Total Amount:</strong> ₹{deleteTargetInvoice.grandTotal.toFixed(2)}</p>
+              <p><strong>Status:</strong> <span className="text-rose-600 font-bold">{deleteTargetInvoice.status}</span></p>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-4 border-t border-slate-200">
+              <button
+                type="button"
+                onClick={() => setDeleteTargetInvoice(null)}
+                className="px-4 py-2 border border-slate-300 rounded-lg text-xs font-semibold text-slate-600"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={isDeleting}
+                onClick={handleDeleteSingleCancelled}
+                className="px-5 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-xs font-bold flex items-center gap-1.5"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                {isDeleting ? 'Deleting...' : 'Delete Permanently'}
+              </button>
+            </div>
+          </div>
+        )}
+      </Modal>
+
+      {/* Modal: Super Admin Purge All Cancelled Invoices Confirmation */}
+      <Modal
+        isOpen={showPurgeAllModal}
+        onClose={() => setShowPurgeAllModal(false)}
+        title="Purge All Cancelled Bills"
+        maxWidth="md"
+      >
+        <div className="space-y-4">
+          <div className="p-3 bg-rose-50 border border-rose-200 rounded-lg text-rose-900 text-xs flex items-start gap-2.5">
+            <AlertTriangle className="w-5 h-5 text-rose-600 flex-shrink-0 mt-0.5" />
+            <div>
+              <p className="font-bold">Super Admin Bulk Purge</p>
+              <p className="mt-0.5 text-slate-700">
+                Are you sure you want to permanently delete all cancelled invoices across all branches / sections? Only invoices marked as <strong>CANCELLED</strong> will be deleted. Completed active bills will remain untouched.
+              </p>
+            </div>
+          </div>
+
+          <p className="text-xs text-slate-600">
+            Target Scope: <strong>{selectedBranchId === 'ALL' || !selectedBranchId ? 'All Pharmacy Branches' : currentBranch?.name || selectedBranchId}</strong>
+          </p>
+
+          <div className="flex justify-end gap-2 pt-4 border-t border-slate-200">
+            <button
+              type="button"
+              onClick={() => setShowPurgeAllModal(false)}
+              className="px-4 py-2 border border-slate-300 rounded-lg text-xs font-semibold text-slate-600"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              disabled={isBulkDeleting}
+              onClick={handlePurgeAllCancelled}
+              className="px-5 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-xs font-bold flex items-center gap-1.5"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              {isBulkDeleting ? 'Purging...' : 'Yes, Purge All Cancelled Bills'}
+            </button>
+          </div>
+        </div>
       </Modal>
 
       {/* Tax Receipt Modal */}

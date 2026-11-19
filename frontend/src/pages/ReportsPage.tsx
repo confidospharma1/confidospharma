@@ -626,6 +626,7 @@ export const ReportsPage: React.FC = () => {
                     <thead className="bg-slate-50 text-slate-700 font-bold border-b border-slate-200">
                       <tr>
                         <th className="py-3 px-4">Invoice #</th>
+                        <th className="py-3 px-3">Branch</th>
                         <th className="py-3 px-3">Patient / Customer</th>
                         <th className="py-3 px-3 text-center">Payment Mode</th>
                         <th className="py-3 px-3 text-right">Taxable</th>
@@ -636,7 +637,7 @@ export const ReportsPage: React.FC = () => {
                     <tbody className="divide-y divide-slate-100 font-medium">
                       {filteredSalesInvoices.length === 0 ? (
                         <tr>
-                          <td colSpan={6} className="py-8 text-center text-slate-400">
+                          <td colSpan={7} className="py-8 text-center text-slate-400">
                             No sales invoices match the selected criteria.
                           </td>
                         </tr>
@@ -644,6 +645,12 @@ export const ReportsPage: React.FC = () => {
                         filteredSalesInvoices.map((inv: any) => (
                           <tr key={inv.id} className="hover:bg-slate-50/50">
                             <td className="py-2.5 px-4 font-mono font-bold text-slate-900">{inv.invoiceNumber}</td>
+                            <td className="py-2.5 px-3">
+                              <span className="font-bold text-slate-800 block text-xs">{inv.branch?.name || currentBranch?.name || 'Main Branch'}</span>
+                              <span className="font-mono text-[10px] text-slate-500 font-semibold bg-slate-100 px-1 py-0.5 rounded">
+                                {inv.branch?.code || currentBranch?.code || 'MAIN'}
+                              </span>
+                            </td>
                             <td className="py-2.5 px-3 text-slate-700">{inv.customerName || 'Retail Customer'}</td>
                             <td className="py-2.5 px-3 text-center">
                               <Badge variant="neutral" size="sm">

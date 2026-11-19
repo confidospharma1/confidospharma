@@ -1,6 +1,7 @@
 import React, { useRef, useState, useEffect } from 'react';
 import { SalesInvoice } from '../types';
-import { CheckCircle2, MessageCircle, Send, Copy, Check, Printer, Smartphone, Building2 } from 'lucide-react';
+import { api } from '../services/api';
+import { CheckCircle2, MessageCircle, Send, Copy, Check, Printer, Smartphone, Building2, ExternalLink, Zap } from 'lucide-react';
 import { Modal } from './Modal';
 
 export const OFFICE_PHONE = '6302931223';
@@ -13,10 +14,12 @@ interface ReceiptModalProps {
 
 /**
  * Formats a lightweight plain-text digital receipt (< 1 KB) optimized for WhatsApp delivery.
- * Contains all GST, batch, expiry, and legal details without heavy PDF overhead.
+ * Accurately displays originating branch name and branch code.
  */
 export const formatWhatsAppBillText = (invoice: SalesInvoice, officeNumber = OFFICE_PHONE): string => {
   const branch = invoice.branch;
+  const branchName = branch?.name || 'Central Pharmacy Branch';
+  const branchCode = branch?.code || 'MAIN';
   const createdDate = new Date(invoice.createdAt);
   const formattedDate = createdDate.toLocaleDateString('en-IN', {
     day: '2-digit',
@@ -40,7 +43,7 @@ export const formatWhatsAppBillText = (invoice: SalesInvoice, officeNumber = OFF
     .join('\n\n');
 
   let text = `🏥 *CONFIDOS PHARMA*\n`;
-  if (branch?.name) text += `📍 *${branch.name}*\n`;
+  text += `📍 *Branch:* ${branchName} (Code: *${branchCode}*)\n`;
   if (branch?.address) text += `${branch.address}\n`;
   if (branch?.gstin) text += `GSTIN: ${branch.gstin} `;
   if (branch?.drugLicenseNo) text += `| DL: ${branch.drugLicenseNo}`;
@@ -49,6 +52,7 @@ export const formatWhatsAppBillText = (invoice: SalesInvoice, officeNumber = OFF
   text += `🧾 *DIGITAL TAX INVOICE*\n`;
   text += `━━━━━━━━━━━━━━━━━━━━━\n`;
   text += `*Invoice No:* #${invoice.invoiceNumber}\n`;
+  text += `*Originating Branch:* ${branchName} (${branchCode})\n`;
   text += `*Date:* ${formattedDate} ${formattedTime}\n`;
   text += `*Customer:* ${invoice.customerName || 'Retail Customer'}\n`;
   if (invoice.customerPhone) text += `*Mobile:* ${invoice.customerPhone}\n`;
@@ -72,8 +76,8 @@ export const formatWhatsAppBillText = (invoice: SalesInvoice, officeNumber = OFF
   text += `💰 *NET PAYABLE: ₹${invoice.grandTotal.toFixed(2)}*\n`;
   text += `━━━━━━━━━━━━━━━━━━━━━\n`;
   text += `🙏 *Thank you for choosing Confidos Pharma!*\n`;
-  text += `_Eco-friendly Digital Invoice (< 1 KB) saved securely in system._\n`;
-  text += `_For refills or support, contact office: *${officeNumber}*_\n`;
+  text += `_Digital paperless bill issued by Branch: ${branchName} (${branchCode})._\n`;
+  text += `_For refills or support, contact office helpline: *${officeNumber}*_\n`;
 
   return text;
 };
@@ -92,23 +96,28 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
   const receiptRef = useRef<HTMLDivElement>(null);
   const [customerPhoneInput, setCustomerPhoneInput] = useState('');
   const [copied, setCopied] = useState(false);
-  const [sentCustomer, setSentCustomer] = useState(false);
-  const [sentOffice, setSentOffice] = useState(false);
   const [phoneError, setPhoneError] = useState('');
+  const [isDirectSending, setIsDirectSending] = useState(false);
+  const [directSendSuccess, setDirectSendSuccess] = useState<string | null>(null);
 
   useEffect(() => {
     if (invoice) {
       setCustomerPhoneInput(invoice.customerPhone || '');
       setCopied(false);
-      setSentCustomer(false);
-      setSentOffice(false);
       setPhoneError('');
+      if (invoice.customerPhone) {
+        setDirectSendSuccess(`Direct automated WhatsApp dispatch initialized from Office (${OFFICE_PHONE}) to ${invoice.customerPhone}`);
+      } else {
+        setDirectSendSuccess(null);
+      }
     }
   }, [invoice]);
 
   if (!invoice) return null;
 
   const branch = invoice.branch;
+  const branchName = branch?.name || 'Central Pharmacy Branch';
+  const branchCode = branch?.code || 'MAIN';
   const createdDate = new Date(invoice.createdAt);
   const formattedDate = createdDate.toLocaleDateString('en-IN', {
     day: '2-digit',
@@ -123,24 +132,37 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
 
   const billText = formatWhatsAppBillText(invoice, OFFICE_PHONE);
 
-  const handleSendToCustomer = () => {
+  // Direct automated WhatsApp dispatch without redirection
+  const handleDirectSendFromOffice = async () => {
     const cleanDigits = customerPhoneInput.replace(/\D/g, '');
     if (!cleanDigits || cleanDigits.length < 10) {
       setPhoneError('Please enter a valid 10-digit WhatsApp phone number.');
       return;
     }
     setPhoneError('');
-    const url = getWhatsAppSendUrl(customerPhoneInput, billText);
-    window.open(url, '_blank');
-    setSentCustomer(true);
-    setTimeout(() => setSentCustomer(false), 4000);
+    setIsDirectSending(true);
+    setDirectSendSuccess(null);
+
+    try {
+      await api.sendInvoiceWhatsApp(invoice.id, customerPhoneInput);
+      setDirectSendSuccess(`Automated bill sent directly from Office (${OFFICE_PHONE}) to +91 ${cleanDigits} without redirecting!`);
+      setTimeout(() => setDirectSendSuccess(null), 6000);
+    } catch (err: any) {
+      setPhoneError(err.message || 'Failed to dispatch WhatsApp message');
+    } finally {
+      setIsDirectSending(false);
+    }
   };
 
-  const handleSendToOffice = () => {
-    const url = getWhatsAppSendUrl(OFFICE_PHONE, billText);
+  // Optional manual fallback link (only if user explicitly opens web)
+  const handleOpenManualWhatsAppWeb = () => {
+    const cleanDigits = customerPhoneInput.replace(/\D/g, '');
+    if (!cleanDigits || cleanDigits.length < 10) {
+      setPhoneError('Please enter a valid 10-digit phone number.');
+      return;
+    }
+    const url = getWhatsAppSendUrl(customerPhoneInput, billText);
     window.open(url, '_blank');
-    setSentOffice(true);
-    setTimeout(() => setSentOffice(false), 4000);
   };
 
   const handleCopyText = async () => {
@@ -158,7 +180,7 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
   };
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Digital Tax Invoice & WhatsApp Bill" maxWidth="2xl">
+    <Modal isOpen={isOpen} onClose={onClose} title="Digital Tax Invoice & Direct WhatsApp Bill" maxWidth="2xl">
       <div className="space-y-4">
         {/* Success / Status header */}
         <div className="flex items-center gap-3 p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-800 text-xs sm:text-sm print:hidden">
@@ -166,22 +188,27 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
           <div className="flex-1">
             <span className="font-bold">Invoice #{invoice.invoiceNumber} Saved to Database!</span>
             <span className="block text-[11px] text-emerald-700">
-              Stock deducted from branch. Digital bill ready for WhatsApp delivery (No PDF required • lightweight &lt; 1 KB).
+              Originating Branch: <strong>{branchName}</strong> (Code: <code className="font-mono bg-emerald-100 px-1 py-0.2 rounded font-bold">{branchCode}</code>) • Stock deducted from branch.
             </span>
           </div>
         </div>
 
-        {/* WhatsApp Dispatch Control Panel */}
+        {/* WhatsApp Direct Automated Messaging Control Panel */}
         <div className="bg-slate-50 border border-emerald-200/80 rounded-xl p-3.5 print:hidden space-y-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <span className="p-1.5 bg-emerald-600 text-white rounded-lg">
-                <MessageCircle className="w-4 h-4" />
+                <Zap className="w-4 h-4" />
               </span>
               <div>
-                <h4 className="text-xs font-bold text-slate-800">Send Digital Bill to WhatsApp</h4>
+                <h4 className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                  Direct Automated WhatsApp Messaging
+                  <span className="text-[10px] px-1.5 py-0.2 bg-emerald-600 text-white rounded font-normal">
+                    From Office: {OFFICE_PHONE}
+                  </span>
+                </h4>
                 <p className="text-[10px] text-slate-500">
-                  Instant paperless bill sent directly to customer's mobile number.
+                  Sends directly from company office number ({OFFICE_PHONE}) without page or window redirection.
                 </p>
               </div>
             </div>
@@ -190,7 +217,15 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
             </span>
           </div>
 
-          {/* Customer Phone Input and Send Button */}
+          {/* Status feedback banner */}
+          {directSendSuccess && (
+            <div className="p-2.5 bg-emerald-100/80 border border-emerald-300 text-emerald-900 rounded-lg text-xs flex items-center gap-2">
+              <Check className="w-4 h-4 text-emerald-700 flex-shrink-0" />
+              <span className="font-medium">{directSendSuccess}</span>
+            </div>
+          )}
+
+          {/* Customer Phone Input and Direct Automated Send Button */}
           <div className="space-y-1.5">
             <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
               <div className="relative flex-1">
@@ -212,18 +247,19 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
 
               <button
                 type="button"
-                onClick={handleSendToCustomer}
-                className="flex items-center justify-center gap-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white rounded-lg text-xs font-bold shadow-xs transition-colors"
+                onClick={handleDirectSendFromOffice}
+                disabled={isDirectSending}
+                className="flex items-center justify-center gap-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white rounded-lg text-xs font-bold shadow-xs transition-colors disabled:opacity-50"
               >
-                {sentCustomer ? (
+                {isDirectSending ? (
                   <>
-                    <Check className="w-4 h-4 text-white" />
-                    Opening WhatsApp...
+                    <div className="w-3.5 h-3.5 rounded-full border-2 border-white border-t-transparent animate-spin" />
+                    Sending from Office...
                   </>
                 ) : (
                   <>
                     <Send className="w-3.5 h-3.5" />
-                    Send to Customer WhatsApp
+                    Direct Send from Office ({OFFICE_PHONE})
                   </>
                 )}
               </button>
@@ -234,19 +270,9 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
             )}
           </div>
 
-          {/* Secondary Actions: Copy and Send to Office */}
+          {/* Secondary Actions: Copy and Manual Web Link */}
           <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-200 text-xs">
             <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={handleSendToOffice}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-300 hover:bg-slate-100 text-slate-700 rounded-lg text-[11px] font-semibold transition-colors"
-                title="Send a copy of this bill to office WhatsApp number"
-              >
-                <Building2 className="w-3.5 h-3.5 text-emerald-600" />
-                {sentOffice ? 'Sent to Office!' : `Copy to Office (${OFFICE_PHONE})`}
-              </button>
-
               <button
                 type="button"
                 onClick={handleCopyText}
@@ -264,6 +290,16 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
                   </>
                 )}
               </button>
+
+              <button
+                type="button"
+                onClick={handleOpenManualWhatsAppWeb}
+                className="flex items-center gap-1 px-2.5 py-1.5 text-slate-500 hover:text-slate-700 text-[11px] font-medium"
+                title="Optional: Open chat in WhatsApp Web manually"
+              >
+                <ExternalLink className="w-3 h-3" />
+                Manual WhatsApp Web
+              </button>
             </div>
 
             {/* Optional Print Button (non-intrusive fallback) */}
@@ -271,7 +307,7 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
               type="button"
               onClick={handleOptionalPrint}
               className="text-[11px] text-slate-400 hover:text-slate-600 flex items-center gap-1 py-1 px-2"
-              title="Print only if paper thermal copy is specifically requested"
+              title="Print only if physical paper receipt is specifically requested"
             >
               <Printer className="w-3 h-3" />
               Optional: Print Thermal
@@ -292,10 +328,13 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
               alt="Confidos Pharma"
               className="h-10 w-auto max-w-[150px] object-contain mx-auto block mb-1.5"
             />
-            {/* Pharmacy Branch & Legal Info */}
+            {/* Pharmacy Branch Name & Code - Prominently Displayed */}
             <h2 className="text-xs font-bold text-slate-900 tracking-wide uppercase">
-              {branch?.name || 'Central Pharmacy Branch'}
+              {branchName}
             </h2>
+            <div className="text-[10px] font-bold text-slate-800 font-mono tracking-wide mt-0.5">
+              BRANCH CODE: <span className="bg-slate-100 px-1.5 py-0.5 rounded text-slate-900 font-black">{branchCode}</span>
+            </div>
             {branch?.address && (
               <p className="text-[10px] text-slate-600 mt-0.5 leading-tight">{branch.address}</p>
             )}
@@ -316,6 +355,10 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
             <div className="flex justify-between items-center px-1">
               <span className="font-semibold text-slate-600">Invoice No:</span>
               <span className="font-bold text-slate-900 font-mono">{invoice.invoiceNumber}</span>
+            </div>
+            <div className="flex justify-between items-center px-1">
+              <span className="font-semibold text-slate-600">Originating Branch:</span>
+              <span className="font-bold text-slate-900 font-mono">{branchName} ({branchCode})</span>
             </div>
             <div className="flex justify-between items-center px-1">
               <span className="font-semibold text-slate-600">Date & Time:</span>

@@ -3,6 +3,7 @@ import Decimal from 'decimal.js';
 import prisma from '../../database/prisma';
 import { logAuditEvent } from '../../utils/audit';
 import { buildProductUnitConfig, determineDefaultSellingUnit } from '../../utils/unitConverter';
+import { sendWhatsAppInvoiceDirect } from '../../services/whatsapp.service';
 
 export const createInvoice = async (req: Request, res: Response) => {
   try {
@@ -317,7 +318,19 @@ export const createInvoice = async (req: Request, res: Response) => {
       req,
     });
 
-    return res.status(201).json(result);
+    let waDispatch = null;
+    if (result.customerPhone) {
+      try {
+        waDispatch = await sendWhatsAppInvoiceDirect(result);
+      } catch (waErr: any) {
+        console.warn('Direct WhatsApp dispatch non-fatal error:', waErr.message);
+      }
+    }
+
+    return res.status(201).json({
+      ...result,
+      whatsappDispatch: waDispatch,
+    });
   } catch (error: any) {
     console.error('Invoice error:', error);
     return res.status(400).json({ message: error.message || 'Failed to complete sales invoice' });
@@ -492,5 +505,162 @@ export const cancelInvoice = async (req: Request, res: Response) => {
     return res.json({ message: 'Invoice cancelled and stock restored successfully' });
   } catch (error: any) {
     return res.status(500).json({ message: error.message || 'Failed to cancel invoice' });
+  }
+};
+
+export const deleteInvoice = async (req: Request, res: Response) => {
+  try {
+    if (!req.user) return res.status(401).json({ message: 'Unauthorized' });
+
+    const id = req.params.id as string;
+    const invoice = await prisma.salesInvoice.findUnique({
+      where: { id },
+      include: { branch: true },
+    });
+
+    if (!invoice) return res.status(404).json({ message: 'Invoice not found' });
+
+    // Isolation check
+    if (req.user.role !== 'SUPER_ADMIN' && invoice.branchId !== req.user.branchId) {
+      return res.status(403).json({ message: 'Access denied: Invoice belongs to another branch' });
+    }
+
+    // Safety rule: Only cancelled invoices can be deleted
+    if (invoice.status !== 'CANCELLED') {
+      return res.status(400).json({
+        message: 'Only cancelled invoices can be deleted. Please cancel the invoice first to ensure inventory reconciliation.',
+      });
+    }
+
+    await prisma.salesInvoice.delete({
+      where: { id: invoice.id },
+    });
+
+    await logAuditEvent({
+      userId: req.user.id,
+      branchId: invoice.branchId,
+      action: 'SALE_INVOICE_DELETE',
+      targetEntity: 'SALES_INVOICE',
+      entityId: invoice.id,
+      details: {
+        invoiceNumber: invoice.invoiceNumber,
+        grandTotal: invoice.grandTotal,
+        branchCode: invoice.branch?.code,
+        branchName: invoice.branch?.name,
+      },
+      req,
+    });
+
+    return res.json({ message: `Cancelled invoice ${invoice.invoiceNumber} permanently deleted successfully` });
+  } catch (error: any) {
+    console.error('Delete invoice error:', error);
+    return res.status(500).json({ message: error.message || 'Failed to delete invoice' });
+  }
+};
+
+export const bulkDeleteCancelledInvoices = async (req: Request, res: Response) => {
+  try {
+    if (!req.user) return res.status(401).json({ message: 'Unauthorized' });
+
+    const { invoiceIds, allCancelled, branchId } = req.body;
+
+    const whereClause: any = {
+      status: 'CANCELLED',
+    };
+
+    if (req.user.role === 'SUPER_ADMIN') {
+      if (branchId && branchId !== 'ALL') {
+        whereClause.branchId = branchId;
+      }
+    } else {
+      whereClause.branchId = req.user.branchId;
+    }
+
+    if (Array.isArray(invoiceIds) && invoiceIds.length > 0) {
+      whereClause.id = { in: invoiceIds };
+    } else if (!allCancelled) {
+      return res.status(400).json({ message: 'Please specify invoice IDs or set allCancelled to true' });
+    }
+
+    // Count records to delete
+    const eligibleCount = await prisma.salesInvoice.count({ where: whereClause });
+    if (eligibleCount === 0) {
+      return res.status(200).json({ message: 'No matching cancelled invoices found to delete', deletedCount: 0 });
+    }
+
+    // Execute bulk delete
+    const result = await prisma.salesInvoice.deleteMany({
+      where: whereClause,
+    });
+
+    await logAuditEvent({
+      userId: req.user.id,
+      branchId: req.user.branchId || 'ALL',
+      action: 'SALE_INVOICE_BULK_DELETE',
+      targetEntity: 'SALES_INVOICE',
+      entityId: 'BULK',
+      details: {
+        deletedCount: result.count,
+        targetBranchId: branchId || 'ALL',
+      },
+      req,
+    });
+
+    return res.json({
+      message: `Successfully deleted ${result.count} cancelled bill(s) permanently across selected sections`,
+      deletedCount: result.count,
+    });
+  } catch (error: any) {
+    console.error('Bulk delete cancelled invoices error:', error);
+    return res.status(500).json({ message: error.message || 'Failed to bulk delete cancelled invoices' });
+  }
+};
+
+export const sendInvoiceWhatsApp = async (req: Request, res: Response) => {
+  try {
+    if (!req.user) return res.status(401).json({ message: 'Unauthorized' });
+
+    const id = req.params.id as string;
+    const { phone } = req.body;
+
+    const invoice = await prisma.salesInvoice.findUnique({
+      where: { id },
+      include: {
+        branch: true,
+        lines: true,
+      },
+    });
+
+    if (!invoice) return res.status(404).json({ message: 'Invoice not found' });
+
+    if (req.user.role !== 'SUPER_ADMIN' && invoice.branchId !== req.user.branchId) {
+      return res.status(403).json({ message: 'Access denied: Invoice belongs to another branch' });
+    }
+
+    const dispatchResult = await sendWhatsAppInvoiceDirect(invoice, phone);
+
+    await logAuditEvent({
+      userId: req.user.id,
+      branchId: invoice.branchId,
+      action: 'WHATSAPP_DISPATCH',
+      targetEntity: 'SALES_INVOICE',
+      entityId: invoice.id,
+      details: {
+        invoiceNumber: invoice.invoiceNumber,
+        to: dispatchResult.to,
+        from: dispatchResult.from,
+        branchName: dispatchResult.branchName,
+        branchCode: dispatchResult.branchCode,
+      },
+      req,
+    });
+
+    return res.json({
+      message: `Direct WhatsApp message dispatched to ${dispatchResult.to} from Office (${dispatchResult.from})`,
+      dispatch: dispatchResult,
+    });
+  } catch (error: any) {
+    console.error('Send invoice WhatsApp error:', error);
+    return res.status(500).json({ message: error.message || 'Failed to send WhatsApp message' });
   }
 };
