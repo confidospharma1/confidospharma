@@ -492,7 +492,11 @@ export const PurchasesPage: React.FC<PurchasesPageProps> = ({ prefilledIndent, o
       pur.lines.map((l: any) => ({
         medicineId: l.medicineId,
         batchNumber: l.batchNumber,
-        expiryDate: new Date(l.expiryDate).toISOString().split('T')[0],
+        expiryDate: l.expiryDate
+          ? (!isNaN(new Date(l.expiryDate).getTime())
+              ? new Date(l.expiryDate).toISOString().split('T')[0]
+              : String(l.expiryDate))
+          : '',
         quantity: l.quantity,
         freeQuantity: l.freeQuantity || 0,
         unit: l.unit || 'Box',

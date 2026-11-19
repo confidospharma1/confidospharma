@@ -1649,8 +1649,12 @@ export const previewPurchaseImport = async (req: Request, res: Response) => {
       const { date: expDate, isoString: expDateIso, error: expError } = parseExpiryDate(expiryRaw);
       if (expError) {
         errors.push(expError);
-      } else if (expDate && expDate <= new Date()) {
-        errors.push('Batch is already expired. Expired stock cannot be accepted into inventory.');
+      } else if (expDate) {
+        const todayStart = new Date();
+        todayStart.setHours(0, 0, 0, 0);
+        if (expDate < todayStart) {
+          errors.push('Batch is already expired. Expired stock cannot be accepted into inventory.');
+        }
       }
 
       // Product Matching

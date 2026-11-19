@@ -116,8 +116,12 @@ export const uploadAndPreviewImport = async (req: Request, res: Response) => {
       const { date: parsedDate, isoString: parsedDateIso, error: dateError } = parseExpiryDate(pharma.expiryDate);
       if (dateError) {
         errors.push(dateError);
-      } else if (parsedDate && parsedDate <= new Date()) {
-        errors.push('Batch is already expired. Expired stock cannot be imported as live inventory.');
+      } else if (parsedDate) {
+        const todayStart = new Date();
+        todayStart.setHours(0, 0, 0, 0);
+        if (parsedDate < todayStart) {
+          errors.push('Batch is already expired. Expired stock cannot be imported as live inventory.');
+        }
       }
 
       if (pharma.stripQuantityInBox <= 0) errors.push('Strip quantity in box must be greater than zero');

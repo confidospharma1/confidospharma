@@ -653,13 +653,30 @@ export function extractMappedRow(
   return extracted;
 }
 
+const MONTH_NAME_MAP: Record<string, number> = {
+  jan: 1, january: 1,
+  feb: 2, february: 2,
+  mar: 3, march: 3,
+  apr: 4, april: 4,
+  may: 5,
+  jun: 6, june: 6,
+  jul: 7, july: 7,
+  aug: 8, august: 8,
+  sep: 9, sept: 9, september: 9,
+  oct: 10, october: 10,
+  nov: 11, november: 11,
+  dec: 12, december: 12,
+};
+
 /**
  * Robust, exception-free Date Parser
  * Handles:
- * - Separators: '.', '/', '-' (e.g. 30-12-2026, 30.12.2026, 30/12/2026)
+ * - Separators: '.', '/', '-' (e.g. 30-12-2026, 30.12.2026, 30/12/2026, 30.02.2028)
+ * - Forgiving calendar day clamping for pharma invoices (e.g. 30.02.2028 or 31.04.2028 clamps to month end)
  * - Indian / UK format: DD-MM-YYYY, DD.MM.YYYY, DD/MM/YYYY
  * - ISO Strings: YYYY-MM-DD, YYYY.MM.DD, YYYY/MM/DD
  * - Short year: DD-MM-YY, DD.MM.YY, DD/MM/YY
+ * - Named months: 30-FEB-2028, FEB-2028, Feb 2028, February 2028
  * - Month/Year: MM/YYYY, MM.YYYY, MM-YYYY (set to end of month)
  * - Year/Month: YYYY-MM, YYYY.MM, YYYY/MM (set to end of month)
  * - Month/Short Year: MM/YY, MM.YY, MM-YY (set to end of month)
@@ -703,6 +720,15 @@ export function parseExpiryDate(raw: any): {
     return { date: null, isoString: null, error: 'Expiry Date is required' };
   }
 
+  // Strip common label prefixes like "EXP:", "Exp Date:"
+  str = str.replace(/^(exp|expiry|exp\s*date|expiry\s*date)[:\s]*/i, '').trim();
+
+  // Strip trailing time e.g. " 00:00:00" or "T00:00:00.000Z"
+  const timeMatch = str.match(/^(.*?)[T\s]+\d{1,2}:\d{2}(:\d{2})?(\.\d+)?(Z|[+-]\d{2}:?\d{2})?$/);
+  if (timeMatch && timeMatch[1]) {
+    str = timeMatch[1].trim();
+  }
+
   // Normalize whitespace around separators: e.g. "30 / 12 / 2026" -> "30/12/2026"
   str = str.replace(/\s*([\/\.\-])\s*/g, '$1');
 
@@ -719,7 +745,7 @@ export function parseExpiryDate(raw: any): {
     }
   }
 
-  // 2. Check DD/MM/YYYY, DD.MM.YYYY, DD-MM-YYYY (e.g. 30-12-2026, 30.12.2026, 30/12/2026)
+  // 2. Check DD/MM/YYYY, DD.MM.YYYY, DD-MM-YYYY (e.g. 30.02.2028, 30-12-2026, 30.12.2026, 30/12/2026)
   const dmyMatch = str.match(/^(\d{1,2})[\/\.\-](\d{1,2})[\/\.\-](\d{4})$/);
   if (dmyMatch) {
     const p1 = parseInt(dmyMatch[1], 10);
@@ -734,35 +760,33 @@ export function parseExpiryDate(raw: any): {
       day = p2;
       month = p1;
     }
-    const date = new Date(Date.UTC(year, month - 1, day));
-    if (
-      date.getUTCFullYear() === year &&
-      date.getUTCMonth() === month - 1 &&
-      date.getUTCDate() === day
-    ) {
+
+    if (month >= 1 && month <= 12 && year >= 1900 && year <= 2100) {
+      // Forgiving day clamping: in pharma, e.g. 30.02.2028 means end of February 2028!
+      const maxDays = new Date(Date.UTC(year, month, 0)).getUTCDate();
+      const validDay = Math.min(Math.max(1, day), maxDays);
+      const date = new Date(Date.UTC(year, month - 1, validDay));
       return { date, isoString: date.toISOString(), error: null };
     }
     return { date: null, isoString: null, error: 'Invalid calendar date values for DD/MM/YYYY' };
   }
 
-  // 3. Check YYYY-MM-DD, YYYY.MM.DD, YYYY/MM/DD (e.g. 2026-12-30, 2026.12.30, 2026/12/30)
+  // 3. Check YYYY-MM-DD, YYYY.MM.DD, YYYY/MM/DD (e.g. 2026-12-30, 2028.02.30, 2026/12/30)
   const ymdMatch = str.match(/^(\d{4})[\/\.\-](\d{1,2})[\/\.\-](\d{1,2})$/);
   if (ymdMatch) {
     const year = parseInt(ymdMatch[1], 10);
     const month = parseInt(ymdMatch[2], 10);
     const day = parseInt(ymdMatch[3], 10);
-    const date = new Date(Date.UTC(year, month - 1, day));
-    if (
-      date.getUTCFullYear() === year &&
-      date.getUTCMonth() === month - 1 &&
-      date.getUTCDate() === day
-    ) {
+    if (month >= 1 && month <= 12 && year >= 1900 && year <= 2100) {
+      const maxDays = new Date(Date.UTC(year, month, 0)).getUTCDate();
+      const validDay = Math.min(Math.max(1, day), maxDays);
+      const date = new Date(Date.UTC(year, month - 1, validDay));
       return { date, isoString: date.toISOString(), error: null };
     }
     return { date: null, isoString: null, error: 'Invalid calendar date values for YYYY-MM-DD' };
   }
 
-  // 4. Check DD/MM/YY, DD.MM.YY, DD-MM-YY (e.g. 30.12.26, 30/12/26, 30-12-26)
+  // 4. Check DD/MM/YY, DD.MM.YY, DD-MM-YY (e.g. 30.02.28, 30.12.26, 30/12/26, 30-12-26)
   const dmy2Match = str.match(/^(\d{1,2})[\/\.\-](\d{1,2})[\/\.\-](\d{2})$/);
   if (dmy2Match) {
     const p1 = parseInt(dmy2Match[1], 10);
@@ -777,18 +801,46 @@ export function parseExpiryDate(raw: any): {
       day = p2;
       month = p1;
     }
-    const date = new Date(Date.UTC(year, month - 1, day));
-    if (
-      date.getUTCFullYear() === year &&
-      date.getUTCMonth() === month - 1 &&
-      date.getUTCDate() === day
-    ) {
+
+    if (month >= 1 && month <= 12) {
+      const maxDays = new Date(Date.UTC(year, month, 0)).getUTCDate();
+      const validDay = Math.min(Math.max(1, day), maxDays);
+      const date = new Date(Date.UTC(year, month - 1, validDay));
       return { date, isoString: date.toISOString(), error: null };
     }
     return { date: null, isoString: null, error: 'Invalid calendar date values for DD/MM/YY' };
   }
 
-  // 5. Check MM/YYYY, MM.YYYY, MM-YYYY (e.g. 12/2026, 12.2026, 12-2026)
+  // 5. Named month with day: e.g. "30-FEB-2028", "30.FEB.2028", "28 Feb 2028", "30-Feb-28"
+  const namedDmyMatch = str.match(/^(\d{1,2})[\/\.\-\s]+([a-zA-Z]{3,9})[\/\.\-\s]+(\d{2,4})$/);
+  if (namedDmyMatch) {
+    const day = parseInt(namedDmyMatch[1], 10);
+    const mStr = namedDmyMatch[2].toLowerCase();
+    const month = MONTH_NAME_MAP[mStr] || MONTH_NAME_MAP[mStr.slice(0, 3)];
+    let year = parseInt(namedDmyMatch[3], 10);
+    if (namedDmyMatch[3].length === 2) year += 2000;
+    if (month && year >= 1900 && year <= 2100) {
+      const maxDays = new Date(Date.UTC(year, month, 0)).getUTCDate();
+      const validDay = Math.min(Math.max(1, day), maxDays);
+      const date = new Date(Date.UTC(year, month - 1, validDay));
+      return { date, isoString: date.toISOString(), error: null };
+    }
+  }
+
+  // 6. Named month without day: e.g. "FEB-2028", "FEB.2028", "FEB/2028", "FEB 2028", "FEB-28", "FEBRUARY 2028"
+  const namedMyMatch = str.match(/^([a-zA-Z]{3,9})[\/\.\-\s]+(\d{2,4})$/);
+  if (namedMyMatch) {
+    const mStr = namedMyMatch[1].toLowerCase();
+    const month = MONTH_NAME_MAP[mStr] || MONTH_NAME_MAP[mStr.slice(0, 3)];
+    let year = parseInt(namedMyMatch[2], 10);
+    if (namedMyMatch[2].length === 2) year += 2000;
+    if (month && year >= 1900 && year <= 2100) {
+      const date = new Date(Date.UTC(year, month, 0, 23, 59, 59));
+      return { date, isoString: date.toISOString(), error: null };
+    }
+  }
+
+  // 7. Check MM/YYYY, MM.YYYY, MM-YYYY (e.g. 12/2026, 12.2026, 12-2026, 02.2028)
   const myMatch = str.match(/^(\d{1,2})[\/\.\-](\d{4})$/);
   if (myMatch) {
     const month = parseInt(myMatch[1], 10);
@@ -800,7 +852,7 @@ export function parseExpiryDate(raw: any): {
     }
   }
 
-  // 6. Check YYYY-MM, YYYY.MM, YYYY/MM (e.g. 2026-12, 2026.12, 2026/12)
+  // 8. Check YYYY-MM, YYYY.MM, YYYY/MM (e.g. 2026-12, 2026.12, 2026/12)
   const ymMatch = str.match(/^(\d{4})[\/\.\-](\d{1,2})$/);
   if (ymMatch) {
     const year = parseInt(ymMatch[1], 10);
@@ -811,7 +863,7 @@ export function parseExpiryDate(raw: any): {
     }
   }
 
-  // 7. Check MM/YY, MM.YY, MM-YY (e.g. 12/26, 12.26, 12-26)
+  // 9. Check MM/YY, MM.YY, MM-YY (e.g. 12/26, 12.26, 12-26, 02/28)
   const my2Match = str.match(/^(\d{1,2})[\/\.\-](\d{2})$/);
   if (my2Match) {
     const month = parseInt(my2Match[1], 10);
@@ -822,7 +874,7 @@ export function parseExpiryDate(raw: any): {
     }
   }
 
-  // 8. Standard ISO or standard Date parsing
+  // 10. Standard ISO or standard Date parsing
   const parsed = new Date(str);
   if (!isNaN(parsed.getTime())) {
     return { date: parsed, isoString: parsed.toISOString(), error: null };
