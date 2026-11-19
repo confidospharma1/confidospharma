@@ -482,9 +482,9 @@ export const createPurchase = async (req: Request, res: Response) => {
         taxTotalDec = taxTotalDec.plus(lineTax);
         lineDiscountsTotalDec = lineDiscountsTotalDec.plus(lineDisc);
 
-        const parsedExpiry = new Date(expiryDate);
-        if (isNaN(parsedExpiry.getTime())) {
-          throw new Error(`Invalid expiry date format for batch ${batchNumber}`);
+        const { date: parsedExpiry, error: expErr } = parseExpiryDate(expiryDate);
+        if (expErr || !parsedExpiry) {
+          throw new Error(expErr || `Invalid expiry date format for batch ${batchNumber}`);
         }
 
         let factor = 1;
@@ -907,9 +907,9 @@ export const updatePurchase = async (req: Request, res: Response) => {
         taxTotalDec = taxTotalDec.plus(lineTax);
         lineDiscountsTotalDec = lineDiscountsTotalDec.plus(lineDisc);
 
-        const parsedExpiry = new Date(expiryDate);
-        if (isNaN(parsedExpiry.getTime())) {
-          throw new Error(`Invalid expiry date format for batch ${batchNumber}`);
+        const { date: parsedExpiry, error: expErr } = parseExpiryDate(expiryDate);
+        if (expErr || !parsedExpiry) {
+          throw new Error(expErr || `Invalid expiry date format for batch ${batchNumber}`);
         }
 
         if (line.conversionFactor !== undefined && line.conversionFactor !== null && line.conversionFactor !== '') {
@@ -1860,7 +1860,7 @@ export const downloadPurchaseTemplate = async (req: Request, res: Response) => {
       {
         'Medicine Name': 'Dolo 650',
         'Batch No': 'DL-2028-01',
-        'Expiry Date': '2028-12-31',
+        'Expiry Date': '30-12-2028',
         'HSN No': '30049099',
         'Manufacturer': 'Micro Labs Ltd',
         'STRIP QUANTITY IN THE BOX': 10,
@@ -1875,7 +1875,7 @@ export const downloadPurchaseTemplate = async (req: Request, res: Response) => {
       {
         'Medicine Name': 'Augmentin 625 Duo',
         'Batch No': 'AUG-2028-B2',
-        'Expiry Date': '2028-06-30',
+        'Expiry Date': '30.12.2028',
         'HSN No': '30041010',
         'Manufacturer': 'GSK Pharma',
         'STRIP QUANTITY IN THE BOX': 20,

@@ -421,12 +421,13 @@ export const commitImportJob = async (req: Request, res: Response) => {
               },
             });
           } else {
+            const { date: batchExpDate } = parseExpiryDate(row.expiryDate);
             batch = await tx.stockBatch.create({
               data: {
                 branchId: job.branchId,
                 medicineId: existingMed.id,
                 batchNumber: row.batchNumber,
-                expiryDate: new Date(row.expiryDate),
+                expiryDate: batchExpDate || new Date(row.expiryDate),
                 quantityReceived: physicalUnits,
                 availableQuantity: physicalUnits,
                 purchaseRate: pUnitPrice,
@@ -529,7 +530,7 @@ export const downloadTemplate = async (req: Request, res: Response) => {
     {
       'Medicine Name': 'Dolo 650',
       'Batch No': 'DL-2028-01',
-      'Expiry Date': '2028-12-31',
+      'Expiry Date': '30-12-2028',
       'HSN No': '30049099',
       'Manufacturer': 'Micro Labs Ltd',
       'STRIP QUANTITY IN THE BOX': 10,
@@ -544,7 +545,7 @@ export const downloadTemplate = async (req: Request, res: Response) => {
     {
       'Medicine Name': 'Augmentin 625 Duo',
       'Batch No': 'AUG-2028-B2',
-      'Expiry Date': '2028-06-30',
+      'Expiry Date': '30.12.2028',
       'HSN No': '30041010',
       'Manufacturer': 'GSK Pharma',
       'STRIP QUANTITY IN THE BOX': 20,

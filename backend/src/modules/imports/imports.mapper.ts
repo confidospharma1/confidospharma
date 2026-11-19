@@ -656,11 +656,14 @@ export function extractMappedRow(
 /**
  * Robust, exception-free Date Parser
  * Handles:
- * - ISO Strings: YYYY-MM-DD
- * - Indian / UK format: DD/MM/YYYY or DD-MM-YYYY
- * - Month/Year: MM/YYYY or MM-YYYY
- * - Year/Month: YYYY-MM
- * - Excel serial dates (e.g. 45657)
+ * - Separators: '.', '/', '-' (e.g. 30-12-2026, 30.12.2026, 30/12/2026)
+ * - Indian / UK format: DD-MM-YYYY, DD.MM.YYYY, DD/MM/YYYY
+ * - ISO Strings: YYYY-MM-DD, YYYY.MM.DD, YYYY/MM/DD
+ * - Short year: DD-MM-YY, DD.MM.YY, DD/MM/YY
+ * - Month/Year: MM/YYYY, MM.YYYY, MM-YYYY (set to end of month)
+ * - Year/Month: YYYY-MM, YYYY.MM, YYYY/MM (set to end of month)
+ * - Month/Short Year: MM/YY, MM.YY, MM-YY (set to end of month)
+ * - Excel serial dates (numeric or 5-digit string, e.g. 45657)
  * - JS Date objects
  */
 export function parseExpiryDate(raw: any): {
@@ -677,38 +680,64 @@ export function parseExpiryDate(raw: any): {
       return {
         date: null,
         isoString: null,
-        error: 'Invalid Expiry Date. Use YYYY-MM-DD or DD/MM/YYYY',
+        error: 'Invalid Expiry Date. Use DD-MM-YYYY, DD.MM.YYYY, DD/MM/YYYY, or YYYY-MM-DD',
       };
     }
     return { date: raw, isoString: raw.toISOString(), error: null };
   }
 
-  const str = String(raw).trim();
+  // Handle numeric Excel serial date (e.g. 45657)
+  if (typeof raw === 'number' && !isNaN(raw)) {
+    if (raw >= 25569 && raw <= 100000) {
+      const utcDays = raw - 25569;
+      const utcMs = Math.round(utcDays * 86400 * 1000);
+      const date = new Date(utcMs);
+      if (!isNaN(date.getTime())) {
+        return { date, isoString: date.toISOString(), error: null };
+      }
+    }
+  }
+
+  let str = String(raw).trim();
   if (!str) {
     return { date: null, isoString: null, error: 'Expiry Date is required' };
   }
 
-  // 1. Check if numeric Excel serial date (e.g. 40000 to 70000)
-  if (/^\d{5}$/.test(str)) {
-    const serial = parseInt(str, 10);
-    const utcDays = serial - 25569;
-    const utcValue = utcDays * 86400;
-    const date = new Date(utcValue * 1000);
-    if (!isNaN(date.getTime())) {
-      return { date, isoString: date.toISOString(), error: null };
+  // Normalize whitespace around separators: e.g. "30 / 12 / 2026" -> "30/12/2026"
+  str = str.replace(/\s*([\/\.\-])\s*/g, '$1');
+
+  // 1. Check if numeric Excel serial date in string form (e.g. 40000 to 70000)
+  if (/^\d{5}(\.\d+)?$/.test(str)) {
+    const serial = parseFloat(str);
+    if (serial >= 25569 && serial <= 100000) {
+      const utcDays = serial - 25569;
+      const utcMs = Math.round(utcDays * 86400 * 1000);
+      const date = new Date(utcMs);
+      if (!isNaN(date.getTime())) {
+        return { date, isoString: date.toISOString(), error: null };
+      }
     }
   }
 
-  // 2. Check DD/MM/YYYY or DD-MM-YYYY
-  const dmyMatch = str.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+  // 2. Check DD/MM/YYYY, DD.MM.YYYY, DD-MM-YYYY (e.g. 30-12-2026, 30.12.2026, 30/12/2026)
+  const dmyMatch = str.match(/^(\d{1,2})[\/\.\-](\d{1,2})[\/\.\-](\d{4})$/);
   if (dmyMatch) {
-    const day = parseInt(dmyMatch[1], 10);
-    const month = parseInt(dmyMatch[2], 10) - 1;
+    const p1 = parseInt(dmyMatch[1], 10);
+    const p2 = parseInt(dmyMatch[2], 10);
     const year = parseInt(dmyMatch[3], 10);
-    const date = new Date(Date.UTC(year, month, day));
+    let day = p1;
+    let month = p2;
+    if (p1 > 12 && p2 <= 12) {
+      day = p1;
+      month = p2;
+    } else if (p1 <= 12 && p2 > 12) {
+      day = p2;
+      month = p1;
+    }
+    const date = new Date(Date.UTC(year, month - 1, day));
     if (
       date.getUTCFullYear() === year &&
-      date.getUTCMonth() === month &&
+      date.getUTCMonth() === month - 1 &&
       date.getUTCDate() === day
     ) {
       return { date, isoString: date.toISOString(), error: null };
@@ -716,8 +745,51 @@ export function parseExpiryDate(raw: any): {
     return { date: null, isoString: null, error: 'Invalid calendar date values for DD/MM/YYYY' };
   }
 
-  // 3. Check MM/YYYY or MM-YYYY
-  const myMatch = str.match(/^(\d{1,2})[\/\-](\d{4})$/);
+  // 3. Check YYYY-MM-DD, YYYY.MM.DD, YYYY/MM/DD (e.g. 2026-12-30, 2026.12.30, 2026/12/30)
+  const ymdMatch = str.match(/^(\d{4})[\/\.\-](\d{1,2})[\/\.\-](\d{1,2})$/);
+  if (ymdMatch) {
+    const year = parseInt(ymdMatch[1], 10);
+    const month = parseInt(ymdMatch[2], 10);
+    const day = parseInt(ymdMatch[3], 10);
+    const date = new Date(Date.UTC(year, month - 1, day));
+    if (
+      date.getUTCFullYear() === year &&
+      date.getUTCMonth() === month - 1 &&
+      date.getUTCDate() === day
+    ) {
+      return { date, isoString: date.toISOString(), error: null };
+    }
+    return { date: null, isoString: null, error: 'Invalid calendar date values for YYYY-MM-DD' };
+  }
+
+  // 4. Check DD/MM/YY, DD.MM.YY, DD-MM-YY (e.g. 30.12.26, 30/12/26, 30-12-26)
+  const dmy2Match = str.match(/^(\d{1,2})[\/\.\-](\d{1,2})[\/\.\-](\d{2})$/);
+  if (dmy2Match) {
+    const p1 = parseInt(dmy2Match[1], 10);
+    const p2 = parseInt(dmy2Match[2], 10);
+    const year = 2000 + parseInt(dmy2Match[3], 10);
+    let day = p1;
+    let month = p2;
+    if (p1 > 12 && p2 <= 12) {
+      day = p1;
+      month = p2;
+    } else if (p1 <= 12 && p2 > 12) {
+      day = p2;
+      month = p1;
+    }
+    const date = new Date(Date.UTC(year, month - 1, day));
+    if (
+      date.getUTCFullYear() === year &&
+      date.getUTCMonth() === month - 1 &&
+      date.getUTCDate() === day
+    ) {
+      return { date, isoString: date.toISOString(), error: null };
+    }
+    return { date: null, isoString: null, error: 'Invalid calendar date values for DD/MM/YY' };
+  }
+
+  // 5. Check MM/YYYY, MM.YYYY, MM-YYYY (e.g. 12/2026, 12.2026, 12-2026)
+  const myMatch = str.match(/^(\d{1,2})[\/\.\-](\d{4})$/);
   if (myMatch) {
     const month = parseInt(myMatch[1], 10);
     const year = parseInt(myMatch[2], 10);
@@ -728,8 +800,8 @@ export function parseExpiryDate(raw: any): {
     }
   }
 
-  // 4. Check YYYY-MM
-  const ymMatch = str.match(/^(\d{4})[\/\-](\d{1,2})$/);
+  // 6. Check YYYY-MM, YYYY.MM, YYYY/MM (e.g. 2026-12, 2026.12, 2026/12)
+  const ymMatch = str.match(/^(\d{4})[\/\.\-](\d{1,2})$/);
   if (ymMatch) {
     const year = parseInt(ymMatch[1], 10);
     const month = parseInt(ymMatch[2], 10);
@@ -739,7 +811,18 @@ export function parseExpiryDate(raw: any): {
     }
   }
 
-  // 5. Standard ISO or standard Date parsing
+  // 7. Check MM/YY, MM.YY, MM-YY (e.g. 12/26, 12.26, 12-26)
+  const my2Match = str.match(/^(\d{1,2})[\/\.\-](\d{2})$/);
+  if (my2Match) {
+    const month = parseInt(my2Match[1], 10);
+    const year = 2000 + parseInt(my2Match[2], 10);
+    if (month >= 1 && month <= 12) {
+      const date = new Date(Date.UTC(year, month, 0, 23, 59, 59));
+      return { date, isoString: date.toISOString(), error: null };
+    }
+  }
+
+  // 8. Standard ISO or standard Date parsing
   const parsed = new Date(str);
   if (!isNaN(parsed.getTime())) {
     return { date: parsed, isoString: parsed.toISOString(), error: null };
@@ -748,7 +831,7 @@ export function parseExpiryDate(raw: any): {
   return {
     date: null,
     isoString: null,
-    error: 'Invalid Expiry Date. Use YYYY-MM-DD or DD/MM/YYYY',
+    error: 'Invalid Expiry Date. Use DD-MM-YYYY, DD.MM.YYYY, DD/MM/YYYY, or YYYY-MM-DD',
   };
 }
 
@@ -920,7 +1003,9 @@ export function calculatePharmaRowUnitsAndPrices(mapped: Record<string, any>): P
   ).toString().trim();
 
   const batchNumber = (mapped.batchNumber || '').toString().trim();
-  const expiryDate = mapped.expiryDate ? String(mapped.expiryDate).trim() : '';
+  const expiryDate = mapped.expiryDate !== undefined && mapped.expiryDate !== null
+    ? (mapped.expiryDate instanceof Date ? mapped.expiryDate.toISOString() : String(mapped.expiryDate).trim())
+    : '';
   const hsnCode = (mapped.hsnCode || mapped.hsnNumber || '').toString().trim() || null;
   const manufacturer = (mapped.manufacturer || '').toString().trim() || 'Standard Pharma';
 

@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import prisma from '../../database/prisma';
 import { logAuditEvent } from '../../utils/audit';
+import { parseExpiryDate } from '../imports/imports.mapper';
 
 export const getBatches = async (req: Request, res: Response) => {
   try {
@@ -122,9 +123,9 @@ export const receiveStockBatch = async (req: Request, res: Response) => {
       return res.status(400).json({ message: 'Quantity must be greater than zero' });
     }
 
-    const parsedExpiry = new Date(expiryDate);
-    if (isNaN(parsedExpiry.getTime())) {
-      return res.status(400).json({ message: 'Invalid expiry date format' });
+    const { date: parsedExpiry, error: expErr } = parseExpiryDate(expiryDate);
+    if (expErr || !parsedExpiry) {
+      return res.status(400).json({ message: expErr || 'Invalid expiry date format' });
     }
 
     // Check medicine exists
@@ -638,10 +639,11 @@ export const updateBatch = async (req: Request, res: Response) => {
 
     let parsedExpiry: Date | undefined;
     if (expiryDate) {
-      parsedExpiry = new Date(expiryDate);
-      if (isNaN(parsedExpiry.getTime())) {
-        return res.status(400).json({ message: 'Invalid expiry date format' });
+      const parsed = parseExpiryDate(expiryDate);
+      if (parsed.error || !parsed.date) {
+        return res.status(400).json({ message: parsed.error || 'Invalid expiry date format' });
       }
+      parsedExpiry = parsed.date;
     }
 
     const rawPhysicalQty = pharmacyPhysicalUnits !== undefined ? pharmacyPhysicalUnits : availableQuantity;

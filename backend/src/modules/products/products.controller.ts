@@ -3,6 +3,7 @@ import prisma from '../../database/prisma';
 import { logAuditEvent } from '../../utils/audit';
 import { generateUniqueMedicineCode } from '../../utils/codeGenerator';
 import { extractOrPreserveStrength } from '../../utils/productMatcher';
+import { parseExpiryDate } from '../imports/imports.mapper';
 
 export const getProducts = async (req: Request, res: Response) => {
   try {
@@ -312,10 +313,11 @@ export const createProduct = async (req: Request, res: Response) => {
 
     let expDate: Date;
     if (expiryDate) {
-      expDate = new Date(expiryDate);
-      if (isNaN(expDate.getTime())) {
-        return res.status(400).json({ message: 'Invalid expiry date format for initial stock batch.' });
+      const parsed = parseExpiryDate(expiryDate);
+      if (parsed.error || !parsed.date) {
+        return res.status(400).json({ message: parsed.error || 'Invalid expiry date format for initial stock batch.' });
       }
+      expDate = parsed.date;
     } else {
       const d = new Date();
       d.setFullYear(d.getFullYear() + 2);
